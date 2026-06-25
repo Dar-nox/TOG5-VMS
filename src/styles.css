@@ -813,6 +813,215 @@ h1 {
   clip-path: inset(50%);
 }
 
+.maintenance-module {
+  display: grid;
+  gap: 18px;
+}
+
+.maintenance-toolbar,
+.maintenance-preview-panel,
+.maintenance-library-panel,
+.maintenance-template-card {
+  border: 1px solid #d8e0dd;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 18px 40px rgba(23, 32, 38, 0.06);
+}
+
+.maintenance-toolbar,
+.maintenance-preview-panel,
+.maintenance-library-panel {
+  padding: 20px;
+}
+
+.maintenance-toolbar h2,
+.maintenance-toolbar p,
+.maintenance-selector h3,
+.maintenance-selector p {
+  margin: 0;
+}
+
+.maintenance-toolbar h2 {
+  color: #173844;
+  font-size: 1.35rem;
+}
+
+.maintenance-toolbar p,
+.maintenance-selector p {
+  max-width: 78ch;
+  margin-top: 8px;
+  color: #52636a;
+  line-height: 1.55;
+}
+
+.maintenance-preview-panel,
+.maintenance-library-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.maintenance-selector {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.maintenance-selector h3 {
+  color: #173844;
+  font-size: 1.08rem;
+}
+
+.maintenance-vehicle-select {
+  display: grid;
+  min-width: 260px;
+  gap: 7px;
+}
+
+.maintenance-vehicle-select span {
+  color: #31515b;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.maintenance-vehicle-select select {
+  width: 100%;
+  border: 1px solid #cfdad6;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #172026;
+  padding: 11px 12px;
+}
+
+.vehicle-rule-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.vehicle-rule-summary span,
+.maintenance-category,
+.priority-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.vehicle-rule-summary span {
+  border: 1px solid #dce4e1;
+  background: #f9fbfa;
+  color: #31515b;
+  padding: 7px 10px;
+}
+
+.maintenance-template-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.maintenance-template-card {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-height: 220px;
+  padding: 16px;
+}
+
+.maintenance-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.maintenance-category {
+  background: #eef3f1;
+  color: #31515b;
+  padding: 6px 10px;
+}
+
+.priority-pill {
+  background: #f3efe4;
+  color: #725515;
+  padding: 6px 9px;
+}
+
+.priority-pill.high,
+.priority-pill.critical {
+  background: #fff4f2;
+  color: #9a332b;
+}
+
+.priority-pill.low {
+  background: #e8f5ee;
+  color: #216846;
+}
+
+.maintenance-template-card h3 {
+  margin: 0;
+  color: #173844;
+  font-size: 1.05rem;
+}
+
+.maintenance-template-card p {
+  margin: 0;
+  color: #52636a;
+  line-height: 1.5;
+}
+
+.maintenance-intervals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.maintenance-intervals span {
+  border: 1px solid #dce4e1;
+  border-radius: 8px;
+  background: #f9fbfa;
+  color: #31515b;
+  padding: 8px 10px;
+  font-size: 0.86rem;
+  font-weight: 750;
+}
+
+.applicability-note,
+.maintenance-empty-note {
+  border: 1px solid #dce4e1;
+  border-radius: 8px;
+  background: #f9fbfa;
+  color: #52636a;
+  padding: 12px;
+  line-height: 1.45;
+}
+
+.applicability-note {
+  display: grid;
+  gap: 5px;
+}
+
+.applicability-note strong {
+  color: #173844;
+}
+
+.applicability-note.applicable {
+  border-color: #b8ddc8;
+  background: #f1faf5;
+}
+
+.applicability-note.excluded {
+  border-color: #efc9c4;
+  background: #fff4f2;
+}
+
+.applicability-note.requires_feature {
+  border-color: #ead497;
+  background: #fff9e8;
+}
+
 @media (max-width: 1120px) {
   .desktop-shell {
     grid-template-columns: 94px minmax(0, 1fr);
@@ -856,7 +1065,8 @@ h1 {
   }
 
   .vehicle-workspace,
-  .vehicle-detail-grid {
+  .vehicle-detail-grid,
+  .maintenance-template-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -927,8 +1137,18 @@ h1 {
   .vehicle-toolbar,
   .vehicle-profile-hero,
   .vehicle-photo-picker,
+  .maintenance-selector,
   .form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .maintenance-selector {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .maintenance-vehicle-select {
+    min-width: 0;
   }
 
   .vehicle-toolbar {

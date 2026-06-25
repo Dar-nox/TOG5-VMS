@@ -46,19 +46,19 @@ v1 local desktop MVP.
 
 ## Active Phase
 
-Phase 4 — Vehicle Module.
+Phase 5 — Maintenance Template Engine.
 
 ## Phase State
 
-Phase 4 completed. Vehicle list, add, edit, archive, profile display, local photo storage, and vehicle persistence are in place.
+Phase 5 completed. The maintenance template seed library, applicability engine, backend commands, read-only frontend preview, and applicability tests are in place.
 
 ## Last Completed Phase
 
-Phase 4 — Vehicle Module.
+Phase 5 — Maintenance Template Engine.
 
 ## Next Planned Phase
 
-Phase 5 — Maintenance Template Engine.
+Phase 6 — Maintenance Scheduling and Alerts.
 
 ---
 
@@ -71,7 +71,7 @@ Phase 5 — Maintenance Template Engine.
 | 2 | Database Foundation and Migrations | Completed | SQLite app-data database, migration runner, initial schema, and Rust migration tests added |
 | 3 | Domain Models and Validation | Completed | TypeScript domain models, validation helpers, Vitest coverage, and minimal Rust domain types added |
 | 4 | Vehicle Module | Completed | Vehicle CRUD, local photo storage, archive flow, profile UI, and repository tests |
-| 5 | Maintenance Template Engine | Not started | Applicability rules |
+| 5 | Maintenance Template Engine | Completed | Default template library, idempotent seed, and vehicle applicability preview |
 | 6 | Maintenance Scheduling and Alerts | Not started | Due soon/overdue logic |
 | 7 | Fuel Logging and Efficiency | Not started | Receipts, full-tank rule, km/L |
 | 8 | Maintenance Completion and Service History | Not started | Complete tasks and logs |
@@ -1713,9 +1713,195 @@ The next prompt can begin Phase 5 only after visual confirmation. Vehicle image 
 
 ---
 
+## Update 2026-06-26 04:34 +08:00 — Phase 5: Maintenance Template Engine
+
+### Prompt / Task Given to Codex
+
+Implement Phase 5: Maintenance Template Engine. Build the default maintenance template library, idempotent seeding, applicability engine, typed Tauri commands, read-only maintenance preview UI, and tests. Do not implement full scheduling, completion logs, alerts, fuel logging, reports, backup, authentication, user roles, cloud features, or maintenance template editing.
+
+### Confirmed Project Root
+
+- `C:\Development Projects\TOG5-VMS`
+
+### Summary of What Changed
+
+- Added the Phase 5 maintenance template engine in Rust, including typed models, seed data, repository functions, rule evaluation, and Tauri commands.
+- Added an idempotent default maintenance template library covering combustion, diesel, EV, hybrid, transmission, drivetrain, tire, brake, fluid, renewal, and feature-specific templates.
+- Added a read-only Maintenance page preview that lists templates and shows applicability results for a selected vehicle.
+- Added a migration for stable `maintenance_templates.template_key` seed identity without editing the Phase 2 initial schema.
+- Updated startup setup to initialize the app database and seed maintenance templates safely.
+- Added Rust tests for idempotent seeding and critical applicability rules.
+
+### Maintenance Template Engine Approach
+
+- Rust/Tauri owns template persistence and applicability evaluation, matching the existing database-owner pattern used for vehicles.
+- The engine loads the selected vehicle profile plus enabled `vehicle_features`, then evaluates template rules by vehicle type, fuel type, transmission type, drivetrain, required feature, and excluded feature.
+- Results include the template, applicability status, whether it is auto-applicable, a human-readable reason, warnings, and matched rule IDs.
+- The frontend remains read-only and calls typed Tauri API wrappers instead of scattering raw `invoke(...)` calls in components.
+
+### Seed / Default Template Approach
+
+- Added `template_key` with a partial unique index in migration `002_maintenance_template_keys.sql`.
+- Seeds are idempotent by `template_key`; rerunning the seed updates/replaces rules without creating duplicate templates.
+- The default library includes engine oil, oil filter, air filter, fuel filter, spark plugs, glow plugs, diesel fuel filter/water separator, DEF/AdBlue, DPF, brakes, brake pads, brake fluid, tires, alignment, battery checks, coolant, transmission fluid, clutch, differential oil, transfer case fluid, cabin filter, wipers, registration, insurance, exhaust, timing belt/chain, turbocharger, hybrid battery, and EV battery checks.
+
+### Applicability Rule Approach
+
+- Universal templates such as brakes, tires, wipers, registration, and insurance apply broadly.
+- Diesel vehicles do not auto-apply spark plug templates.
+- Gasoline vehicles do not auto-apply DEF/AdBlue or DPF templates.
+- Full EVs do not auto-apply combustion, exhaust, diesel, or fuel-system templates.
+- Manual vehicles can receive clutch inspection; automatic/CVT/DCT vehicles do not.
+- AWD/4WD vehicles can receive transfer case service; FWD/RWD vehicles do not automatically receive it.
+- Feature-required templates, such as DEF/AdBlue, DPF, timing belt/chain, turbocharger, hybrid battery, and EV battery checks, are not auto-applied until the matching feature exists.
+- Empty feature lists are safe: feature-required templates return `requires_feature` rather than becoming automatically applicable.
+
+### Backend Commands Added
+
+- `list_maintenance_templates`
+- `get_applicable_maintenance_templates_for_vehicle`
+- `seed_maintenance_templates`
+
+### Frontend Maintenance Preview Added
+
+- Replaced the Maintenance placeholder with a read-only template library and vehicle applicability preview.
+- If vehicles exist, the page can select a vehicle and display applicable, excluded, not-applicable, and feature-required template results.
+- The UI shows template name, category, priority, interval text, applicability status, reasons, and warnings.
+- No maintenance scheduling, completion, alert generation, or template editing UI was added.
+
+### Tests Added
+
+- Added Rust maintenance repository tests for:
+  - idempotent seed behavior
+  - universal template applicability for gasoline and diesel vehicles
+  - diesel vehicle exclusion from spark plugs
+  - gasoline vehicle exclusion from DEF/AdBlue
+  - full EV exclusion from combustion/diesel/fuel/exhaust templates
+  - manual clutch applicability and automatic exclusion
+  - AWD/4WD transfer case applicability and FWD exclusion
+  - feature-required templates only applying when the matching feature exists
+- No new TypeScript tests were needed because no frontend mapping helper logic was added beyond typed command wrappers.
+
+### Files Created
+
+- `src-tauri/migrations/002_maintenance_template_keys.sql` — adds stable template seed keys.
+- `src-tauri/src/maintenance/mod.rs` — maintenance module entrypoint.
+- `src-tauri/src/maintenance/models.rs` — typed maintenance template, rule, vehicle profile, and applicability response models.
+- `src-tauri/src/maintenance/seeds.rs` — idempotent default maintenance template seed library.
+- `src-tauri/src/maintenance/repository.rs` — template seeding, listing, applicability evaluation, and tests.
+- `src-tauri/src/maintenance/commands.rs` — Tauri command handlers.
+- `src/components/maintenance/MaintenanceTemplateModule.tsx` — read-only maintenance template library and applicability preview.
+- `src/services/api/maintenance.ts` — typed frontend API wrapper for maintenance Tauri commands.
+
+### Files Modified
+
+- `src-tauri/src/db/mod.rs` — registered migration 2 and updated migration tests to expect both migrations.
+- `src-tauri/src/lib.rs` — registered maintenance module, seeded templates during startup, and exposed maintenance commands.
+- `src/app/routes/PlaceholderPages.tsx` — replaced the Maintenance placeholder route with the new read-only template module.
+- `src/domain/maintenance/types.ts` — expanded maintenance task keys to cover the default template library.
+- `src/styles.css` — added styles for the maintenance template preview and library.
+- `specs/live-update.md` — recorded Phase 5 completion and updated current phase status.
+
+### Files Deleted
+
+- None.
+
+### Commands Run
+
+```bash
+cargo check --manifest-path src-tauri/Cargo.toml
+npm.cmd exec prettier -- --write src/components/maintenance/MaintenanceTemplateModule.tsx src/services/api/maintenance.ts src/app/routes/PlaceholderPages.tsx src/domain/maintenance/types.ts src/styles.css
+npm.cmd run test
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+cargo fmt --manifest-path src-tauri/Cargo.toml
+cargo fmt --manifest-path src-tauri/Cargo.toml --check
+cargo check --manifest-path src-tauri/Cargo.toml
+cargo test --manifest-path src-tauri/Cargo.toml
+npm.cmd run tauri:dev
+```
+
+### Command Results
+
+- Initial `cargo check --manifest-path src-tauri/Cargo.toml`: failed with Rust ownership error `E0505` in the maintenance applicability evaluator while returning a template after borrowing its rule list.
+- Fix applied: cloned the template rules into a local vector before building borrowed rule filters, allowing the template response to move safely.
+- `npm.cmd exec prettier -- --write ...`: passed and formatted new/modified frontend files.
+- `npm.cmd run test`: passed, 1 Vitest file and 12 tests.
+- `npm.cmd run typecheck`: passed.
+- `npm.cmd run lint`: passed.
+- `npm.cmd run format:check`: passed.
+- `npm.cmd run build`: passed; Vite production build completed.
+- `cargo fmt --manifest-path src-tauri/Cargo.toml`: passed.
+- `cargo fmt --manifest-path src-tauri/Cargo.toml --check`: passed.
+- Final `cargo check --manifest-path src-tauri/Cargo.toml`: passed.
+- `cargo test --manifest-path src-tauri/Cargo.toml`: passed, 14 Rust tests.
+- First `npm.cmd run tauri:dev`: Vite started but Rust native compile was still in progress after the short wait; the dev process was stopped and retried with a longer window.
+- Second `npm.cmd run tauri:dev`: Vite started, Rust compile finished, and `target\debug\tog5-vms.exe` launched. The process was stopped after validation.
+
+### Whether Tauri Launched
+
+- Tauri native process launch: verified by logs showing `Running target\debug\tog5-vms.exe`.
+- Human visual confirmation is still needed because Codex cannot reliably inspect the visible desktop window.
+
+### Issues Encountered
+
+- A temporary Rust ownership issue appeared during applicability evaluation and was fixed before final validation.
+- The first Tauri dev validation window was too short for native recompilation after adding the maintenance module; the second longer run reached app launch.
+- Direct `npm` in PowerShell remains avoided; `npm.cmd` continues to work.
+
+### Decisions Made
+
+- Added a new migration instead of editing `001_initial_schema.sql`, preserving the existing migration history.
+- Used stable `template_key` values for idempotent seed identity.
+- Seeded templates at app startup so the read-only Maintenance page has data without requiring a user-facing admin workflow.
+- Kept feature-required templates conservative while vehicle feature selection UI does not exist.
+- Kept the Maintenance UI read-only and non-destructive for Phase 5.
+
+### Important Implementation Details
+
+- The startup path initializes the database, runs migrations, opens an app-data database connection, and seeds the default maintenance template library.
+- Seed reruns replace rules for a seeded template, keeping rules current without duplicate rows.
+- Applicability status values currently include `applicable`, `excluded`, `requires_feature`, and `not_applicable`.
+- `requires_feature` is used for templates such as DEF/AdBlue, DPF, timing belt/chain, turbocharger, hybrid battery, and EV battery checks when the selected vehicle has no matching feature row.
+
+### Known Issues / Technical Debt
+
+- Vehicle feature selection UI is still not implemented, so feature-required templates will remain conditional for normal vehicles.
+- The Maintenance page previews applicability only; it does not create schedules or alerts yet.
+- Visual desktop confirmation and manual rule spot checks still need to be done by the human user.
+
+### Manual Checks Completed
+
+- Confirmed the working directory is `C:\Development Projects\TOG5-VMS`.
+- Confirmed Phase 5 did not edit the initial migration directly.
+- Confirmed validation commands pass after the ownership fix.
+- Confirmed Tauri native process starts from `npm.cmd run tauri:dev`.
+
+### Manual Visual Checks Still Needed
+
+1. Open the Maintenance page.
+2. Confirm the template library is visible.
+3. Select an existing vehicle and confirm applicability results load.
+4. Confirm diesel vehicles do not show spark plugs as auto-applicable.
+5. Confirm gasoline vehicles do not show DEF/AdBlue as auto-applicable.
+6. Confirm full EVs do not show combustion-engine maintenance as auto-applicable.
+7. Confirm the Vehicle module still opens and vehicle photos remain visible and centered.
+
+### Suggested Next Step
+
+Proceed to Phase 6: Maintenance Scheduling and Alerts after the Maintenance page and key applicability results are visually confirmed.
+
+### Notes for ChatGPT Prompt Optimization
+
+The next prompt should start Phase 6 by using the seeded template library and applicability preview as the source for schedule creation. It should avoid editing seed rules unless a specific applicability bug is found, add vehicle feature UI only if Phase 6 needs it, and continue to keep scheduling separate from completion logs, fuel logs, reports, and backup behavior.
+
+---
+
 # Current Blockers
 
-- No Phase 4 blocker remains.
+- No Phase 5 blocker remains.
 - Direct `npm` in PowerShell is still blocked by execution policy; use `npm.cmd` for now.
 - Tauri native process launch is verified, but visible desktop-window confirmation should be checked manually if Codex cannot observe the screen.
 

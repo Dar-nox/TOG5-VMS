@@ -9,11 +9,18 @@ use tauri::{AppHandle, Manager};
 
 const DATABASE_FILE_NAME: &str = "tog5-vms.sqlite3";
 
-pub const MIGRATIONS: &[Migration] = &[Migration {
-    version: 1,
-    name: "initial_schema",
-    sql: include_str!("../../migrations/001_initial_schema.sql"),
-}];
+pub const MIGRATIONS: &[Migration] = &[
+    Migration {
+        version: 1,
+        name: "initial_schema",
+        sql: include_str!("../../migrations/001_initial_schema.sql"),
+    },
+    Migration {
+        version: 2,
+        name: "maintenance_template_keys",
+        sql: include_str!("../../migrations/002_maintenance_template_keys.sql"),
+    },
+];
 
 #[derive(Debug, Clone, Copy)]
 pub struct Migration {
@@ -206,9 +213,10 @@ mod tests {
             initialize_database_at_path(&database_path).expect("second init should succeed");
 
         assert!(database_path.exists());
-        assert_eq!(first_status.applied_migrations.len(), 1);
-        assert_eq!(second_status.applied_migrations.len(), 1);
+        assert_eq!(first_status.applied_migrations.len(), MIGRATIONS.len());
+        assert_eq!(second_status.applied_migrations.len(), MIGRATIONS.len());
         assert_eq!(second_status.applied_migrations[0].version, 1);
+        assert_eq!(second_status.applied_migrations[1].version, 2);
     }
 
     #[test]

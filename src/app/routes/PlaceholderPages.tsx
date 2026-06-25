@@ -1,6 +1,7 @@
 import { AlertCard } from "../../components/common/AlertCard";
 import { PlaceholderSection } from "../../components/common/PlaceholderSection";
 import { SummaryCard } from "../../components/common/SummaryCard";
+import { MaintenanceTemplateModule } from "../../components/maintenance/MaintenanceTemplateModule";
 import { VehicleModule } from "../../components/vehicles/VehicleModule";
 
 const dashboardCards = [
@@ -113,19 +114,7 @@ export function FuelLogsPage() {
 }
 
 export function MaintenancePage() {
-  return (
-    <PlaceholderSection
-      title="Smart maintenance templates come later"
-      description="Maintenance rules will adapt to the vehicle profile instead of applying one universal schedule."
-      items={[
-        "Templates adapt by vehicle type, fuel type, transmission, drivetrain, and features.",
-        "Diesel vehicles should not automatically receive spark plug maintenance.",
-        "Gasoline vehicles should not automatically receive diesel-only DEF/AdBlue maintenance.",
-        "Full EVs should not automatically receive engine oil, spark plug, fuel filter, or exhaust maintenance.",
-        "Due maintenance is based on date, odometer, or whichever comes first.",
-      ]}
-    />
-  );
+  return <MaintenanceTemplateModule />;
 }
 
 export function ServiceHistoryPage() {

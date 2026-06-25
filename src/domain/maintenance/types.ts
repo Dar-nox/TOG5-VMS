@@ -35,12 +35,31 @@ export type MaintenanceTaskKey =
   | "ignition_coil"
   | "def_adblue"
   | "dpf"
+  | "brake_pad"
+  | "brake_fluid"
   | "exhaust"
   | "ev_battery"
+  | "hybrid_battery"
+  | "battery_health"
   | "brake_inspection"
+  | "tire_pressure"
   | "tire_rotation"
+  | "tire_tread"
+  | "wheel_alignment"
+  | "coolant_check"
+  | "coolant_replacement"
   | "transmission_fluid"
-  | "clutch";
+  | "manual_transmission_gear_oil"
+  | "clutch"
+  | "differential_oil"
+  | "transfer_case_fluid"
+  | "cabin_air_filter"
+  | "wiper"
+  | "registration_renewal"
+  | "insurance_renewal"
+  | "timing_belt"
+  | "timing_chain"
+  | "turbocharger";
 
 export type MaintenancePriority = "low" | "medium" | "high" | "critical";
 
