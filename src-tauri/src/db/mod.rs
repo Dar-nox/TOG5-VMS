@@ -20,6 +20,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "maintenance_template_keys",
         sql: include_str!("../../migrations/002_maintenance_template_keys.sql"),
     },
+    Migration {
+        version: 3,
+        name: "maintenance_schedules_alerts_indexes",
+        sql: include_str!("../../migrations/003_maintenance_schedules_alerts_indexes.sql"),
+    },
 ];
 
 #[derive(Debug, Clone, Copy)]
@@ -217,6 +222,7 @@ mod tests {
         assert_eq!(second_status.applied_migrations.len(), MIGRATIONS.len());
         assert_eq!(second_status.applied_migrations[0].version, 1);
         assert_eq!(second_status.applied_migrations[1].version, 2);
+        assert_eq!(second_status.applied_migrations[2].version, 3);
     }
 
     #[test]

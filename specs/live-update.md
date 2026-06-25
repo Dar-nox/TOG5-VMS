@@ -46,19 +46,19 @@ v1 local desktop MVP.
 
 ## Active Phase
 
-Phase 5 — Maintenance Template Engine.
+Phase 6 — Maintenance Scheduling and Alerts.
 
 ## Phase State
 
-Phase 5 completed. The maintenance template seed library, applicability engine, backend commands, read-only frontend preview, and applicability tests are in place.
+Phase 6 completed. Vehicle-specific maintenance schedule sync, due-status calculation, in-app maintenance alerts, backend commands, read-only schedule UI, active Alerts page, and schedule/alert tests are in place.
 
 ## Last Completed Phase
 
-Phase 5 — Maintenance Template Engine.
+Phase 6 — Maintenance Scheduling and Alerts.
 
 ## Next Planned Phase
 
-Phase 6 — Maintenance Scheduling and Alerts.
+Phase 7 — Fuel Logging and Efficiency.
 
 ---
 
@@ -72,7 +72,7 @@ Phase 6 — Maintenance Scheduling and Alerts.
 | 3 | Domain Models and Validation | Completed | TypeScript domain models, validation helpers, Vitest coverage, and minimal Rust domain types added |
 | 4 | Vehicle Module | Completed | Vehicle CRUD, local photo storage, archive flow, profile UI, and repository tests |
 | 5 | Maintenance Template Engine | Completed | Default template library, idempotent seed, and vehicle applicability preview |
-| 6 | Maintenance Scheduling and Alerts | Not started | Due soon/overdue logic |
+| 6 | Maintenance Scheduling and Alerts | Completed | Schedule sync, due status, active in-app alerts, and tests |
 | 7 | Fuel Logging and Efficiency | Not started | Receipts, full-tank rule, km/L |
 | 8 | Maintenance Completion and Service History | Not started | Complete tasks and logs |
 | 9 | Expenses and Reports | Not started | Expense tracking and reports |
@@ -1899,9 +1899,230 @@ The next prompt should start Phase 6 by using the seeded template library and ap
 
 ---
 
+## Update 2026-06-26 05:07 +08:00 — Phase 6: Maintenance Scheduling and Alerts
+
+### Prompt / Task Given to Codex
+
+Implement Phase 6: Maintenance Scheduling and Alerts. Create vehicle-specific schedules from auto-applicable maintenance templates, calculate due soon / due today / overdue status by date and odometer, generate in-app maintenance alerts, enhance the Maintenance page with schedule sync/listing, replace the Alerts placeholder with real active alerts, and avoid service completion logs, fuel logging, reports, backup/restore, authentication, native notifications, cloud features, and OCR.
+
+### Confirmed Project Root
+
+- `C:\Development Projects\TOG5-VMS`
+
+### Summary of What Changed
+
+- Added vehicle-specific maintenance schedule generation from Phase 5 applicability results.
+- Added backend due-status calculation by date and odometer with readable reason strings.
+- Added idempotent active in-app maintenance alert generation for due soon, due today, and overdue schedules.
+- Added a dismiss action for active alerts.
+- Enhanced the Maintenance page with schedule sync, schedule cards, due status labels, thresholds, and alert refresh.
+- Replaced the static Alerts placeholder with a real active-alert list.
+- Added deterministic Rust tests for schedule generation, due status, and alerts.
+
+### Schedule Generation Approach
+
+- Schedules are created only from templates where Phase 5 applicability returns `is_auto_applicable = true` and `applicability_status = applicable`.
+- Excluded, not-applicable, and feature-required templates do not create automatic schedules.
+- Sync is idempotent: a partial unique index enforces one live schedule per vehicle/template, and existing schedules are preserved rather than duplicated.
+- Initial `next_due_odometer` is calculated from the vehicle's current odometer plus the template odometer interval.
+- Initial `next_due_date` is calculated from the local current date plus the template time interval.
+- Templates with both date and odometer intervals track both targets.
+- Registration and insurance schedules are created as `needs_setup` without invented renewal dates, because the user has not entered actual renewal dates yet.
+- Archived vehicles cannot create new schedules.
+
+### Due Status Approach
+
+- Backend status values include `not_due`, `due_soon`, `due_today`, `overdue`, `needs_setup`, and `disabled`.
+- Date logic:
+  - after due date: `overdue`
+  - same date: `due_today`
+  - within threshold days: `due_soon`
+- Odometer logic:
+  - current odometer greater than or equal to next due odometer: `overdue`
+  - within threshold kilometers: `due_soon`
+- When both date and odometer apply, the more urgent status wins, with overdue taking priority.
+- Reason strings include examples such as `Overdue by 250 km.`, `Due in 7 days.`, and `Needs setup: no due date or odometer target is set.`
+
+### Alert Generation Approach
+
+- Alerts are local in-app database records only; no OS notifications were added.
+- Alert refresh recalculates schedule statuses first, then creates or updates active due soon / due today / overdue alerts.
+- Active alert generation is idempotent through a partial unique index and repository checks.
+- If a schedule is no longer due soon or overdue, active maintenance alerts for that schedule are resolved.
+- If a due-soon alert becomes overdue, stale active alert types for the same schedule are resolved and the current alert type remains active.
+- Dismissed alerts suppress the same alert type from being recreated immediately; later completion/reschedule behavior belongs to a future phase.
+
+### Backend Commands Added
+
+- `list_maintenance_schedules_for_vehicle`
+- `sync_maintenance_schedules_for_vehicle`
+- `refresh_maintenance_alerts_for_vehicle`
+- `list_alerts`
+- `dismiss_alert`
+
+### Frontend Maintenance Schedule UI Added
+
+- Added a Vehicle schedules section to the Maintenance page.
+- Added `Create / sync schedules` for the selected vehicle.
+- Added `Refresh alerts` for the selected vehicle.
+- Schedule cards show template name, category, priority/status label, next due date, next due odometer, due reason, due soon thresholds, and setup notes.
+- The existing applicability preview and default template library remain read-only.
+- No complete-service, service history, schedule editing, or template editing UI was added.
+
+### Frontend Alerts UI Added
+
+- Replaced the static Alerts page examples with a real active alert list.
+- Alerts show title, message, vehicle name, maintenance item, alert type, priority, status, and a dismiss button.
+- The Alerts page includes a refresh button and friendly empty/loading/error states.
+
+### Tests Added
+
+- Added Rust tests for:
+  - applicable templates creating schedules
+  - excluded templates not creating schedules
+  - feature-required templates not creating schedules without a feature
+  - feature-required templates creating schedules when the feature exists
+  - schedule sync idempotency
+  - next due odometer from current odometer plus interval
+  - next due date from today plus interval
+  - legal renewals as `needs_setup` without invented dates
+  - `not_due`, `due_soon`, `due_today`, `overdue`, and `needs_setup`
+  - due soon by odometer
+  - overdue by odometer
+  - overdue winning over due soon
+  - overdue alert creation
+  - due soon alert creation
+  - duplicate active alerts not being created on refresh
+  - linked vehicle and schedule IDs stored on alerts
+- No TypeScript tests were added because the new frontend logic is display and command orchestration, while calculation logic is covered in Rust.
+
+### Files Created
+
+- `src-tauri/migrations/003_maintenance_schedules_alerts_indexes.sql` — unique partial indexes for idempotent schedules and active alerts.
+- `src-tauri/src/maintenance/scheduling.rs` — schedule generation, due-status calculation, alert generation/listing/dismissal, and tests.
+- `src/components/alerts/AlertsModule.tsx` — real active in-app Alerts page.
+- `src/services/api/alerts.ts` — typed frontend API wrapper for alert list/dismiss commands.
+
+### Files Modified
+
+- `src-tauri/src/db/mod.rs` — registered migration 3 and updated migration tests.
+- `src-tauri/src/lib.rs` — exposed Phase 6 maintenance schedule and alert commands.
+- `src-tauri/src/maintenance/commands.rs` — added command handlers for schedule and alert operations.
+- `src-tauri/src/maintenance/mod.rs` — registered the scheduling module.
+- `src-tauri/src/maintenance/models.rs` — added schedule, sync result, due evaluation, alert, and alert refresh response models.
+- `src/app/routes/PlaceholderPages.tsx` — replaced the Alerts placeholder with `AlertsModule`.
+- `src/components/maintenance/MaintenanceTemplateModule.tsx` — added schedule loading, sync, alert refresh, and schedule cards.
+- `src/domain/maintenance/types.ts` — added `not_due` and `needs_setup` schedule statuses.
+- `src/services/api/maintenance.ts` — added typed schedule and alert refresh command wrappers.
+- `src/styles.css` — added schedule and active-alert UI styles.
+- `specs/live-update.md` — recorded Phase 6 completion and updated current phase status.
+
+### Files Deleted
+
+- None.
+
+### Commands Run
+
+```bash
+cargo fmt --manifest-path src-tauri/Cargo.toml
+npm.cmd exec prettier -- --write src/components/maintenance/MaintenanceTemplateModule.tsx src/components/alerts/AlertsModule.tsx src/services/api/maintenance.ts src/services/api/alerts.ts src/app/routes/PlaceholderPages.tsx src/domain/maintenance/types.ts src/styles.css specs/live-update.md
+cargo check --manifest-path src-tauri/Cargo.toml
+npm.cmd run typecheck
+npm.cmd run test
+cargo test --manifest-path src-tauri/Cargo.toml
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+cargo fmt --manifest-path src-tauri/Cargo.toml --check
+cargo check --manifest-path src-tauri/Cargo.toml
+npm.cmd run tauri:dev
+```
+
+### Command Results
+
+- `cargo fmt --manifest-path src-tauri/Cargo.toml`: passed.
+- `npm.cmd exec prettier -- --write ...`: passed.
+- First `cargo check --manifest-path src-tauri/Cargo.toml`: passed.
+- First sandboxed `npm.cmd run typecheck`: failed because the Windows sandbox returned `helper_unknown_error: apply deny-read ACLs`; this was a sandbox/environment failure, not a TypeScript error.
+- Escalated `npm.cmd run typecheck`: passed.
+- `npm.cmd run test`: passed, 1 Vitest file and 12 tests.
+- `cargo test --manifest-path src-tauri/Cargo.toml`: passed, 23 Rust tests.
+- `npm.cmd run lint`: passed.
+- `npm.cmd run format:check`: passed.
+- `npm.cmd run build`: passed; Vite production build completed.
+- `cargo fmt --manifest-path src-tauri/Cargo.toml --check`: passed.
+- Final `cargo check --manifest-path src-tauri/Cargo.toml`: passed.
+- `npm.cmd run tauri:dev`: Vite started, Rust compile finished, and `target\debug\tog5-vms.exe` launched. The dev process was stopped after validation.
+
+### Whether Tauri Launched
+
+- Tauri native process launch: verified by logs showing `Running target\debug\tog5-vms.exe`.
+- Human visual confirmation is still needed because Codex cannot reliably inspect the visible desktop window.
+
+### Issues Encountered
+
+- The sandboxed TypeScript check hit a Windows ACL helper error and was rerun successfully with escalation.
+- Tauri dev required native recompilation and took about 42 seconds before launching the desktop binary.
+
+### Decisions Made
+
+- Added a new migration instead of editing existing migrations.
+- Used database uniqueness plus repository checks for idempotent sync and alert refresh.
+- Kept registration and insurance schedules as `needs_setup` rather than inventing due dates.
+- Kept schedule editing out of Phase 6; thresholds are stored and displayed but not edited in the UI yet.
+- Kept Dashboard static to avoid broadening the phase beyond Maintenance and Alerts.
+- Implemented in-app alert dismissal but not snooze, OS notifications, or completion-based resolution.
+
+### Important Implementation Details
+
+- Schedule sync uses Phase 5 applicability results and only auto-schedules truly applicable templates.
+- Feature-required templates remain unscheduled until the vehicle has the matching enabled feature.
+- Due-status calculation is backend-owned and deterministic in tests.
+- Alert refresh resolves stale active maintenance alerts when schedules are no longer due soon or overdue.
+- Dismissed alerts are hidden from the active list and suppress immediate recreation of the same alert type.
+
+### Known Issues / Technical Debt
+
+- Vehicle feature selection UI still does not exist, so DPF/DEF/timing/turbo feature-required schedules require future vehicle-feature support.
+- Schedule thresholds are not editable yet.
+- No maintenance completion workflow exists yet, so completing service and recalculating next intervals are still future work.
+- Alerts are in-app only; OS notifications are still future scope.
+- Dashboard maintenance counts remain static placeholders.
+
+### Manual Checks Completed
+
+- Confirmed the working directory is `C:\Development Projects\TOG5-VMS`.
+- Confirmed existing migrations were not edited.
+- Confirmed all required frontend and Rust validation commands pass.
+- Confirmed Tauri native process starts from `npm.cmd run tauri:dev`.
+
+### Manual Visual Checks Still Needed
+
+1. Open the Maintenance page.
+2. Select an existing vehicle.
+3. Use `Create / sync schedules`.
+4. Confirm schedules appear for applicable templates.
+5. Confirm excluded, not-applicable, and feature-required templates are not incorrectly scheduled.
+6. Confirm due status labels and reasons appear.
+7. Use `Refresh alerts`.
+8. Open the Alerts page.
+9. Confirm due soon / overdue alerts appear when schedule data is due.
+10. Confirm the Vehicle module still opens.
+11. Confirm vehicle photos still display and remain centered.
+
+### Suggested Next Step
+
+Proceed to Phase 7: Fuel Logging and Efficiency after the Maintenance schedule and Alerts pages are visually confirmed.
+
+### Notes for ChatGPT Prompt Optimization
+
+The next prompt should start Phase 7 with fuel log CRUD, receipt storage, odometer validation, full-tank official efficiency rules, fuel type mismatch warnings, and fuel-efficiency-drop alert groundwork. It should avoid maintenance completion logs, service history, reports, backup/restore, authentication, and dashboard rewrites unless explicitly requested.
+
+---
+
 # Current Blockers
 
-- No Phase 5 blocker remains.
+- No Phase 6 blocker remains.
 - Direct `npm` in PowerShell is still blocked by execution policy; use `npm.cmd` for now.
 - Tauri native process launch is verified, but visible desktop-window confirmation should be checked manually if Codex cannot observe the screen.
 

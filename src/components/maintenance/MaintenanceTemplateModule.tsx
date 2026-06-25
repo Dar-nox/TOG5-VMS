@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   getApplicableMaintenanceTemplatesForVehicle,
+  listMaintenanceSchedulesForVehicle,
   listMaintenanceTemplates,
+  refreshMaintenanceAlertsForVehicle,
+  syncMaintenanceSchedulesForVehicle,
   type ApplicableMaintenanceTemplate,
+  type MaintenanceScheduleRecord,
   type MaintenanceTemplateRecord,
 } from "../../services/api/maintenance";
 import { listVehicles, type VehicleRecord } from "../../services/api/vehicles";
@@ -12,8 +16,12 @@ export function MaintenanceTemplateModule() {
   const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>("");
   const [applicability, setApplicability] = useState<ApplicableMaintenanceTemplate[]>([]);
+  const [schedules, setSchedules] = useState<MaintenanceScheduleRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [applicabilityLoading, setApplicabilityLoading] = useState(false);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [scheduleActionLoading, setScheduleActionLoading] = useState(false);
+  const [scheduleActionMessage, setScheduleActionMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const selectedVehicle = useMemo(
@@ -54,17 +62,24 @@ export function MaintenanceTemplateModule() {
   useEffect(() => {
     if (!selectedVehicleId) {
       setApplicability([]);
+      setSchedules([]);
       return;
     }
 
     let cancelled = false;
     setApplicabilityLoading(true);
+    setScheduleLoading(true);
+    setScheduleActionMessage(null);
     setErrorMessage(null);
 
-    void getApplicableMaintenanceTemplatesForVehicle(selectedVehicleId)
-      .then((results) => {
+    void Promise.all([
+      getApplicableMaintenanceTemplatesForVehicle(selectedVehicleId),
+      listMaintenanceSchedulesForVehicle(selectedVehicleId),
+    ])
+      .then(([results, scheduleRecords]) => {
         if (!cancelled) {
           setApplicability(results);
+          setSchedules(scheduleRecords);
         }
       })
       .catch((error: unknown) => {
@@ -75,6 +90,7 @@ export function MaintenanceTemplateModule() {
       .finally(() => {
         if (!cancelled) {
           setApplicabilityLoading(false);
+          setScheduleLoading(false);
         }
       });
 
@@ -83,14 +99,60 @@ export function MaintenanceTemplateModule() {
     };
   }, [selectedVehicleId]);
 
+  const handleSyncSchedules = useCallback(async () => {
+    if (!selectedVehicleId) {
+      return;
+    }
+
+    setScheduleActionLoading(true);
+    setScheduleActionMessage(null);
+    setErrorMessage(null);
+
+    try {
+      const syncResult = await syncMaintenanceSchedulesForVehicle(selectedVehicleId);
+      const alertResult = await refreshMaintenanceAlertsForVehicle(selectedVehicleId);
+      setSchedules(syncResult.schedules);
+      setScheduleActionMessage(
+        `${syncResult.createdCount} schedules created, ${syncResult.updatedCount} statuses refreshed, and ${alertResult.createdCount} alerts created.`,
+      );
+    } catch (error) {
+      setErrorMessage(messageFromError(error));
+    } finally {
+      setScheduleActionLoading(false);
+    }
+  }, [selectedVehicleId]);
+
+  const handleRefreshAlerts = useCallback(async () => {
+    if (!selectedVehicleId) {
+      return;
+    }
+
+    setScheduleActionLoading(true);
+    setScheduleActionMessage(null);
+    setErrorMessage(null);
+
+    try {
+      const alertResult = await refreshMaintenanceAlertsForVehicle(selectedVehicleId);
+      const scheduleRecords = await listMaintenanceSchedulesForVehicle(selectedVehicleId);
+      setSchedules(scheduleRecords);
+      setScheduleActionMessage(
+        `${alertResult.createdCount} alerts created, ${alertResult.updatedCount} alerts updated, and ${alertResult.resolvedCount} old alerts resolved.`,
+      );
+    } catch (error) {
+      setErrorMessage(messageFromError(error));
+    } finally {
+      setScheduleActionLoading(false);
+    }
+  }, [selectedVehicleId]);
+
   return (
     <div className="maintenance-module">
       <section className="maintenance-toolbar">
         <div>
-          <h2>Maintenance Templates</h2>
+          <h2>Maintenance</h2>
           <p>
-            Review the default local template library and preview which tasks match a vehicle.
-            Scheduling, alerts, and completion logs come later.
+            Review template applicability, create vehicle-specific schedules, and refresh local
+            in-app maintenance alerts. Completion logs come later.
           </p>
         </div>
       </section>
@@ -149,6 +211,66 @@ export function MaintenanceTemplateModule() {
                   result={result}
                   showApplicability
                 />
+              ))
+            : null}
+        </div>
+      </section>
+
+      <section className="maintenance-schedule-panel">
+        <div className="section-heading maintenance-section-actions">
+          <div>
+            <h2>Vehicle schedules</h2>
+            <p>
+              Create schedules from auto-applicable templates only. Excluded, not-applicable, and
+              feature-required templates are left out until the vehicle details support them.
+            </p>
+          </div>
+
+          <div className="maintenance-action-row">
+            <button
+              className="primary-button"
+              disabled={!selectedVehicleId || scheduleActionLoading}
+              type="button"
+              onClick={handleSyncSchedules}
+            >
+              {scheduleActionLoading ? "Working..." : "Create / sync schedules"}
+            </button>
+            <button
+              className="secondary-button"
+              disabled={!selectedVehicleId || scheduleActionLoading}
+              type="button"
+              onClick={handleRefreshAlerts}
+            >
+              Refresh alerts
+            </button>
+          </div>
+        </div>
+
+        {scheduleActionMessage ? (
+          <div className="maintenance-action-note">{scheduleActionMessage}</div>
+        ) : null}
+
+        <div className="maintenance-schedule-grid" aria-label="Vehicle maintenance schedules">
+          {scheduleLoading ? (
+            <div className="maintenance-empty-note">Loading vehicle schedules...</div>
+          ) : null}
+
+          {!scheduleLoading && !selectedVehicleId ? (
+            <div className="maintenance-empty-note">
+              Add or select a vehicle before creating schedules.
+            </div>
+          ) : null}
+
+          {!scheduleLoading && selectedVehicleId && schedules.length === 0 ? (
+            <div className="maintenance-empty-note">
+              No schedules yet. Use Create / sync schedules to generate them from applicable
+              templates.
+            </div>
+          ) : null}
+
+          {!scheduleLoading
+            ? schedules.map((schedule) => (
+                <MaintenanceScheduleCard key={schedule.id} schedule={schedule} />
               ))
             : null}
         </div>
@@ -225,6 +347,40 @@ function MaintenanceTemplateCard(props: {
   );
 }
 
+function MaintenanceScheduleCard({ schedule }: { schedule: MaintenanceScheduleRecord }) {
+  return (
+    <article className="maintenance-schedule-card">
+      <div className="maintenance-card-heading">
+        <span className="maintenance-category">{labelValue("", schedule.category)}</span>
+        <span className={`schedule-status-pill ${schedule.dueStatus}`}>
+          {scheduleStatusLabel(schedule.dueStatus)}
+        </span>
+      </div>
+
+      <h3>{schedule.templateName}</h3>
+      <p>{schedule.dueReason}</p>
+
+      <div className="maintenance-intervals">
+        <span>
+          {schedule.nextDueDate ? `Due date: ${formatDate(schedule.nextDueDate)}` : "No due date"}
+        </span>
+        <span>
+          {schedule.nextDueOdometer
+            ? `Due odometer: ${formatOdometer(schedule.nextDueOdometer)} km`
+            : "No odometer target"}
+        </span>
+      </div>
+
+      <div className="schedule-thresholds">
+        <span>Due soon: {schedule.dueSoonDays} days</span>
+        <span>Due soon: {schedule.dueSoonKm.toLocaleString()} km</span>
+      </div>
+
+      {schedule.notes ? <div className="maintenance-action-note">{schedule.notes}</div> : null}
+    </article>
+  );
+}
+
 function intervalDays(days?: number | null) {
   if (!days) {
     return "No time interval";
@@ -255,6 +411,33 @@ function statusLabel(status: ApplicableMaintenanceTemplate["applicabilityStatus"
     default:
       return status;
   }
+}
+
+function scheduleStatusLabel(status: MaintenanceScheduleRecord["dueStatus"]) {
+  switch (status) {
+    case "not_due":
+      return "Not due";
+    case "due_soon":
+      return "Due soon";
+    case "due_today":
+      return "Due today";
+    case "overdue":
+      return "Overdue";
+    case "needs_setup":
+      return "Needs setup";
+    case "disabled":
+      return "Disabled";
+    default:
+      return labelValue("", status);
+  }
+}
+
+function formatDate(date: string) {
+  return date.slice(0, 10);
+}
+
+function formatOdometer(value: number) {
+  return Math.round(value).toLocaleString();
 }
 
 function labelValue(label: string, value: string) {

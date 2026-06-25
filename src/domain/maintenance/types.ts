@@ -92,10 +92,12 @@ export type MaintenanceTemplate = {
 };
 
 export type MaintenanceScheduleStatus =
+  | "not_due"
   | "upcoming"
   | "due_soon"
   | "due_today"
   | "overdue"
+  | "needs_setup"
   | "completed"
   | "skipped"
   | "not_applicable"

@@ -1,4 +1,4 @@
-import { AlertCard } from "../../components/common/AlertCard";
+import { AlertsModule } from "../../components/alerts/AlertsModule";
 import { PlaceholderSection } from "../../components/common/PlaceholderSection";
 import { SummaryCard } from "../../components/common/SummaryCard";
 import { MaintenanceTemplateModule } from "../../components/maintenance/MaintenanceTemplateModule";
@@ -40,34 +40,6 @@ const dashboardCards = [
     value: "Not set",
     detail: "Local backup reminders arrive in a later phase.",
     tone: "good" as const,
-  },
-];
-
-const alertCards = [
-  {
-    status: "Due soon" as const,
-    title: "Oil change due soon",
-    message: "Sample reminder for a task nearing its date or odometer target.",
-  },
-  {
-    status: "Overdue" as const,
-    title: "Brake inspection overdue",
-    message: "Sample critical alert for maintenance that has passed its limit.",
-  },
-  {
-    status: "Warning" as const,
-    title: "Fuel efficiency drop",
-    message: "Sample warning for a noticeable km/L decrease after full-tank logs.",
-  },
-  {
-    status: "Info" as const,
-    title: "Missing receipt",
-    message: "Sample note for a fuel or service entry that needs a receipt later.",
-  },
-  {
-    status: "Reminder" as const,
-    title: "Backup reminder",
-    message: "Sample reminder to protect the local database and uploaded files.",
   },
 ];
 
@@ -160,20 +132,7 @@ export function ReportsPage() {
 }
 
 export function AlertsPage() {
-  return (
-    <div className="page-stack">
-      <section className="alert-grid" aria-label="Sample alert cards">
-        {alertCards.map((alert) => (
-          <AlertCard key={alert.title} {...alert} />
-        ))}
-      </section>
-
-      <PlaceholderSection
-        title="Alert actions are not active yet"
-        description="These are static examples only. Later phases will add snooze, dismiss, complete maintenance, and related vehicle navigation."
-      />
-    </div>
-  );
+  return <AlertsModule />;
 }
 
 export function BackupPage() {

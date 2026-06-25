@@ -821,7 +821,11 @@ h1 {
 .maintenance-toolbar,
 .maintenance-preview-panel,
 .maintenance-library-panel,
-.maintenance-template-card {
+.maintenance-schedule-panel,
+.maintenance-template-card,
+.maintenance-schedule-card,
+.alerts-toolbar,
+.real-alert-card {
   border: 1px solid #d8e0dd;
   border-radius: 8px;
   background: #ffffff;
@@ -830,24 +834,30 @@ h1 {
 
 .maintenance-toolbar,
 .maintenance-preview-panel,
-.maintenance-library-panel {
+.maintenance-library-panel,
+.maintenance-schedule-panel,
+.alerts-toolbar {
   padding: 20px;
 }
 
 .maintenance-toolbar h2,
 .maintenance-toolbar p,
 .maintenance-selector h3,
-.maintenance-selector p {
+.maintenance-selector p,
+.alerts-toolbar h2,
+.alerts-toolbar p {
   margin: 0;
 }
 
-.maintenance-toolbar h2 {
+.maintenance-toolbar h2,
+.alerts-toolbar h2 {
   color: #173844;
   font-size: 1.35rem;
 }
 
 .maintenance-toolbar p,
-.maintenance-selector p {
+.maintenance-selector p,
+.alerts-toolbar p {
   max-width: 78ch;
   margin-top: 8px;
   color: #52636a;
@@ -855,7 +865,9 @@ h1 {
 }
 
 .maintenance-preview-panel,
-.maintenance-library-panel {
+.maintenance-library-panel,
+.maintenance-schedule-panel,
+.alerts-module {
   display: grid;
   gap: 18px;
 }
@@ -916,13 +928,17 @@ h1 {
   padding: 7px 10px;
 }
 
-.maintenance-template-grid {
+.maintenance-template-grid,
+.maintenance-schedule-grid,
+.alerts-list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
 }
 
-.maintenance-template-card {
+.maintenance-template-card,
+.maintenance-schedule-card,
+.real-alert-card {
   display: grid;
   align-content: start;
   gap: 12px;
@@ -960,13 +976,17 @@ h1 {
   color: #216846;
 }
 
-.maintenance-template-card h3 {
+.maintenance-template-card h3,
+.maintenance-schedule-card h3,
+.real-alert-card h3 {
   margin: 0;
   color: #173844;
   font-size: 1.05rem;
 }
 
-.maintenance-template-card p {
+.maintenance-template-card p,
+.maintenance-schedule-card p,
+.real-alert-card p {
   margin: 0;
   color: #52636a;
   line-height: 1.5;
@@ -1022,6 +1042,90 @@ h1 {
   background: #fff9e8;
 }
 
+.maintenance-section-actions,
+.alerts-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.maintenance-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.maintenance-action-note {
+  border: 1px solid #d8e0dd;
+  border-radius: 8px;
+  background: #f6f9f8;
+  color: #31515b;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.maintenance-schedule-card {
+  min-height: 238px;
+}
+
+.schedule-status-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: #eef3f1;
+  color: #31515b;
+  padding: 6px 9px;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.schedule-status-pill.not_due {
+  background: #e8f5ee;
+  color: #216846;
+}
+
+.schedule-status-pill.due_soon,
+.schedule-status-pill.due_today {
+  background: #fff6db;
+  color: #8a6315;
+}
+
+.schedule-status-pill.overdue {
+  background: #fff4f2;
+  color: #9a332b;
+}
+
+.schedule-status-pill.needs_setup,
+.schedule-status-pill.disabled {
+  background: #eef3f1;
+  color: #52636a;
+}
+
+.schedule-thresholds,
+.alert-meta {
+  display: grid;
+  gap: 6px;
+  color: #52636a;
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.real-alert-card {
+  border-left: 5px solid #d9a11f;
+}
+
+.real-alert-card.high,
+.real-alert-card.critical {
+  border-left-color: #c8483c;
+}
+
+.real-alert-card.low {
+  border-left-color: #2f8f5b;
+}
+
 @media (max-width: 1120px) {
   .desktop-shell {
     grid-template-columns: 94px minmax(0, 1fr);
@@ -1066,7 +1170,9 @@ h1 {
 
   .vehicle-workspace,
   .vehicle-detail-grid,
-  .maintenance-template-grid {
+  .maintenance-template-grid,
+  .maintenance-schedule-grid,
+  .alerts-list {
     grid-template-columns: 1fr;
   }
 }
@@ -1138,17 +1244,25 @@ h1 {
   .vehicle-profile-hero,
   .vehicle-photo-picker,
   .maintenance-selector,
+  .maintenance-section-actions,
+  .alerts-toolbar,
   .form-grid {
     grid-template-columns: 1fr;
   }
 
-  .maintenance-selector {
+  .maintenance-selector,
+  .maintenance-section-actions,
+  .alerts-toolbar {
     align-items: stretch;
     flex-direction: column;
   }
 
   .maintenance-vehicle-select {
     min-width: 0;
+  }
+
+  .maintenance-action-row {
+    justify-content: stretch;
   }
 
   .vehicle-toolbar {
