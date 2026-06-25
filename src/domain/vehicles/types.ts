@@ -26,7 +26,12 @@ export type VehicleFeatureKey =
   | "hybrid_system"
   | "electric_motor_system";
 
-export type VehicleStatus = "active" | "under_maintenance" | "inactive" | "archived";
+export type VehicleStatus =
+  | "active"
+  | "under_maintenance"
+  | "inactive"
+  | "sold_disposed"
+  | "archived";
 
 export type VehicleFeature = {
   featureKey: VehicleFeatureKey;

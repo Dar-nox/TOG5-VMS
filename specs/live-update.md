@@ -50,15 +50,15 @@ Phase 4 — Vehicle Module.
 
 ## Phase State
 
-Phase 3 completed. Shared domain models, validation helpers, and TypeScript domain tests are ready for future CRUD phases.
+Phase 4 completed. Vehicle list, add, edit, archive, profile display, local photo storage, and vehicle persistence are in place.
 
 ## Last Completed Phase
 
-Phase 3 — Domain Models and Validation.
+Phase 4 — Vehicle Module.
 
 ## Next Planned Phase
 
-Phase 4 — Vehicle Module.
+Phase 5 — Maintenance Template Engine.
 
 ---
 
@@ -70,7 +70,7 @@ Phase 4 — Vehicle Module.
 | 1 | App Scaffold | Completed | Desktop shell, sidebar navigation, static placeholder pages, and validation checks completed |
 | 2 | Database Foundation and Migrations | Completed | SQLite app-data database, migration runner, initial schema, and Rust migration tests added |
 | 3 | Domain Models and Validation | Completed | TypeScript domain models, validation helpers, Vitest coverage, and minimal Rust domain types added |
-| 4 | Vehicle Module | Not started | Vehicle CRUD, photo required, plate optional |
+| 4 | Vehicle Module | Completed | Vehicle CRUD, local photo storage, archive flow, profile UI, and repository tests |
 | 5 | Maintenance Template Engine | Not started | Applicability rules |
 | 6 | Maintenance Scheduling and Alerts | Not started | Due soon/overdue logic |
 | 7 | Fuel Logging and Efficiency | Not started | Receipts, full-tank rule, km/L |
@@ -1031,11 +1031,218 @@ Proceed to Phase 4: Vehicle Module. Start with vehicle add/edit/list/profile UI 
 
 The next prompt should focus on Phase 4 vehicle workflows and should reuse `src/domain/vehicles`, `src/domain/documents`, and common validation helpers. It should avoid changing the schema unless a real workflow bug appears, continue using `npm.cmd`, and decide how staged photo upload should interact with the nullable `vehicles.primary_photo_id` database field.
 
+## Update 2026-06-25 23:40 +08:00 — Phase 4: Vehicle Module
+
+### Prompt / Task Given to Codex
+
+Implement the first real vehicle workflow: vehicle list, add vehicle, edit vehicle, archive vehicle, and vehicle profile display using the existing SQLite database, domain models, and validation helpers. Keep the scope limited to vehicles and local vehicle photo handling.
+
+### Confirmed Project Root
+
+- `C:\Development Projects\TOG5-VMS`
+
+### Vehicle Module Approach
+
+- Added a Rust vehicle module with typed command models, repository functions, local photo storage, and Tauri command wrappers.
+- Reused the existing Phase 2 schema without editing `001_initial_schema.sql`; the nullable `vehicles.primary_photo_id` supports staged photo creation while user-facing creation still requires a picture.
+- Reused the Phase 3 TypeScript vehicle validation helper in the form and mirrored critical validation in Rust before database writes.
+- Replaced the Vehicles placeholder with a real state-based vehicle workflow inside the existing app shell.
+
+### Vehicle Photo / Local File Approach
+
+- Used a standard local file picker in the React UI.
+- The frontend reads the selected image bytes and sends them to a Tauri command.
+- Rust writes the image into the Tauri app data directory under `vehicle-photos/`.
+- A staged `vehicle_photos` row is inserted before vehicle save, then linked as the primary photo during create/update.
+- Supported image types are PNG, JPG/JPEG, WEBP, and GIF.
+- Vehicle pictures are limited to 10 MB.
+- No upload, cloud storage, network sync, or original-path dependency was added.
+
+### Backend Commands Added
+
+- `list_vehicles`
+- `get_vehicle`
+- `store_vehicle_photo`
+- `create_vehicle`
+- `update_vehicle`
+- `archive_vehicle`
+
+### Frontend Vehicle UI Added
+
+- Vehicle list page with loading, error, and empty states.
+- Add vehicle form.
+- Edit vehicle form.
+- Archive vehicle action.
+- Vehicle profile/overview panel.
+- Vehicle picture preview.
+- Friendly labels for required name, required picture, optional plate number, current odometer, vehicle type, fuel type, transmission, drivetrain, and status.
+- Archived vehicles are excluded from the normal vehicle list.
+
+### Validation Behavior Added / Reused
+
+- Vehicle name is trimmed and required.
+- Vehicle picture is required for normal create/update through the UI.
+- Plate number remains optional.
+- Vehicle type and fuel type are required.
+- Transmission and drivetrain default to `unknown`.
+- Current odometer must be finite and non-negative.
+- Backend rejects missing photo records, invalid choice values, invalid odometer values, and missing required text.
+
+### Tests Added
+
+- Rust photo storage test for writing image bytes into a temporary folder.
+- Rust repository test for creating a vehicle with optional plate number and linked primary photo.
+- Rust repository test for list, update, and archive behavior.
+- Rust repository test for missing photo and negative odometer validation.
+- No new TypeScript validation tests were needed because the Phase 3 validator was reused unchanged and existing Vitest coverage still passes.
+
+### Files Created
+
+- `src-tauri/src/vehicles/mod.rs` — vehicle module entry.
+- `src-tauri/src/vehicles/models.rs` — typed command/repository payloads.
+- `src-tauri/src/vehicles/photo_storage.rs` — local app-data photo writing and tests.
+- `src-tauri/src/vehicles/repository.rs` — rusqlite vehicle repository and tests.
+- `src-tauri/src/vehicles/commands.rs` — Tauri command wrappers.
+- `src/components/vehicles/VehicleModule.tsx` — real vehicle list/form/profile UI.
+- `src/services/api/vehicles.ts` — centralized typed Tauri API wrapper for vehicles.
+
+### Files Modified
+
+- `package.json` — changed Prettier scripts from root `.` matching to explicit project globs so `format:check` works in this workspace.
+- `src-tauri/src/db/mod.rs` — added reusable app/open connection helpers for repository commands.
+- `src-tauri/src/domain/vehicles.rs` — added `SoldDisposed` vehicle status.
+- `src-tauri/src/lib.rs` — registered vehicle Tauri commands.
+- `src/app/routes/PlaceholderPages.tsx` — replaced Vehicles placeholder with the real module.
+- `src/domain/vehicles/types.ts` — added `sold_disposed` vehicle status.
+- `src/styles.css` — added vehicle module layout, form, list, profile, status, and responsive styles.
+- `specs/live-update.md` — recorded Phase 4 completion and updated current phase status.
+
+### Files Deleted
+
+- None.
+
+### Commands Run
+
+```bash
+Get-Location
+Get-Content -Raw -LiteralPath AGENTS.md
+Get-Content -Raw -LiteralPath README.md
+Get-Content -Raw -LiteralPath specs\00-project-brief.md
+Get-Content -Raw -LiteralPath specs\01-tech-stack-architecture.md
+Get-Content -Raw -LiteralPath specs\02-functional-specification.md
+Get-Content -Raw -LiteralPath specs\03-data-model.md
+Get-Content -Raw -LiteralPath specs\05-ui-ux-specification.md
+Get-Content -Raw -LiteralPath specs\06-business-rules.md
+Get-Content -Raw -LiteralPath specs\07-development-phases.md
+Get-Content -Raw -LiteralPath specs\08-testing-quality.md
+Get-Content -Raw -LiteralPath specs\live-update.md
+Get-Content -Raw -LiteralPath src-tauri\migrations\001_initial_schema.sql
+Get-Content -Raw -LiteralPath src-tauri\src\db\mod.rs
+Get-Content -Raw -LiteralPath src-tauri\src\lib.rs
+Get-Content -Raw -LiteralPath src-tauri\src\domain\mod.rs
+Get-Content -Raw -LiteralPath src-tauri\src\domain\vehicles.rs
+Get-Content -Raw -LiteralPath src\domain\index.ts
+Get-Content -Raw -LiteralPath src\domain\common\validation.ts
+Get-Content -Raw -LiteralPath src\domain\vehicles\types.ts
+Get-Content -Raw -LiteralPath src\domain\vehicles\validation.ts
+Get-Content -Raw -LiteralPath src\domain\documents\types.ts
+Get-Content -Raw -LiteralPath src\app\App.tsx
+Get-Content -Raw -LiteralPath src\app\routes\PlaceholderPages.tsx
+Get-Content -Raw -LiteralPath src\components\common\AppLayout.tsx
+Get-Content -Raw -LiteralPath src\types\navigation.ts
+Get-Content -Raw -LiteralPath package.json
+Get-Content -Raw -LiteralPath src-tauri\Cargo.toml
+npm.cmd install @tauri-apps/plugin-dialog
+npm.cmd uninstall @tauri-apps/plugin-dialog
+npm.cmd exec prettier -- --write src/components/vehicles/VehicleModule.tsx src/services/api/vehicles.ts src/app/routes/PlaceholderPages.tsx src/styles.css package.json package-lock.json
+npm.cmd run test
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+cargo fmt --manifest-path src-tauri/Cargo.toml
+cargo fmt --manifest-path src-tauri/Cargo.toml --check
+cargo check --manifest-path src-tauri/Cargo.toml
+cargo test --manifest-path src-tauri/Cargo.toml
+npm.cmd run tauri:dev
+Get-CimInstance Win32_Process
+Stop-Process
+git status --short
+```
+
+### Command Results
+
+- TypeScript tests: pass. 1 file, 12 tests.
+- Typecheck: pass.
+- Lint: pass.
+- Format check: initially failed because `prettier --check .` treated the workspace root as a symbolic link after reporting matched files were formatted. After changing the script to explicit globs, pass.
+- Frontend build: pass.
+- Rust format: pass.
+- Rust format check: pass.
+- Cargo check: pass.
+- Cargo test: pass. 6 Rust tests passed, including 4 new vehicle/photo tests.
+- Tauri dev: command timed out because the dev app stays running, but process inspection confirmed `src-tauri\target\debug\tog5-vms.exe` and WebView2 processes launched. Project-specific dev processes were stopped afterward.
+
+### Whether Tauri App Launched
+
+- Native Tauri process launch: verified by process inspection.
+- Visual desktop-window confirmation: still needs human confirmation because Codex cannot inspect the visible desktop window directly.
+
+### Issues Encountered
+
+- The native dev launch produced no useful console output before timeout, so process inspection was used to verify launch.
+- `format:check` needed a script adjustment because `prettier --check .` failed on a symbolic-link workspace-root warning.
+- The Tauri dialog plugin was briefly installed, then removed after choosing the simpler HTML file picker plus Rust app-data byte storage approach. No dialog dependency remains.
+- Plain `npm` remains avoided; `npm.cmd` was used for Node commands.
+
+### Decisions Made
+
+- Did not change the existing initial migration because the Phase 2 vehicle/photo schema already supports the needed staged photo flow.
+- Did not add a second migration for `sold_disposed` because vehicle status is stored as text without a database enum/check constraint.
+- Used HTML file input plus Rust byte storage instead of native dialog path access to avoid relying on original user file paths.
+- Kept feature selection out of Phase 4 UI; maintenance feature flags remain represented for future phases but are not part of the first vehicle workflow.
+- Used soft archive only; no hard delete was implemented.
+
+### Important Implementation Details
+
+- `db::open_app_connection` initializes migrations and returns a configured SQLite connection for commands.
+- Vehicle commands return user-safe string errors rather than raw SQLite errors.
+- Repository list excludes `status = 'archived'` and rows with `archived_at` or `deleted_at`.
+- Create/update links a staged photo by updating `vehicle_photos.vehicle_id` and `is_primary`.
+- Vehicle photo previews use Tauri file URLs through `convertFileSrc`.
+- Vehicle status now supports `active`, `under_maintenance`, `inactive`, `sold_disposed`, and `archived`.
+
+### Known Issues / Technical Debt
+
+- Human visual testing is still needed for the actual desktop window and the full add/edit/archive workflow.
+- No archive filter or archived vehicle restore view exists yet.
+- No vehicle feature selection UI exists yet.
+- Large image handling is intentionally simple; there is no image compression or thumbnail generation yet.
+- Orphan staged photo cleanup is not implemented if a user selects a photo but cancels before saving.
+- No vehicle documents flow exists yet.
+
+### Manual Checks Completed
+
+- Confirmed project root.
+- Inspected existing vehicle schema before editing.
+- Confirmed no initial migration edit was required.
+- Confirmed validation and build commands pass.
+- Confirmed Tauri native process and WebView2 launched.
+- Confirmed project-specific dev processes were stopped after validation.
+
+### Suggested Next Step
+
+Proceed to Phase 5: Maintenance Template Engine. Build template applicability rules and seed/default templates carefully, using the vehicle type, fuel type, transmission, drivetrain, and feature model without implementing full scheduling UI yet.
+
+### Notes for ChatGPT Prompt Optimization
+
+The next prompt should focus on the maintenance template engine and should account for the new vehicle repository/command pattern. It should keep vehicle CRUD stable, avoid fuel/alerts/reports scope, and ask Codex to include careful tests for diesel/gasoline/EV applicability exclusions before any scheduling work.
+
 ---
 
 # Current Blockers
 
-- No Phase 3 blocker remains.
+- No Phase 4 blocker remains.
 - Direct `npm` in PowerShell is still blocked by execution policy; use `npm.cmd` for now.
 - Tauri native process launch is verified, but visible desktop-window confirmation should be checked manually if Codex cannot observe the screen.
 

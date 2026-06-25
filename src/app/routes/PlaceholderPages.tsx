@@ -1,6 +1,7 @@
 import { AlertCard } from "../../components/common/AlertCard";
 import { PlaceholderSection } from "../../components/common/PlaceholderSection";
 import { SummaryCard } from "../../components/common/SummaryCard";
+import { VehicleModule } from "../../components/vehicles/VehicleModule";
 
 const dashboardCards = [
   {
@@ -93,18 +94,7 @@ export function DashboardPage() {
 }
 
 export function VehiclesPage() {
-  return (
-    <PlaceholderSection
-      title="Vehicle setup will be guided"
-      description="The future add-vehicle flow will use friendly steps instead of a long technical form."
-      items={[
-        "Vehicle name is required.",
-        "Uploaded vehicle picture is required.",
-        "Plate number is optional.",
-        "Vehicle type, fuel type, transmission, drivetrain, and selected features will drive maintenance templates later.",
-      ]}
-    />
-  );
+  return <VehicleModule />;
 }
 
 export function FuelLogsPage() {

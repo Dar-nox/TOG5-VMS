@@ -53,6 +53,7 @@ pub enum VehicleStatus {
     Active,
     UnderMaintenance,
     Inactive,
+    SoldDisposed,
     Archived,
 }
 

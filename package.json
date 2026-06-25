@@ -10,8 +10,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
+    "format": "prettier --write \"*.{json,md,ts,tsx,css}\" \"src/**/*.{ts,tsx,css}\" \"src-tauri/**/*.json\" \"specs/**/*.md\"",
+    "format:check": "prettier --check \"*.{json,md,ts,tsx,css}\" \"src/**/*.{ts,tsx,css}\" \"src-tauri/**/*.json\" \"specs/**/*.md\"",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build"

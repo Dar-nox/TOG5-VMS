@@ -47,6 +47,24 @@ pub fn initialize_app_database(app: &AppHandle) -> Result<DatabaseStatus, String
     initialize_database_at_path(&path)
 }
 
+pub fn open_app_connection(app: &AppHandle) -> Result<Connection, String> {
+    let path = database_path(app)?;
+    initialize_database_at_path(&path)?;
+    open_database_at_path(&path)
+}
+
+pub fn open_database_at_path(path: &Path) -> Result<Connection, String> {
+    let connection = Connection::open(path).map_err(|error| {
+        format!(
+            "Could not open SQLite database '{}': {error}",
+            path.display()
+        )
+    })?;
+
+    configure_connection(&connection)?;
+    Ok(connection)
+}
+
 pub fn initialize_database_at_path(path: &Path) -> Result<DatabaseStatus, String> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|error| {
@@ -75,7 +93,7 @@ pub fn initialize_database_at_path(path: &Path) -> Result<DatabaseStatus, String
     })
 }
 
-fn configure_connection(connection: &Connection) -> Result<(), String> {
+pub(crate) fn configure_connection(connection: &Connection) -> Result<(), String> {
     connection
         .execute_batch(
             "
