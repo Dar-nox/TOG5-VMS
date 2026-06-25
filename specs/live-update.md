@@ -50,15 +50,15 @@ Phase 2 — Database Foundation and Migrations.
 
 ## Phase State
 
-Phase 1 completed. The app has a desktop shell, sidebar navigation, top header, static placeholder pages, and validated scaffold commands.
+Phase 2 completed. The app now initializes a local SQLite database, runs tracked migrations, and exposes a minimal database status command for future validation.
 
 ## Last Completed Phase
 
-Phase 1 — App Scaffold.
+Phase 2 — Database Foundation and Migrations.
 
 ## Next Planned Phase
 
-Phase 2 — Database Foundation and Migrations.
+Phase 3 — Domain Models and Validation.
 
 ---
 
@@ -68,7 +68,7 @@ Phase 2 — Database Foundation and Migrations.
 |---:|---|---|---|
 | 0 | Repository and Workflow Setup | Completed | Environment inspected; initial scaffold added; native Tauri prerequisites missing |
 | 1 | App Scaffold | Completed | Desktop shell, sidebar navigation, static placeholder pages, and validation checks completed |
-| 2 | Database Foundation and Migrations | Not started | SQLite and initial tables |
+| 2 | Database Foundation and Migrations | Completed | SQLite app-data database, migration runner, initial schema, and Rust migration tests added |
 | 3 | Domain Models and Validation | Not started | Types and validation rules |
 | 4 | Vehicle Module | Not started | Vehicle CRUD, photo required, plate optional |
 | 5 | Maintenance Template Engine | Not started | Applicability rules |
@@ -633,13 +633,196 @@ Proceed to Phase 2: Database Foundation and Migrations. Start by reading `specs/
 
 The Phase 1 shell is complete and static by design. The next prompt should focus on Phase 2 database setup only, avoid UI feature expansion unless needed for initialization visibility, and continue using `npm.cmd`. Ask the human to visually confirm the desktop window if screenshots or direct UI inspection are required.
 
+## Update 2026-06-25 23:05 +08:00 — Phase 2: Database Foundation and Migrations
+
+### Prompt / Task Given to Codex
+
+Add the local SQLite database foundation for TOG 5 VMS without implementing UI CRUD, business modules, authentication, reports, real alerts, Tauri CRUD commands, or backup behavior.
+
+### Confirmed Project Root
+
+- `C:\Development Projects\TOG5-VMS`
+
+### Database Approach Chosen
+
+- Rust/Tauri owns database initialization.
+- `rusqlite` was chosen instead of SQLx to keep Phase 2 synchronous, simple, and free of compile-time `DATABASE_URL` requirements.
+- `rusqlite` uses the `bundled` SQLite feature for predictable local SQLite availability.
+- A minimal Tauri command, `database_status`, was added for future health/status validation only. No CRUD commands were added.
+
+### Migration Approach Chosen
+
+- Migrations are embedded Rust-side with `include_str!` from `src-tauri/migrations/`.
+- A `schema_migrations` table tracks applied migration versions.
+- Migrations run inside a transaction and each migration only runs once.
+- SQLite foreign keys are enabled for each initialized connection.
+- Startup initialization runs in Tauri `.setup(...)`.
+
+### Database File Location Strategy
+
+- Normal app runs use the Tauri app data directory.
+- On this Windows validation run, the database was created at:
+  - `C:\Users\Darnocs\AppData\Roaming\com.tog5.vms\tog5-vms.sqlite3`
+- Tests use temporary database files through `tempfile` and do not touch the production app data directory.
+
+### Tables Created
+
+- `schema_migrations`
+- `users`
+- `vehicles`
+- `vehicle_photos`
+- `vehicle_documents`
+- `vehicle_features`
+- `fuel_logs`
+- `maintenance_templates`
+- `maintenance_template_rules`
+- `vehicle_maintenance_settings`
+- `maintenance_schedules`
+- `maintenance_logs`
+- `repair_records`
+- `parts_inventory`
+- `expenses`
+- `alerts`
+- `settings`
+- `backups`
+- `audit_logs`
+
+### Summary of What Changed
+
+- Added a Rust database module for path resolution, database creation/opening, SQLite connection configuration, migration execution, and migration status reporting.
+- Added the first SQL migration for the Phase 2 schema.
+- Added Rust tests proving a temp database can be initialized and migrations are idempotent.
+- Wired database initialization into Tauri startup.
+- Kept the frontend UI unchanged.
+- Did not seed full maintenance templates yet.
+
+### Files Created
+
+- `src-tauri/src/db/mod.rs` — SQLite initialization, migration runner, status command, and Rust tests.
+- `src-tauri/migrations/001_initial_schema.sql` — initial database schema migration.
+
+### Files Modified
+
+- `src-tauri/Cargo.toml` — added `rusqlite` with bundled SQLite and `tempfile` for tests.
+- `src-tauri/Cargo.lock` — updated lockfile for new Rust dependencies.
+- `src-tauri/src/lib.rs` — runs database initialization during Tauri setup and registers the status command.
+- `specs/live-update.md` — recorded Phase 2 results and corrected current status/blockers.
+
+### Files Deleted
+
+- None.
+
+### Commands Run
+
+```bash
+Get-Location
+Get-Content -Raw -LiteralPath AGENTS.md
+Get-Content -Raw -LiteralPath README.md
+Get-Content -Raw -LiteralPath specs\00-project-brief.md
+Get-Content -Raw -LiteralPath specs\01-tech-stack-architecture.md
+Get-Content -Raw -LiteralPath specs\02-functional-specification.md
+Get-Content -Raw -LiteralPath specs\03-data-model.md
+Get-Content -Raw -LiteralPath specs\04-maintenance-template-engine.md
+Get-Content -Raw -LiteralPath specs\06-business-rules.md
+Get-Content -Raw -LiteralPath specs\07-development-phases.md
+Get-Content -Raw -LiteralPath specs\08-testing-quality.md
+Get-Content -Raw -LiteralPath specs\live-update.md
+Get-Content -Raw -LiteralPath src-tauri\Cargo.toml
+Get-Content -Raw -LiteralPath src-tauri\src\lib.rs
+Get-Content -Raw -LiteralPath src-tauri\src\main.rs
+Get-Content -Raw -LiteralPath src-tauri\tauri.conf.json
+Get-Content -Raw -LiteralPath package.json
+Get-ChildItem -Force -Recurse -LiteralPath src-tauri\src
+Get-ChildItem -Force -Recurse -LiteralPath src-tauri\migrations
+cargo fmt --manifest-path src-tauri/Cargo.toml
+cargo check --manifest-path src-tauri/Cargo.toml
+cargo test --manifest-path src-tauri/Cargo.toml
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+Get-NetTCPConnection -LocalPort 1420 -ErrorAction SilentlyContinue
+npm.cmd run tauri:dev
+git status --short --ignored
+```
+
+### Command Results
+
+- Rust format: pass.
+- Cargo check: pass.
+- Cargo test: pass. 2 tests passed, 0 failed.
+- Typecheck: pass.
+- Lint: pass.
+- Format check: pass.
+- Frontend build: pass.
+- Tauri dev: pass through compile and process launch. Vite started on `http://127.0.0.1:1420/`, Rust compiled, startup database initialization succeeded, and `target\debug\tog5-vms.exe` launched.
+- App data database file check: pass. `tog5-vms.sqlite3` exists under the Tauri app data directory.
+- Visual desktop window confirmation: still needs human confirmation because Codex cannot inspect the desktop window directly from shell metadata.
+
+### Tests Added
+
+- `initializes_database_and_runs_migrations_once` verifies temp database creation and idempotent migration tracking.
+- `initial_schema_contains_phase_two_tables` verifies the expected Phase 2 tables exist after migration.
+
+### Issues / Warnings Encountered
+
+- New Rust dependencies required crates.io resolution/download during `cargo check` and `cargo test`.
+- Plain `npm` remains unsafe in PowerShell because `npm.ps1` is blocked by execution policy; validation continued with `npm.cmd`.
+- Visual desktop-window confirmation is still not possible from this shell.
+
+### Decisions Made
+
+- Chose nullable `vehicles.primary_photo_id` in the database even though vehicle photo is required at the business-rule level. This keeps staged vehicle creation possible when a photo upload record and vehicle record need to be coordinated.
+- Kept `plate_number` nullable.
+- Represented vehicle type, fuel type, transmission type, drivetrain, and feature flags so future maintenance applicability logic can work.
+- Added soft-delete readiness with `deleted_at` and archive readiness with `archived_at` on important long-lived records.
+- Did not add full maintenance seed templates in Phase 2; that belongs to the maintenance template engine phase.
+- Did not add frontend database status UI to avoid scope creep.
+- Did not implement real backup/restore behavior; only the `backups` tracking table was created.
+
+### Important Implementation Details
+
+- `initialize_app_database` resolves the database path using Tauri `app.path().app_data_dir()`.
+- `initialize_database_at_path` is reusable for tests and temporary databases.
+- SQLite is configured with foreign keys enabled, WAL mode, and a busy timeout.
+- Migration SQL includes indexes and foreign keys for future repository/query work.
+- `expenses` can link to a vehicle and to related records by type/id.
+- `alerts` can link to a vehicle and optionally to a maintenance schedule.
+- `maintenance_template_rules` supports vehicle type, fuel type, transmission type, drivetrain, required feature, excluded feature, and include/exclude rule type.
+- Fuel logs include odometer, fuel type, liters, price per liter, total amount, receipt reference, full-tank flag, and nullable computed efficiency fields.
+
+### Known Issues / Technical Debt
+
+- No repository layer or CRUD commands exist yet.
+- No business validation/domain model layer exists yet.
+- No maintenance template seeds exist yet.
+- No encrypted database support has been added.
+- No UI uses the database yet.
+- The migration tracker has only a single migration so far.
+
+### Manual Checks Completed
+
+- Confirmed project root.
+- Confirmed existing `src-tauri/src/db/` and `src-tauri/migrations/` were placeholders before Phase 2.
+- Confirmed Rust/Tauri structure before editing.
+- Confirmed app-data SQLite file exists after `tauri:dev`.
+- Confirmed no leftover Tauri/Vite/Cargo validation processes remained after launch validation.
+
+### Suggested Next Step
+
+Proceed to Phase 3: Domain Models and Validation. Build shared TypeScript/Rust domain types and validation helpers for vehicles, fuel logs, maintenance applicability, alerts, and expenses before adding CRUD UI.
+
+### Notes for ChatGPT Prompt Optimization
+
+The next prompt should focus on Phase 3 domain model and validation foundations, not UI CRUD. It should reuse the Phase 2 schema, keep `vehicles.primary_photo_id` nullable at the database layer for staged creation, and continue using `npm.cmd` for Node commands. Maintenance template seed data should be deferred until the maintenance template engine phase unless the next prompt explicitly scopes a small seed-only task.
+
 ---
 
 # Current Blockers
 
-- No scaffold-health blocker currently prevents Phase 1 from starting.
+- No Phase 2 blocker remains.
 - Direct `npm` in PowerShell is still blocked by execution policy; use `npm.cmd` for now.
-- Tauri native process launch is verified, but visible desktop-window confirmation should be checked manually during Phase 1 if Codex cannot observe the screen.
+- Tauri native process launch is verified, but visible desktop-window confirmation should be checked manually if Codex cannot observe the screen.
 
 ---
 
