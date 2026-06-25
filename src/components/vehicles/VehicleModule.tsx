@@ -249,9 +249,11 @@ export function VehicleModule() {
             maintenance-specific details will guide later templates.
           </p>
         </div>
-        <button className="primary-button" type="button" onClick={startCreate}>
-          Add vehicle
-        </button>
+        {!loading && vehicles.length > 0 ? (
+          <button className="primary-button" type="button" onClick={startCreate}>
+            Add vehicle
+          </button>
+        ) : null}
       </section>
 
       {errorMessage ? <div className="inline-error">{errorMessage}</div> : null}
@@ -311,7 +313,7 @@ export function VehicleModule() {
               onEdit={() => startEdit(selectedVehicle)}
             />
           ) : (
-            <NoVehicleSelected onAddVehicle={startCreate} />
+            <NoVehicleSelected />
           )}
         </section>
       </div>
@@ -643,14 +645,11 @@ function EmptyVehicleState(props: { onAddVehicle: () => void }) {
   );
 }
 
-function NoVehicleSelected(props: { onAddVehicle: () => void }) {
+function NoVehicleSelected() {
   return (
     <div className="vehicle-empty-state">
       <h3>Select a vehicle</h3>
-      <p>Choose a vehicle from the list, or add one to start the local record.</p>
-      <button className="primary-button" type="button" onClick={props.onAddVehicle}>
-        Add vehicle
-      </button>
+      <p>A vehicle profile will appear here after a vehicle is added or selected.</p>
     </div>
   );
 }

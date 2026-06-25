@@ -1238,6 +1238,82 @@ Proceed to Phase 5: Maintenance Template Engine. Build template applicability ru
 
 The next prompt should focus on the maintenance template engine and should account for the new vehicle repository/command pattern. It should keep vehicle CRUD stable, avoid fuel/alerts/reports scope, and ask Codex to include careful tests for diesel/gasoline/EV applicability exclusions before any scheduling work.
 
+## Update 2026-06-26 00:01 +08:00 — Phase 4: Vehicle Module UX Polish
+
+### Prompt / Task Given to Codex
+
+Clean up the Vehicles page empty-state UX before Phase 5. Remove redundant Add vehicle buttons when no vehicles exist, update stale sidebar copy, avoid database/Rust/business behavior changes, validate the app, and update `specs/live-update.md`.
+
+### Summary of Phase 4 UX Polish
+
+- Hid the Vehicles page header Add vehicle button when there are no vehicles.
+- Kept the empty-state card as the only Add vehicle action in the zero-vehicle state.
+- Removed the Add vehicle button from the right-side Select a vehicle panel.
+- Updated the Select a vehicle panel copy to explain that a profile appears after a vehicle is added or selected.
+- Updated the sidebar note from stale Phase 1/static-scaffold wording to local MVP wording.
+- Did not change vehicle CRUD behavior, database schema, Rust commands, maintenance templates, fuel logs, alerts, reports, backups, authentication, or scheduling.
+
+### Files Changed
+
+- `src/components/vehicles/VehicleModule.tsx` — adjusted empty-state/header button logic and simplified the no-selection panel.
+- `src/components/common/SidebarNav.tsx` — updated the bottom sidebar note to short local MVP copy.
+- `specs/live-update.md` — recorded this polish task and validation results.
+
+### Commands Run
+
+```bash
+Get-Location
+Get-Content -Raw -LiteralPath AGENTS.md
+Get-Content -Raw -LiteralPath README.md
+Get-Content -Raw -LiteralPath specs\live-update.md
+Get-Content -Raw -LiteralPath src\components\vehicles\VehicleModule.tsx
+Get-Content -Raw -LiteralPath src\components\common\AppLayout.tsx
+Get-Content -Raw -LiteralPath src\components\common\SidebarNav.tsx
+Get-Content -Raw -LiteralPath src\app\routes\PlaceholderPages.tsx
+Get-Content -Raw -LiteralPath src\styles.css
+npm.cmd exec prettier -- --write src/components/vehicles/VehicleModule.tsx src/components/common/SidebarNav.tsx
+npm.cmd run test
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+cargo check --manifest-path src-tauri/Cargo.toml
+cargo test --manifest-path src-tauri/Cargo.toml
+npm.cmd run tauri:dev
+Get-CimInstance Win32_Process
+Stop-Process
+git status --short
+```
+
+### Command Results
+
+- TypeScript tests: pass. 1 file, 12 tests.
+- Typecheck: pass.
+- Lint: pass.
+- Format check: pass.
+- Frontend build: pass.
+- Cargo check: pass.
+- Cargo test: pass. 6 tests passed.
+- Tauri dev: command timed out because the dev app stays running, but process inspection confirmed `src-tauri\target\debug\tog5-vms.exe` and WebView2 processes launched. Project-specific dev processes were stopped afterward.
+
+### Whether Tauri Launched
+
+- Native Tauri process launch: verified by process inspection.
+- Visual desktop-window confirmation: still needs human confirmation because Codex cannot inspect the visible desktop window directly.
+
+### Remaining Issues
+
+- No code blocker remains for this polish task.
+- Human visual confirmation should verify the no-vehicle state now shows only one Add vehicle button and that the sidebar note reads correctly.
+
+### Suggested Next Step
+
+Proceed to Phase 5: Maintenance Template Engine.
+
+### Notes for ChatGPT Prompt Optimization
+
+The next prompt can start Phase 5. Mention that Phase 4 vehicle UX polish removed redundant zero-state Add vehicle buttons and that vehicle CRUD/storage behavior should remain stable while maintenance template applicability work begins.
+
 ---
 
 # Current Blockers

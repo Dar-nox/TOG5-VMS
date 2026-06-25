@@ -34,8 +34,8 @@ export function SidebarNav({ activePage, items, onNavigate }: SidebarNavProps) {
       </nav>
 
       <div className="sidebar-note">
-        <span>Phase 1</span>
-        Static scaffold only. Data storage and real actions come later.
+        <span>Local MVP</span>
+        Vehicle records are stored locally on this device.
       </div>
     </aside>
   );
