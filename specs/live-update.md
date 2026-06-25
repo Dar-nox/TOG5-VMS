@@ -46,19 +46,19 @@ v1 local desktop MVP.
 
 ## Active Phase
 
-Phase 2 — Database Foundation and Migrations.
+Phase 4 — Vehicle Module.
 
 ## Phase State
 
-Phase 2 completed. The app now initializes a local SQLite database, runs tracked migrations, and exposes a minimal database status command for future validation.
+Phase 3 completed. Shared domain models, validation helpers, and TypeScript domain tests are ready for future CRUD phases.
 
 ## Last Completed Phase
 
-Phase 2 — Database Foundation and Migrations.
+Phase 3 — Domain Models and Validation.
 
 ## Next Planned Phase
 
-Phase 3 — Domain Models and Validation.
+Phase 4 — Vehicle Module.
 
 ---
 
@@ -69,7 +69,7 @@ Phase 3 — Domain Models and Validation.
 | 0 | Repository and Workflow Setup | Completed | Environment inspected; initial scaffold added; native Tauri prerequisites missing |
 | 1 | App Scaffold | Completed | Desktop shell, sidebar navigation, static placeholder pages, and validation checks completed |
 | 2 | Database Foundation and Migrations | Completed | SQLite app-data database, migration runner, initial schema, and Rust migration tests added |
-| 3 | Domain Models and Validation | Not started | Types and validation rules |
+| 3 | Domain Models and Validation | Completed | TypeScript domain models, validation helpers, Vitest coverage, and minimal Rust domain types added |
 | 4 | Vehicle Module | Not started | Vehicle CRUD, photo required, plate optional |
 | 5 | Maintenance Template Engine | Not started | Applicability rules |
 | 6 | Maintenance Scheduling and Alerts | Not started | Due soon/overdue logic |
@@ -816,11 +816,226 @@ Proceed to Phase 3: Domain Models and Validation. Build shared TypeScript/Rust d
 
 The next prompt should focus on Phase 3 domain model and validation foundations, not UI CRUD. It should reuse the Phase 2 schema, keep `vehicles.primary_photo_id` nullable at the database layer for staged creation, and continue using `npm.cmd` for Node commands. Maintenance template seed data should be deferred until the maintenance template engine phase unless the next prompt explicitly scopes a small seed-only task.
 
+## Update 2026-06-25 23:19 +08:00 — Phase 3: Domain Models and Validation
+
+### Prompt / Task Given to Codex
+
+Create shared domain model and validation foundations for TOG 5 VMS without implementing CRUD screens, real data entry flows, reports, backup behavior, authentication, full maintenance scheduling, or frontend database reads/writes.
+
+### Confirmed Project Root
+
+- `C:\Development Projects\TOG5-VMS`
+
+### Domain Model Approach
+
+- Added explicit TypeScript domain types under `src/domain/` for common values, vehicle profiles, local file references, fuel logs, maintenance templates/rules/schedules/logs, expenses, and alerts.
+- Added a root `src/domain/index.ts` barrel for future imports.
+- Kept the model layer pure and frontend-testable. No database calls, Tauri invokes, localStorage, or UI forms were added.
+- Added minimal Rust domain types under `src-tauri/src/domain/` for future Tauri command payload alignment. Rust validation was intentionally kept minimal because no repository/CRUD command layer exists yet.
+
+### Validation Approach
+
+- Used hand-written TypeScript validation helpers instead of adding a schema validation dependency such as Zod.
+- Added reusable validation primitives for required trimmed text, finite numbers, non-negative numbers, positive numbers, validation issues/results, and odometer progression.
+- Added project-specific helpers for vehicle creation validation, fuel log validation, official fuel efficiency eligibility/calculation, fuel type mismatch warnings, DEF/AdBlue exclusion from fuel consumption, maintenance applicability warnings/exclusions, and due status by date/odometer thresholds.
+- Added Vitest because no TypeScript test runner existed and Phase 3 rules benefit from fast unit tests.
+
+### Files Created
+
+- `src/domain/index.ts` — domain barrel exports.
+- `src/domain/common/types.ts` — shared IDs, ISO date strings, money note, validation issue/result types.
+- `src/domain/common/validation.ts` — reusable validation primitives.
+- `src/domain/common/index.ts`
+- `src/domain/documents/types.ts` — local file, vehicle photo, and vehicle document reference types.
+- `src/domain/documents/index.ts`
+- `src/domain/vehicles/types.ts` — vehicle profile, fuel type, vehicle type, transmission, drivetrain, features, and status types.
+- `src/domain/vehicles/validation.ts` — vehicle creation validation.
+- `src/domain/vehicles/index.ts`
+- `src/domain/fuel/types.ts` — fuel log and fuel efficiency types.
+- `src/domain/fuel/validation.ts` — fuel log validation and fuel efficiency calculation eligibility.
+- `src/domain/fuel/index.ts`
+- `src/domain/maintenance/types.ts` — template, rule, schedule, log, priority, category, task, and status types.
+- `src/domain/maintenance/validation.ts` — applicability and due-status helpers.
+- `src/domain/maintenance/index.ts`
+- `src/domain/expenses/types.ts` — expense category and expense types.
+- `src/domain/expenses/validation.ts` — expense validation.
+- `src/domain/expenses/index.ts`
+- `src/domain/alerts/types.ts` — alert type, priority, status, and alert record types.
+- `src/domain/alerts/index.ts`
+- `src/domain/domainValidation.test.ts` — TypeScript unit tests for Phase 3 validation rules.
+- `src-tauri/src/domain/mod.rs` — Rust domain module entry.
+- `src-tauri/src/domain/common.rs` — Rust shared domain aliases and validation issue shape.
+- `src-tauri/src/domain/vehicles.rs` — Rust vehicle/profile enum and struct types aligned with the schema.
+
+### Files Modified
+
+- `package.json` — added `test` script and Vitest dev dependency.
+- `package-lock.json` — locked Vitest dependency graph.
+- `src-tauri/src/lib.rs` — exposed the Rust domain module.
+- `specs/live-update.md` — recorded Phase 3 completion and updated current status.
+
+### Files Deleted
+
+- None.
+
+### TypeScript Domain Types Added
+
+- Common: `EntityId`, `ISODateString`, `ISODateTimeString`, `ValidationIssue`, `ValidationResult`, `RelatedRecordType`, `MoneyAmount`.
+- Vehicle: vehicle type, fuel type, transmission type, drivetrain, feature keys, vehicle status, vehicle feature, vehicle profile, vehicle creation input.
+- Documents: local file reference, vehicle photo, document type, vehicle document.
+- Fuel: fuel log fuel type, efficiency status, fuel log, validation input, efficiency input/calculation.
+- Maintenance: category, task key, priority, rule type, template rule, template, schedule status, schedule, maintenance log, due input.
+- Expenses: category and expense record.
+- Alerts: alert type, priority, status, and alert record.
+
+### Rust Domain Types Added
+
+- Common aliases for entity IDs and ISO strings.
+- Rust validation issue/validation severity structs for future command responses.
+- Rust vehicle enums/structs for vehicle type, fuel type, transmission, drivetrain, status, feature keys, features, and vehicle profile payloads.
+
+### Validation Helpers Added
+
+- `trimToUndefined`
+- `validateRequiredText`
+- `validateFiniteNumber`
+- `validateNonNegativeNumber`
+- `validatePositiveNumber`
+- `validateOdometerProgression`
+- `validateVehicleCreation`
+- `validateFuelLog`
+- `validateFuelTypeCompatibility`
+- `calculateOfficialFuelEfficiency`
+- `maintenanceApplicabilityIssues`
+- `shouldAutoApplyMaintenanceTask`
+- `doesTemplateRuleMatchVehicle`
+- `templateHasMatchingExcludeRule`
+- `getMaintenanceDueStatus`
+- `validateExpense`
+
+### Tests Added
+
+- Required vehicle name.
+- Required vehicle picture for normal creation.
+- Optional plate number.
+- Odometer rollback with and without admin override.
+- Official fuel efficiency full-tank rule.
+- Fuel type mismatch warning.
+- DEF/AdBlue not counted as diesel fuel consumption.
+- Diesel spark plug exclusion.
+- Gasoline DEF/AdBlue exclusion.
+- Full EV combustion-maintenance exclusions.
+- Due soon / overdue by date.
+- Due soon / overdue by odometer.
+
+### Commands Run
+
+```bash
+Get-Location
+npm -v
+Get-Content -Raw -LiteralPath AGENTS.md
+Get-Content -Raw -LiteralPath README.md
+Get-Content -Raw -LiteralPath specs\00-project-brief.md
+Get-Content -Raw -LiteralPath specs\01-tech-stack-architecture.md
+Get-Content -Raw -LiteralPath specs\02-functional-specification.md
+Get-Content -Raw -LiteralPath specs\03-data-model.md
+Get-Content -Raw -LiteralPath specs\04-maintenance-template-engine.md
+Get-Content -Raw -LiteralPath specs\06-business-rules.md
+Get-Content -Raw -LiteralPath specs\07-development-phases.md
+Get-Content -Raw -LiteralPath specs\08-testing-quality.md
+Get-Content -Raw -LiteralPath specs\live-update.md
+Get-Content -Raw -LiteralPath src-tauri\migrations\001_initial_schema.sql
+Get-Content -Raw -LiteralPath src-tauri\src\db\mod.rs
+Get-Content -Raw -LiteralPath src-tauri\src\lib.rs
+Get-Content -Raw -LiteralPath src\app\routes\PlaceholderPages.tsx
+Get-Content -Raw -LiteralPath src\types\navigation.ts
+Get-Content -Raw -LiteralPath package.json
+Get-Content -Raw -LiteralPath src-tauri\Cargo.toml
+npm.cmd install --save-dev vitest
+npm.cmd exec prettier -- --write [new/touched TypeScript files]
+npm.cmd run test
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+cargo fmt --manifest-path src-tauri/Cargo.toml
+cargo fmt --manifest-path src-tauri/Cargo.toml --check
+cargo check --manifest-path src-tauri/Cargo.toml
+cargo test --manifest-path src-tauri/Cargo.toml
+Get-NetTCPConnection -LocalPort 1420 -ErrorAction SilentlyContinue
+npm.cmd run tauri:dev
+git status --short --ignored
+```
+
+### Command Results
+
+- Plain `npm -v`: still failed because PowerShell blocks `npm.ps1`.
+- Vitest install: pass. 26 packages added, 0 vulnerabilities.
+- TypeScript tests: pass. 1 file, 12 tests.
+- Typecheck: initially failed due a readonly test fixture; fixed. Final result pass.
+- Lint: pass.
+- Format check: pass.
+- Frontend build: pass.
+- Rust format: pass.
+- Cargo check: pass.
+- Cargo test: pass. Existing Rust DB tests still pass, 2 tests.
+- Tauri dev: pass through compile and process launch. Vite started, Rust compiled, and `target\debug\tog5-vms.exe` launched.
+- Visual desktop window confirmation: still needs human confirmation because Codex cannot inspect the desktop window directly from shell metadata.
+
+### Issues Encountered
+
+- Plain `npm` is still blocked in this PowerShell environment, despite the suspected execution policy fix. `npm.cmd` remains the reliable command.
+- A test fixture used `as const`, producing a readonly feature array that did not match the mutable domain type. The fixture was typed explicitly and the checks passed.
+- Vite re-optimized dependencies during `tauri:dev` because the lockfile changed after adding Vitest.
+
+### Decisions Made
+
+- Added Vitest because Phase 3 is validation-heavy and the project had no TypeScript test runner.
+- Did not add Zod or another validation library; simple explicit helpers are enough for this phase.
+- Kept schema unchanged because no clear Phase 2 schema bug was found.
+- Did not seed maintenance templates.
+- Did not add UI forms, CRUD commands, repository layer, or frontend database reads/writes.
+- Kept Rust domain groundwork minimal to avoid duplicating frontend placeholder logic before Tauri command contracts exist.
+
+### Important Implementation Details
+
+- Vehicle photo remains required at the TypeScript business-validation layer even though the database allows staged creation.
+- Plate number remains optional.
+- Numeric validators reject `NaN`, `Infinity`, invalid values, and negative values where applicable.
+- Fuel type mismatch is a warning, not a hard failure.
+- Official fuel efficiency only computes when both current and previous logs are full-tank and numeric inputs are valid.
+- DEF/AdBlue returns `not_computed` for fuel efficiency.
+- Maintenance applicability helpers return warnings/exclusions for diesel spark plug tasks, gasoline diesel-only tasks, and EV combustion tasks.
+- Due status helper gives priority to overdue, then due today, then due soon, across date and odometer inputs.
+
+### Known Issues / Technical Debt
+
+- No repository layer or CRUD commands exist yet.
+- No UI consumes these domain validators yet.
+- No maintenance template seed data exists yet.
+- Rust validation helpers are intentionally minimal and may need expansion once Tauri command payloads are introduced.
+- Money handling still uses `number`; a stricter decimal/rounding policy should be decided before financial reporting.
+
+### Manual Checks Completed
+
+- Confirmed project root.
+- Inspected Phase 2 schema before making changes.
+- Confirmed no schema migration was needed for Phase 3.
+- Confirmed no leftover Tauri/Vite/Cargo validation processes remained after `tauri:dev`.
+
+### Suggested Next Step
+
+Proceed to Phase 4: Vehicle Module. Start with vehicle add/edit/list/profile UI using the new domain types and validators, while keeping plate number optional and enforcing vehicle name/photo at the business layer.
+
+### Notes for ChatGPT Prompt Optimization
+
+The next prompt should focus on Phase 4 vehicle workflows and should reuse `src/domain/vehicles`, `src/domain/documents`, and common validation helpers. It should avoid changing the schema unless a real workflow bug appears, continue using `npm.cmd`, and decide how staged photo upload should interact with the nullable `vehicles.primary_photo_id` database field.
+
 ---
 
 # Current Blockers
 
-- No Phase 2 blocker remains.
+- No Phase 3 blocker remains.
 - Direct `npm` in PowerShell is still blocked by execution policy; use `npm.cmd` for now.
 - Tauri native process launch is verified, but visible desktop-window confirmation should be checked manually if Codex cannot observe the screen.
 
