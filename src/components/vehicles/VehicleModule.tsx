@@ -346,9 +346,9 @@ function VehicleForm(props: {
       </div>
 
       <div className="vehicle-photo-picker">
-        <div className="vehicle-photo-frame large">
+        <div className="vehicle-photo-frame large vehicle-photo-preview">
           {form.primaryPhotoUrl ? (
-            <img alt="" src={form.primaryPhotoUrl} />
+            <img className="vehicle-photo-image" alt="" src={form.primaryPhotoUrl} />
           ) : (
             <span>Vehicle picture</span>
           )}
@@ -602,13 +602,35 @@ function VehicleProfile(props: {
 
 function VehiclePhoto(props: { vehicle: VehicleRecord; size: "small" | "large" }) {
   const imageUrl = vehiclePhotoUrl(props.vehicle.primaryPhotoPath);
+  const [imageFailed, setImageFailed] = useState(false);
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [imageUrl]);
+
+  const fallbackLabel =
+    imageUrl && imageFailed ? "Photo unavailable" : props.vehicle.vehicleName.slice(0, 2);
+  const frameRoleClass =
+    props.size === "small" ? "vehicle-thumbnail-photo" : "vehicle-profile-photo";
 
   return (
-    <div className={`vehicle-photo-frame ${props.size}`}>
-      {imageUrl ? (
-        <img alt="" src={imageUrl} />
+    <div
+      className={`vehicle-photo-frame ${props.size} ${frameRoleClass} ${
+        imageFailed ? "image-error" : ""
+      }`}
+      title={imageFailed ? "The saved vehicle picture could not be displayed." : undefined}
+    >
+      {imageUrl && !imageFailed ? (
+        <img
+          className="vehicle-photo-image"
+          alt=""
+          src={imageUrl}
+          onError={() => {
+            setImageFailed(true);
+          }}
+        />
       ) : (
-        <span>{props.vehicle.vehicleName.slice(0, 2)}</span>
+        <span>{fallbackLabel}</span>
       )}
     </div>
   );

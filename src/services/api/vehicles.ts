@@ -66,7 +66,11 @@ export type StoreVehiclePhotoRequest = {
 };
 
 export function vehiclePhotoUrl(filePath?: string | null): string | undefined {
-  return filePath ? convertFileSrc(filePath) : undefined;
+  return filePath ? convertFileSrc(normalizeFilePathForAssetProtocol(filePath)) : undefined;
+}
+
+function normalizeFilePathForAssetProtocol(filePath: string): string {
+  return filePath.replace(/\\/g, "/");
 }
 
 export async function listVehicles(): Promise<VehicleRecord[]> {

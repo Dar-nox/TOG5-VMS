@@ -1314,6 +1314,403 @@ Proceed to Phase 5: Maintenance Template Engine.
 
 The next prompt can start Phase 5. Mention that Phase 4 vehicle UX polish removed redundant zero-state Add vehicle buttons and that vehicle CRUD/storage behavior should remain stable while maintenance template applicability work begins.
 
+## Update 2026-06-26 02:16 +08:00 — Phase 4: Vehicle Photo Display Bugfix
+
+### Prompt / Task Given to Codex
+
+Fix the Phase 4 bug where vehicle photo files are written to the Tauri app-data `vehicle-photos` folder and vehicle records are created, but the pictures do not display in the Vehicles UI. Do not start Phase 5 or change vehicle workflow scope.
+
+### Summary of the Photo-Display Bug
+
+- Vehicle photo storage was working.
+- Vehicle records were saving.
+- Stored app-data image paths were returned to the frontend.
+- The UI used `convertFileSrc`, but images did not display in the vehicle list/profile.
+
+### Root Cause Found
+
+- The database stores absolute Windows app-data paths such as `C:\Users\Darnocs\AppData\Roaming\com.tog5.vms\vehicle-photos\photo_...png`.
+- `list_vehicles` and `get_vehicle` return that absolute path as `primaryPhotoPath`.
+- The frontend passed the path into `convertFileSrc`.
+- `src-tauri/tauri.conf.json` had `csp: null`, but did not enable Tauri's asset protocol or define a scope for app-data vehicle photos.
+- Tauri v2 requires `app.security.assetProtocol.enable = true`, an allowed asset scope, and the Rust `tauri` dependency feature `protocol-asset`.
+
+### Fix Made
+
+- Enabled Tauri's local asset protocol in `src-tauri/tauri.conf.json`.
+- Scoped asset access narrowly to `$APPDATA/vehicle-photos/**`.
+- Added the `protocol-asset` feature to the Rust `tauri` dependency.
+- Let Cargo update `Cargo.lock` with the required `http-range` dependency.
+- Normalized Windows backslashes to forward slashes before calling `convertFileSrc`.
+- Added image `onError` handling so a user-friendly fallback appears if a saved image cannot be displayed.
+- Kept vehicle files in the app-data `vehicle-photos` folder.
+- Did not change the database schema, vehicle CRUD behavior, original storage location, or Phase 5 scope.
+
+### Files Changed
+
+- `src-tauri/tauri.conf.json` — enabled local asset protocol and scoped it to app-data vehicle photos.
+- `src-tauri/Cargo.toml` — added the `protocol-asset` Tauri feature.
+- `src-tauri/Cargo.lock` — added `http-range` via Cargo for the asset protocol feature.
+- `src/services/api/vehicles.ts` — normalized Windows paths before `convertFileSrc`.
+- `src/components/vehicles/VehicleModule.tsx` — added image load failure fallback for list/profile photo frames.
+- `src/styles.css` — styled the photo unavailable fallback state.
+- `specs/live-update.md` — recorded this bugfix and validation results.
+
+### Commands Run
+
+```bash
+Get-Location
+Get-Content -Raw -LiteralPath AGENTS.md
+Get-Content -Raw -LiteralPath README.md
+Get-Content -Raw -LiteralPath specs\live-update.md
+Get-Content -Raw -LiteralPath src-tauri\tauri.conf.json
+Get-Content -Raw -LiteralPath src-tauri\src\vehicles\photo_storage.rs
+Get-Content -Raw -LiteralPath src-tauri\src\vehicles\repository.rs
+Get-Content -Raw -LiteralPath src-tauri\src\vehicles\models.rs
+Get-Content -Raw -LiteralPath src-tauri\src\vehicles\commands.rs
+Get-Content -Raw -LiteralPath src\components\vehicles\VehicleModule.tsx
+Get-Content -Raw -LiteralPath src\services\api\vehicles.ts
+Get-Content -Raw -LiteralPath src\styles.css
+Get-ChildItem -Recurse -Filter *.sqlite3 -Path "$env:APPDATA\com.tog5.vms"
+[System.IO.File]::ReadAllBytes(...) path scan for vehicle-photos values
+npm.cmd exec prettier -- --write src-tauri/tauri.conf.json src/services/api/vehicles.ts src/components/vehicles/VehicleModule.tsx src/styles.css
+npm.cmd run test
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+cargo fmt --manifest-path src-tauri/Cargo.toml
+cargo fmt --manifest-path src-tauri/Cargo.toml --check
+cargo check --manifest-path src-tauri/Cargo.toml
+cargo test --manifest-path src-tauri/Cargo.toml
+npm.cmd run tauri:dev
+Get-CimInstance Win32_Process
+Stop-Process
+git status --short
+```
+
+### Command Results
+
+- TypeScript tests: pass. 1 file, 12 tests.
+- Typecheck: pass.
+- Lint: pass.
+- Format check: pass.
+- Frontend build: initially had a transient Vite/Rollup sandbox path error, then passed on rerun.
+- Rust format: pass.
+- Rust format check: pass.
+- Cargo check: initially failed because enabling the asset protocol requires the `protocol-asset` feature. After adding the feature, Cargo needed network access to fetch `http-range`; rerun with approval passed.
+- Cargo test: pass. 6 tests passed.
+- Tauri dev: first timeout was inconclusive and did not show `tog5-vms.exe`; a logged retry confirmed Vite started, Rust compiled, and `target\debug\tog5-vms.exe` launched. Project-specific dev processes were stopped afterward.
+
+### Whether Tauri Launched
+
+- Native Tauri process launch: verified by captured logs and process inspection.
+- Visual desktop-window confirmation: still needs human confirmation because Codex cannot inspect the visible desktop window directly.
+
+### Manual Checks Still Needed
+
+1. Add a vehicle with a picture.
+2. Confirm the picture appears in the vehicle list.
+3. Confirm the picture appears in the profile panel.
+4. Restart the app.
+5. Confirm the picture still appears after restart.
+
+### Remaining Issues
+
+- No code blocker remains from this bugfix.
+- The UI now shows a "Photo unavailable" fallback if an asset URL cannot be rendered.
+- Manual visual confirmation is still needed to prove image rendering in the desktop window.
+
+### Suggested Next Step
+
+Proceed to Phase 5: Maintenance Template Engine after photo display is visually confirmed.
+
+### Notes for ChatGPT Prompt Optimization
+
+The next prompt should only begin Phase 5 after the user confirms vehicle photos display after add and restart. Phase 4 now uses Tauri's asset protocol with `$APPDATA/vehicle-photos/**` scope and the Rust `protocol-asset` feature.
+
+## Update 2026-06-26 02:26 +08:00 — Phase 4: Vehicle Image Centering Polish
+
+### Prompt / Task Given to Codex
+
+Center vehicle images consistently inside their containers anywhere they appear in the Vehicle Module. Do not change vehicle CRUD behavior, Rust/Tauri commands, database schema, or start Phase 5.
+
+### Summary of Image-Centering Polish
+
+- Updated the shared Vehicle Module image CSS so images render as block elements.
+- Added explicit centered object positioning for vehicle images.
+- Kept `object-fit: cover`, full width/height, and clipped containers for list, profile, and add/edit preview images.
+- Did not change vehicle persistence, photo storage, Tauri commands, or database schema.
+
+### Files Changed
+
+- `src/styles.css` — added `display: block` and `object-position: center center` to `.vehicle-photo-frame img`.
+- `specs/live-update.md` — recorded this tiny Phase 4 polish task and validation results.
+
+### Commands Run
+
+```bash
+Get-Location
+Get-Content -Raw -LiteralPath AGENTS.md
+Get-Content -Raw -LiteralPath README.md
+Get-Content -Raw -LiteralPath specs\live-update.md
+Get-Content -Raw -LiteralPath src\components\vehicles\VehicleModule.tsx
+Get-Content -Raw -LiteralPath src\styles.css
+npm.cmd exec prettier -- --write src/styles.css
+npm.cmd run test
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+npm.cmd run tauri:dev
+Get-CimInstance Win32_Process
+Stop-Process
+git status --short
+```
+
+### Command Results
+
+- TypeScript tests: pass. 1 file, 12 tests.
+- Typecheck: pass.
+- Lint: pass.
+- Format check: pass.
+- Frontend build: pass.
+- Tauri dev: pass through Vite startup, Rust compile, and `target\debug\tog5-vms.exe` process launch. Project-specific dev processes were stopped afterward.
+
+### Whether Tauri Launched
+
+- Native Tauri process launch: verified by captured logs and process inspection.
+- Visual centered-image confirmation: still needs human confirmation because Codex cannot inspect the visible desktop window directly.
+
+### Manual Visual Checks Still Needed
+
+1. Confirm vehicle list images are centered in their small frames.
+2. Confirm vehicle profile image is centered in its large frame.
+3. Confirm add/edit form preview image is centered.
+4. Confirm no image overflow or distortion beyond the intended crop.
+
+### Suggested Next Step
+
+Proceed to Phase 5: Maintenance Template Engine after the user confirms vehicle image alignment.
+
+### Notes for ChatGPT Prompt Optimization
+
+The next prompt can begin Phase 5 after visual confirmation that vehicle photos display and align correctly in list, profile, and form preview contexts.
+
+## Update 2026-06-26 02:35 +08:00 — Phase 4: Vehicle Preview Image Centering Polish
+
+### Prompt / Task Given to Codex
+
+Continue Phase 4 UI polish. Vehicle photos save and display, and list thumbnails are centered, but the add/edit/details preview area crops or aligns square logo images poorly. Make vehicle images consistently centered everywhere, without changing CRUD, Rust/Tauri commands, database schema, or starting Phase 5.
+
+### Summary of Vehicle Image-Centering Polish
+
+- Inspected every Vehicle Module image usage:
+  - vehicle list thumbnail
+  - add vehicle form preview
+  - edit vehicle form preview
+  - vehicle profile/details image
+  - photo unavailable fallback state
+- Kept the shared `.vehicle-photo-frame img` base rule for width, height, block display, and centered object position.
+- Split image fit behavior by frame size:
+  - small thumbnails use `object-fit: cover` to keep the list frame filled.
+  - large form/profile previews use `object-fit: contain` to show the full image centered without cropping logos or unusual aspect ratios.
+- Kept image containers clipped, stable, and centered.
+
+### Root Cause Found
+
+- The prior shared image rule used `object-fit: cover` for all vehicle image frames.
+- That works well for small list thumbnails, but it crops square, wide, or tall images in the larger form/profile preview frames.
+- The square logo sample looked misaligned because the preview was filling a 4:3 frame by cropping instead of showing the full image.
+
+### Files Changed
+
+- `src/styles.css` — kept the shared centered image base rule, added `.vehicle-photo-frame.small img { object-fit: cover; }`, and added `.vehicle-photo-frame.large img { object-fit: contain; }`.
+- `specs/live-update.md` — recorded this Phase 4 polish task and validation results.
+
+### Commands Run
+
+```bash
+Get-Location
+Get-Content -Raw -LiteralPath AGENTS.md
+Get-Content -Raw -LiteralPath README.md
+Get-Content -Raw -LiteralPath specs\live-update.md
+Get-Content -Raw -LiteralPath src\components\vehicles\VehicleModule.tsx
+Get-Content -Raw -LiteralPath src\styles.css
+npm.cmd exec prettier -- --write src/styles.css
+npm.cmd run test
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+npm.cmd run tauri:dev
+Get-CimInstance Win32_Process
+Stop-Process
+git status --short
+```
+
+### Command Results
+
+- TypeScript tests: pass. 1 file, 12 tests.
+- Typecheck: pass.
+- Lint: pass.
+- Format check: pass.
+- Frontend build: pass.
+- Tauri dev: pass through Vite startup, Rust compile, and `target\debug\tog5-vms.exe` process launch. Project-specific dev processes were stopped afterward.
+
+### Whether Tauri Launched
+
+- Native Tauri process launch: verified by captured logs and process inspection.
+- Visual centered-image confirmation: still needs human confirmation because Codex cannot inspect the visible desktop window directly.
+
+### Manual Visual Checks Still Needed
+
+1. Open Vehicles.
+2. Add or edit a vehicle using a square logo image.
+3. Confirm the list thumbnail remains centered.
+4. Confirm the form preview is centered and shows the full image.
+5. Confirm the profile/details image is centered and shows the full image.
+6. Try a wide or tall image if available and confirm it still looks centered.
+
+### Suggested Next Step
+
+Proceed to Phase 5: Maintenance Template Engine only after the user confirms image alignment.
+
+### Notes for ChatGPT Prompt Optimization
+
+The next prompt can begin Phase 5 after the user confirms the list, form preview, and profile/detail vehicle images are visually centered. The image-fit decision is now thumbnail = cover, large preview/profile = contain.
+
+## Update 2026-06-26 03:35 +08:00 — Phase 4: Targeted Vehicle Image Centering Polish
+
+### Prompt / Task Given to Codex
+
+Continue Phase 4 vehicle UI polish. The vehicle list thumbnail appears acceptable, but the add/edit/details preview image is still not vertically centered, especially with square logo-style images. Diagnose the actual image elements and selectors first, then make a targeted CSS/component fix. Do not start Phase 5.
+
+### Summary of the Exact Image-Centering Issue
+
+- Vehicle photo usages were inspected in `VehicleModule.tsx`:
+  - List thumbnail: rendered through `<VehiclePhoto vehicle={vehicle} size="small" />`.
+  - Form preview: rendered directly as `<img>` inside `className="vehicle-photo-frame large"`.
+  - Profile/details image: rendered through `<VehiclePhoto vehicle={vehicle} size="large" />`.
+  - Fallback state: rendered inside the same `vehicle-photo-frame` container.
+- The form preview image had no image-specific class, so it depended only on broad `.vehicle-photo-frame img` selectors.
+- The profile and form preview both used the generic `large` class, making the intended context less explicit.
+
+### Root Cause Found
+
+- The previous selectors were still too generic:
+  - `.vehicle-photo-frame img`
+  - `.vehicle-photo-frame.small img`
+  - `.vehicle-photo-frame.large img`
+- Large image elements filled the full frame box and relied on `object-fit: contain`; this should work in many cases, but it made the form/profile behavior hard to target and verify separately.
+- The form preview used a bare `<img>` without a clear class such as `vehicle-photo-image`.
+- There were no separate real classes for thumbnail, form preview, and profile image contexts.
+
+### Fit Behavior by Vehicle Image Context
+
+- Vehicle list thumbnail:
+  - Frame class: `vehicle-photo-frame small vehicle-thumbnail-photo`
+  - Image class: `vehicle-photo-image`
+  - Fit behavior: `object-fit: cover`
+  - Reason: small list thumbnails look better when the frame is filled.
+- Add/edit form preview:
+  - Frame class: `vehicle-photo-frame large vehicle-photo-preview`
+  - Image class: `vehicle-photo-image`
+  - Fit behavior: natural aspect ratio constrained with `max-width: 100%`, `max-height: 100%`, and `object-fit: contain`
+  - Reason: square logos, wide images, and tall images should remain fully visible and centered.
+- Vehicle profile/details image:
+  - Frame class: `vehicle-photo-frame large vehicle-profile-photo`
+  - Image class: `vehicle-photo-image`
+  - Fit behavior: natural aspect ratio constrained with `max-width: 100%`, `max-height: 100%`, and `object-fit: contain`
+  - Reason: larger display should show the whole stored photo, centered both ways.
+
+### Fix Made
+
+- Added explicit context classes in `VehicleModule.tsx`:
+  - `vehicle-thumbnail-photo`
+  - `vehicle-photo-preview`
+  - `vehicle-profile-photo`
+  - `vehicle-photo-image`
+- Changed `.vehicle-photo-frame` from grid centering to flex centering:
+  - `display: flex`
+  - `align-items: center`
+  - `justify-content: center`
+  - `overflow: hidden`
+- Kept thumbnails full-frame with:
+  - `width: 100%`
+  - `height: 100%`
+  - `object-fit: cover`
+  - `object-position: center center`
+- Changed large preview/profile images to center the rendered image element itself:
+  - `width: auto`
+  - `height: auto`
+  - `max-width: 100%`
+  - `max-height: 100%`
+  - `object-fit: contain`
+  - `object-position: center center`
+- Kept vehicle CRUD, photo storage, Rust/Tauri commands, database schema, and Phase 5 untouched.
+
+### Files Changed
+
+- `src/components/vehicles/VehicleModule.tsx` — added real context/image class names for thumbnail, form preview, and profile photo usage.
+- `src/styles.css` — replaced broad image selectors with targeted context selectors and flex-centered frames.
+- `specs/live-update.md` — recorded this targeted Phase 4 polish and validation results.
+
+### Commands Run
+
+```bash
+Get-Location
+Get-Content -Raw -LiteralPath AGENTS.md
+Get-Content -Raw -LiteralPath README.md
+Get-Content -Raw -LiteralPath specs\live-update.md
+Get-Content -Raw -LiteralPath src\components\vehicles\VehicleModule.tsx
+Get-Content -Raw -LiteralPath src\styles.css
+Select-String -Path src\components\vehicles\VehicleModule.tsx -Pattern '<img|vehicle-photo-frame|VehiclePhoto'
+Select-String -Path src\styles.css -Pattern 'vehicle-photo-frame|vehicle-photo-picker|object-fit|object-position'
+npm.cmd exec prettier -- --write src/components/vehicles/VehicleModule.tsx src/styles.css
+npm.cmd run test
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+npm.cmd run tauri:dev
+Get-CimInstance Win32_Process
+Stop-Process
+git status --short
+```
+
+### Command Results
+
+- TypeScript tests: pass. 1 file, 12 tests.
+- Typecheck: pass.
+- Lint: pass.
+- Format check: pass.
+- Frontend build: pass.
+- Tauri dev: pass through Vite startup, Rust compile, and `target\debug\tog5-vms.exe` process launch. Project-specific dev processes were stopped afterward.
+
+### Whether Tauri Launched
+
+- Native Tauri process launch: verified by captured logs and process inspection.
+- Visual image-centering confirmation: still needs human confirmation because Codex cannot inspect the visible desktop window directly.
+
+### Manual Visual Checks Still Needed
+
+1. Open Vehicles.
+2. Use the square logo image again.
+3. Confirm the vehicle list thumbnail still looks good.
+4. Confirm the add/edit form preview is vertically centered.
+5. Confirm the profile/details image is vertically centered.
+6. Confirm the image is not awkwardly cropped in the larger preview/profile frame.
+7. Try a wide or tall image if available and confirm it remains centered.
+
+### Suggested Next Step
+
+Proceed to Phase 5: Maintenance Template Engine only after the user confirms image alignment.
+
+### Notes for ChatGPT Prompt Optimization
+
+The next prompt can begin Phase 5 only after visual confirmation. Vehicle image classes are now context-specific: thumbnail uses `cover`; form preview and profile/detail use centered `contain` with natural image sizing inside a flex-centered frame.
+
 ---
 
 # Current Blockers
