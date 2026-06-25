@@ -371,13 +371,149 @@ Install missing native prerequisites, then continue Phase 1 by running `npm.cmd 
 
 The next prompt should focus on Phase 1 scaffold completion and should explicitly account for the current machine state: npm works through `npm.cmd`, WebView2 is installed, but Rust/Cargo/rustup and Visual Studio Build Tools with MSVC/Windows SDK are missing. If those tools are not installed yet, the next Codex task should stay on frontend scaffold work only and avoid claiming Tauri native validation.
 
+## Update 2026-06-25 22:38 +08:00 — Pre-Phase 1: Scaffold Health Validation
+
+### Prompt / Task Given to Codex
+
+Validate the Phase 0 Tauri + React + TypeScript + Vite scaffold before starting Phase 1 app shell work. Verify icons, git ignores, Vite/Tauri config alignment, native Tauri readiness, and validation commands. Do not implement Phase 1 features or business modules.
+
+### Confirmed Project Root
+
+- Requested root: `C:\Development Projects\TOG5-VMS`
+- Shell note: `Get-Location` reports a Codex sandbox-mapped path, but all commands were run with `workdir` set to `C:\Development Projects\TOG5-VMS` and resolved the expected project files.
+
+### Current Environment Status
+
+- Node: `v24.18.0`
+- npm via `npm.cmd`: `11.16.0`
+- Plain `npm -v`: still blocked by PowerShell execution policy for `npm.ps1`; continue using `npm.cmd`.
+- rustc: `1.96.0 (ac68faa20 2026-05-25)`
+- cargo: `1.96.0 (30a34c682 2026-05-25)`
+- rustup: `1.29.0 (28d1352db 2026-03-05)`
+- Rust toolchain: `stable-x86_64-pc-windows-msvc`
+- Git: `2.51.1.windows.1`
+- WebView2: detected by Tauri, version `149.0.4022.80`
+- MSVC: detected by Tauri as Visual Studio Build Tools 2026
+
+### Icon Status
+
+- `vms-logo.png` exists in the project root.
+- `src-tauri/icons/` exists.
+- Required Tauri icon files exist, including `src-tauri/icons/icon.ico`.
+- Existing generated icons include PNG sizes, `icon.icns`, `icon.ico`, `icon.png`, Windows Store logo assets, and mobile icon folders.
+- No icon generation was needed in this checkpoint.
+
+### Config Status
+
+- Vite serves on `127.0.0.1:1420`.
+- Tauri `devUrl` was aligned from `http://localhost:1420` to `http://127.0.0.1:1420`.
+- Tauri `beforeDevCommand` and `beforeBuildCommand` were changed to `npm.cmd run dev` and `npm.cmd run build` because plain `npm` is not safe in the current PowerShell policy.
+- Vite already ignores Rust/native generated paths:
+  - `**/src-tauri/target/**`
+  - `**/src-tauri/gen/**`
+  - `**/src-tauri/icons/**`
+- `dist/`, `node_modules/`, `src-tauri/target/`, and `src-tauri/gen/` are ignored by Git.
+
+### Summary of What Changed
+
+- Updated only scaffold validation/config files.
+- Did not implement the Phase 1 app shell.
+- Did not add vehicle, fuel, maintenance, alert, report, auth, backup, or database features.
+- Formatted `vite.config.ts` after Prettier reported style drift.
+
+### Files Created
+
+- None.
+
+### Files Modified
+
+- `src-tauri/tauri.conf.json` — aligned `devUrl` with Vite and switched Tauri npm commands to `npm.cmd`.
+- `vite.config.ts` — formatting only; watcher exclusions were already present.
+- `specs/live-update.md` — added this checkpoint update and refreshed current blocker status.
+
+### Files Deleted
+
+- None.
+
+### Commands Run
+
+```bash
+Get-Location
+Get-Content -Raw -LiteralPath AGENTS.md
+Get-Content -Raw -LiteralPath README.md
+Get-Content -Raw -LiteralPath specs\00-project-brief.md
+Get-Content -Raw -LiteralPath specs\01-tech-stack-architecture.md
+Get-Content -Raw -LiteralPath specs\07-development-phases.md
+Get-Content -Raw -LiteralPath specs\live-update.md
+Get-Content -Raw -LiteralPath package.json
+Get-Content -Raw -LiteralPath vite.config.ts
+Get-Content -Raw -LiteralPath src-tauri\tauri.conf.json
+Get-Content -Raw -LiteralPath src-tauri\Cargo.toml
+Test-Path -LiteralPath vms-logo.png
+Test-Path -LiteralPath src-tauri\icons
+Get-ChildItem -Force -LiteralPath src-tauri\icons
+Test-Path -LiteralPath src-tauri\icons\icon.ico
+git check-ignore -v dist src-tauri/target src-tauri/target/debug src-tauri/gen node_modules
+node -v
+npm.cmd -v
+npm -v
+rustc --version
+cargo --version
+rustup --version
+git --version
+where.exe cargo
+where.exe rustc
+where.exe npm
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+npm.cmd run tauri -- info
+npm.cmd run tauri:dev
+```
+
+### Command Results
+
+- Typecheck: pass.
+- Lint: pass. One parallel lint attempt hit a transient sandbox ACL error, then the sequential rerun passed.
+- Format check: initially failed on `vite.config.ts`; after formatting, pass.
+- Build: pass.
+- `tauri info`: environment and package info printed successfully and showed WebView2, MSVC, Rust, Cargo, and rustup detected. The command did not exit before the 180-second timeout after printing package info, so it was recorded as partial/timeout rather than clean exit.
+- `tauri:dev`: clean logged run started Vite, compiled Rust, finished the dev build, and launched `target\debug\tog5-vms.exe`.
+- Tauri desktop window visual confirmation: not conclusively visible from shell. The native `tog5-vms.exe` process launched and was responsive, but `MainWindowTitle` was blank in process inspection.
+- Dev processes were stopped after validation.
+
+### Errors / Warnings Encountered
+
+- Plain `npm -v` still fails under PowerShell due execution policy blocking `npm.ps1`.
+- A first `tauri:dev` attempt timed out without output and left dev processes running.
+- A second logged `tauri:dev` attempt failed because port `1420` was already in use by the previous run.
+- After stopping leftover processes, a clean logged `tauri:dev` run succeeded through native process launch.
+- Visual confirmation of the desktop window could not be proven from process metadata alone.
+
+### Decisions Made
+
+- Kept the existing generated icon set because `icon.ico` and related files are present.
+- Did not regenerate icons from `vms-logo.png` because the icon setup is already complete enough for Tauri.
+- Aligned Tauri to `127.0.0.1:1420` to match Vite exactly.
+- Switched Tauri commands to `npm.cmd` to avoid PowerShell execution policy failures.
+- Left app UI/features untouched because this was a pre-Phase 1 validation checkpoint.
+
+### Suggested Next Step
+
+Proceed to Phase 1 app shell work: create the basic desktop layout/sidebar/page placeholders and then run `npm.cmd run tauri:dev` with direct visual confirmation from the user if needed.
+
+### Notes for ChatGPT Prompt Optimization
+
+The scaffold is healthy enough to start Phase 1. The next prompt should not repeat icon generation unless icons are deleted. Continue using `npm.cmd`. Tauri native compilation now reaches and launches `target\debug\tog5-vms.exe`; however, this shell could not independently verify the visible desktop window title, so a human visual check is useful during Phase 1.
+
 ---
 
 # Current Blockers
 
-- Native Tauri validation is blocked until Rust/rustup/Cargo are installed.
-- Native Tauri validation is blocked until Visual Studio Build Tools with MSVC and Windows SDK components are installed.
-- Direct `npm` in PowerShell is blocked by execution policy; use `npm.cmd` for now.
+- No scaffold-health blocker currently prevents Phase 1 from starting.
+- Direct `npm` in PowerShell is still blocked by execution policy; use `npm.cmd` for now.
+- Tauri native process launch is verified, but visible desktop-window confirmation should be checked manually during Phase 1 if Codex cannot observe the screen.
 
 ---
 
