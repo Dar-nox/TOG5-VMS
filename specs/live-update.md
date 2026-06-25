@@ -46,19 +46,19 @@ v1 local desktop MVP.
 
 ## Active Phase
 
-Phase 1 — App Scaffold.
+Phase 2 — Database Foundation and Migrations.
 
 ## Phase State
 
-Phase 0 completed. Phase 1 scaffold foundation is ready to continue after native Tauri prerequisites are installed.
+Phase 1 completed. The app has a desktop shell, sidebar navigation, top header, static placeholder pages, and validated scaffold commands.
 
 ## Last Completed Phase
 
-Phase 0 — Repository and Workflow Setup.
+Phase 1 — App Scaffold.
 
 ## Next Planned Phase
 
-Phase 1 — App Scaffold.
+Phase 2 — Database Foundation and Migrations.
 
 ---
 
@@ -67,7 +67,7 @@ Phase 1 — App Scaffold.
 | Phase | Name | Status | Notes |
 |---:|---|---|---|
 | 0 | Repository and Workflow Setup | Completed | Environment inspected; initial scaffold added; native Tauri prerequisites missing |
-| 1 | App Scaffold | Started | Tauri + React + TypeScript + Vite foundation created; app shell remains minimal |
+| 1 | App Scaffold | Completed | Desktop shell, sidebar navigation, static placeholder pages, and validation checks completed |
 | 2 | Database Foundation and Migrations | Not started | SQLite and initial tables |
 | 3 | Domain Models and Validation | Not started | Types and validation rules |
 | 4 | Vehicle Module | Not started | Vehicle CRUD, photo required, plate optional |
@@ -506,6 +506,132 @@ Proceed to Phase 1 app shell work: create the basic desktop layout/sidebar/page 
 ### Notes for ChatGPT Prompt Optimization
 
 The scaffold is healthy enough to start Phase 1. The next prompt should not repeat icon generation unless icons are deleted. Continue using `npm.cmd`. Tauri native compilation now reaches and launches `target\debug\tog5-vms.exe`; however, this shell could not independently verify the visible desktop window title, so a human visual check is useful during Phase 1.
+
+## Update 2026-06-25 22:50 +08:00 — Phase 1: App Scaffold
+
+### Prompt / Task Given to Codex
+
+Build the Phase 1 desktop app shell and placeholder navigation structure for TOG 5 VMS. Do not implement database, CRUD, business logic, authentication, Tauri commands, reports, backup, or real alerts.
+
+### Confirmed Project Root
+
+- `C:\Development Projects\TOG5-VMS`
+
+### Summary of What Changed
+
+- Replaced the minimal welcome panel with a desktop app shell.
+- Added left sidebar navigation, top header, main content area, and simple React state-based page switching.
+- Added placeholder pages for Dashboard, Vehicles, Fuel Logs, Maintenance, Service History, Expenses, Reports, Alerts, Backup & Restore, and Settings.
+- Added static dashboard summary cards for total vehicles, maintenance due soon, overdue maintenance, average fuel efficiency, monthly cost, and backup status.
+- Added static non-functional alert cards for due soon, overdue, fuel efficiency drop, missing receipt, and backup reminder.
+- Added product-rule placeholder copy for vehicle setup, maintenance applicability, fuel logging, alerts, backups, reports, expenses, settings, and service history.
+- Added responsive behavior for narrower windows with compact sidebar labels and horizontal navigation on small screens.
+- Used mock/static data only. No localStorage, SQLite, Tauri commands, file upload, notifications, API layer, authentication, reports, or backup system were implemented.
+
+### Files Created
+
+- `src/app/routes/PlaceholderPages.tsx` — static placeholder page components and mock dashboard/alert data.
+- `src/components/common/AppLayout.tsx` — reusable desktop shell layout with sidebar, header, and content area.
+- `src/components/common/SidebarNav.tsx` — reusable sidebar navigation component.
+- `src/components/common/SummaryCard.tsx` — reusable dashboard summary card.
+- `src/components/common/PlaceholderSection.tsx` — reusable explanatory placeholder section.
+- `src/components/common/AlertCard.tsx` — reusable static alert card.
+- `src/types/navigation.ts` — navigation item and page id types plus navigation labels.
+
+### Files Modified
+
+- `src/app/App.tsx` — now owns simple state-based page switching and renders the app layout.
+- `src/styles.css` — replaced starter splash styling with desktop shell, navigation, card, placeholder, alert, and responsive styles.
+- `specs/live-update.md` — recorded Phase 1 completion, validation results, and next step.
+
+### Files Deleted
+
+- None.
+
+### Commands Run
+
+```bash
+Get-Location
+Get-Content -Raw -LiteralPath AGENTS.md
+Get-Content -Raw -LiteralPath README.md
+Get-Content -Raw -LiteralPath specs\00-project-brief.md
+Get-Content -Raw -LiteralPath specs\01-tech-stack-architecture.md
+Get-Content -Raw -LiteralPath specs\02-functional-specification.md
+Get-Content -Raw -LiteralPath specs\05-ui-ux-specification.md
+Get-Content -Raw -LiteralPath specs\06-business-rules.md
+Get-Content -Raw -LiteralPath specs\07-development-phases.md
+Get-Content -Raw -LiteralPath specs\live-update.md
+Get-Content -Raw -LiteralPath package.json
+Get-Content -Raw -LiteralPath src\app\App.tsx
+Get-Content -Raw -LiteralPath src\styles.css
+npm.cmd exec prettier -- --write src\app\App.tsx src\app\routes\PlaceholderPages.tsx src\components\common\AppLayout.tsx src\components\common\SidebarNav.tsx src\components\common\SummaryCard.tsx src\components\common\PlaceholderSection.tsx src\components\common\AlertCard.tsx src\types\navigation.ts src\styles.css
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+Get-NetTCPConnection -LocalPort 1420 -ErrorAction SilentlyContinue
+npm.cmd run tauri:dev
+git status --short --ignored
+```
+
+### Command Results
+
+- Typecheck: pass.
+- Lint: pass.
+- Format check: pass after formatting the new/touched frontend files.
+- Frontend build: pass. Vite built 36 modules successfully.
+- Tauri dev: pass through compile and process launch. Vite started on `http://127.0.0.1:1420/`, Rust compiled, and `target\debug\tog5-vms.exe` launched.
+- Tauri app visual confirmation: still needs human confirmation. Codex verified the native process was responsive, but could not visually inspect the desktop window from shell metadata.
+- Tests: not configured yet.
+
+### Errors / Warnings Encountered
+
+- Initial typecheck failed because `JSX.Element` namespace was not available in `App.tsx`; fixed by using `ReactNode`.
+- Initial lint reported a React Fast Refresh warning because navigation constants were exported from the component file; fixed by moving navigation types/data to `src/types/navigation.ts`.
+- Initial format check reported `AppLayout.tsx`; fixed by running Prettier on touched files.
+- Tauri dev process was stopped after validation.
+
+### Decisions Made
+
+- Used simple React state for page switching; React Router was not added.
+- Kept all data mock/static.
+- Used the existing CSS setup instead of adding Tailwind.
+- Kept UI text friendly and rule-focused so users can understand future behavior before real modules exist.
+- Kept Rust/Tauri files untouched because no native command changes were needed.
+- Avoided README/spec changes except this required `live-update.md` update.
+
+### Important Implementation Details
+
+- Navigation pages are typed with `PageId` in `src/types/navigation.ts`.
+- `AppLayout` receives the active navigation item and renders the shell around page content.
+- Dashboard cards and alert cards are static examples only.
+- Vehicle, fuel, and maintenance placeholders explicitly record the product rules that must guide future phases.
+- Responsive behavior changes the sidebar to compact labels on medium widths and horizontal scrolling navigation on narrow widths.
+
+### Known Issues / Technical Debt
+
+- No automated UI tests are configured yet.
+- Human visual confirmation of the Tauri desktop window is still useful because Codex cannot see the desktop.
+- Placeholder pages are intentionally static and will need to be replaced or expanded in later phases.
+- No database, API, Tauri commands, file upload, notifications, authentication, reports, or backup behavior exists yet.
+
+### Manual Checks Completed
+
+- Confirmed project root.
+- Confirmed all required files were read before implementation.
+- Confirmed every required Phase 1 page exists in navigation.
+- Confirmed required dashboard summary cards exist.
+- Confirmed required vehicle, maintenance, and fuel product rules are visible in placeholders.
+- Confirmed required sample alert cards exist.
+- Confirmed no leftover Tauri/Vite/Cargo dev processes remained after validation.
+
+### Suggested Next Step
+
+Proceed to Phase 2: Database Foundation and Migrations. Start by reading `specs/03-data-model.md`, `specs/04-maintenance-template-engine.md`, `specs/06-business-rules.md`, and `specs/08-testing-quality.md`, then design a safe SQLite migration and initialization plan before adding tables.
+
+### Notes for ChatGPT Prompt Optimization
+
+The Phase 1 shell is complete and static by design. The next prompt should focus on Phase 2 database setup only, avoid UI feature expansion unless needed for initialization visibility, and continue using `npm.cmd`. Ask the human to visually confirm the desktop window if screenshots or direct UI inspection are required.
 
 ---
 
