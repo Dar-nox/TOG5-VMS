@@ -2120,6 +2120,178 @@ The next prompt should start Phase 7 with fuel log CRUD, receipt storage, odomet
 
 ---
 
+## Update 2026-06-26 12:17 +08:00 — Phase 6: Maintenance Page Layout Refactor
+
+### Prompt / Task Given to Codex
+
+Implement the approved Maintenance Page Layout Refactor Plan. Convert the vertical Maintenance page into a compact tabbed workspace with one shared vehicle context and tabs for Schedules, Applicability, and Template Library. Keep this UI-only with no database, Rust/Tauri command, scheduling, or alert behavior changes.
+
+### Summary of What Changed
+
+- Replaced the three stacked Maintenance sections with one tabbed workspace.
+- Set `Schedules` as the default active tab.
+- Moved the vehicle selector, selected vehicle chips, `Create / sync schedules`, and `Refresh alerts` actions into a shared top context.
+- Moved applicability results into an `Applicability` tab with simple summary counts.
+- Moved the default template library into a `Template Library` tab grouped by category.
+- Changed schedules from tall grid cards to denser row-style cards.
+
+### Files Created
+
+- None.
+
+### Files Modified
+
+- `src/components/maintenance/MaintenanceTemplateModule.tsx` — added local tab state, shared vehicle/action context, schedule/applicability/library panel components, summary counts, grouped template library, and denser schedule rows.
+- `src/styles.css` — added workspace, tab, dense schedule row, applicability summary, grouped template library, and responsive rules.
+- `specs/live-update.md` — recorded this Phase 6 UI polish task and validation results.
+
+### Files Deleted
+
+- None.
+
+### Commands Run
+
+```bash
+npm.cmd exec prettier -- --write src/components/maintenance/MaintenanceTemplateModule.tsx src/styles.css
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+npm.cmd run tauri:dev
+```
+
+### Command Results
+
+- `npm.cmd exec prettier -- --write ...`: passed.
+- `npm.cmd run typecheck`: passed.
+- `npm.cmd run lint`: passed.
+- `npm.cmd run format:check`: passed.
+- `npm.cmd run build`: passed; Vite production build completed.
+- First `npm.cmd run tauri:dev`: failed because port `1420` was already in use by a leftover TOG5-VMS dev stack.
+- Stopped only the confirmed TOG5-VMS leftover Node/Cargo/native dev processes and retried once.
+- Second `npm.cmd run tauri:dev`: passed launch validation; Vite started and `target\debug\tog5-vms.exe` launched.
+
+### Whether Tauri Launched
+
+- Tauri native process launch: verified by logs showing `Running target\debug\tog5-vms.exe`.
+- Human visual confirmation is still needed because Codex cannot reliably inspect the visible desktop window.
+
+### Issues Encountered
+
+- Port `1420` was occupied by leftover TOG5-VMS dev processes and was cleared before retrying.
+
+### Decisions Made
+
+- Kept this strictly UI-only.
+- Did not change database schema, Rust/Tauri commands, maintenance scheduling logic, alert behavior, or template seed data.
+- Prioritized the daily-use schedule view by making `Schedules` the default tab.
+
+### Manual Visual Checks Still Needed
+
+1. Open Maintenance.
+2. Confirm `Schedules`, `Applicability`, and `Template Library` tabs switch correctly.
+3. Confirm the vehicle selector and action buttons remain visible in the shared top context.
+4. Confirm schedule sync still works.
+5. Confirm applicability results still load.
+6. Confirm template library groups are visible.
+7. Check a narrow window for no overlap or horizontal overflow.
+
+### Suggested Next Step
+
+Proceed to Phase 7: Fuel Logging and Efficiency after the tabbed Maintenance layout is visually confirmed.
+
+### Notes for ChatGPT Prompt Optimization
+
+The Maintenance page is now a tabbed workspace rather than a vertical stack. Future prompts should preserve the shared vehicle context and default `Schedules` tab unless the user requests a broader maintenance redesign.
+
+---
+
+## Update 2026-06-26 12:33 +08:00 — Phase 6: Maintenance Card Consistency Polish
+
+### Prompt / Task Given to Codex
+
+Implement the Maintenance Card Consistency Refinement Plan. Make the Applicability tab visually consistent with the denser horizontal cards used by Schedules and the compact Template Library cards. Keep the change UI-only with no database, Rust/Tauri command, scheduling, alert, or template rule behavior changes.
+
+### Summary of What Changed
+
+- Changed the Applicability tab from the tall 3-column template grid to a compact row/list layout.
+- Reused the existing `MaintenanceTemplateCard` with a compact row variant for Applicability.
+- Kept applicability summary counts at the top.
+- Kept Template Library grouped by category while sharing the same compact card structure.
+- Added responsive CSS so Applicability rows collapse cleanly on narrower windows.
+
+### Files Created
+
+- None.
+
+### Files Modified
+
+- `src/components/maintenance/MaintenanceTemplateModule.tsx` — changed Applicability rendering to use a list layout and compact template cards; added a shared template-card main content wrapper.
+- `src/styles.css` — added compact applicability list/card styling and responsive single-column behavior.
+- `specs/live-update.md` — recorded this Phase 6 UI consistency polish and validation results.
+
+### Files Deleted
+
+- None.
+
+### Commands Run
+
+```bash
+npm.cmd exec prettier -- --write src/components/maintenance/MaintenanceTemplateModule.tsx src/styles.css
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+npm.cmd run tauri:dev
+```
+
+### Command Results
+
+- `npm.cmd exec prettier -- --write ...`: passed.
+- `npm.cmd run typecheck`: passed.
+- `npm.cmd run lint`: passed.
+- `npm.cmd run format:check`: passed.
+- First `npm.cmd run build`: failed with a transient Vite/Rollup emitted `index.html` path error.
+- Second `npm.cmd run build`: passed; Vite production build completed.
+- First `npm.cmd run tauri:dev`: failed because port `1420` was already in use by a leftover TOG5-VMS dev stack.
+- Stopped only the confirmed TOG5-VMS leftover Node/Cargo/native dev processes and retried once.
+- Second `npm.cmd run tauri:dev`: passed launch validation; Vite started and `target\debug\tog5-vms.exe` launched.
+
+### Whether Tauri Launched
+
+- Tauri native process launch: verified by logs showing `Running target\debug\tog5-vms.exe`.
+- Human visual confirmation is still needed because Codex cannot reliably inspect the visible desktop window.
+
+### Issues Encountered
+
+- A transient Vite build path error occurred once and passed on rerun.
+- Port `1420` was occupied by leftover TOG5-VMS dev processes and was cleared before retrying.
+
+### Decisions Made
+
+- Kept this strictly UI-only.
+- Did not change database schema, Rust/Tauri commands, scheduling logic, alert behavior, template rules, or seed data.
+- Used the same compact card component for Applicability and Template Library so Maintenance tabs feel visually consistent.
+
+### Manual Visual Checks Still Needed
+
+1. Open Maintenance.
+2. Switch to Applicability.
+3. Confirm applicability template rows look compact and horizontal rather than tall.
+4. Confirm Schedules and Template Library still look good.
+5. Confirm tabs, vehicle selector, and action buttons still work.
+6. Check a narrow window for no overlap or horizontal overflow.
+
+### Suggested Next Step
+
+Proceed to Phase 7: Fuel Logging and Efficiency after the Maintenance card consistency polish is visually confirmed.
+
+### Notes for ChatGPT Prompt Optimization
+
+The Maintenance tabs now share a compact visual language. Future Maintenance UI prompts should preserve the horizontal row pattern for dense operational lists and avoid returning Applicability to the old tall grid.
+
+---
+
 # Current Blockers
 
 - No Phase 6 blocker remains.

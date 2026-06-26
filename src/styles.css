@@ -818,6 +818,7 @@ h1 {
   gap: 18px;
 }
 
+.maintenance-workspace,
 .maintenance-toolbar,
 .maintenance-preview-panel,
 .maintenance-library-panel,
@@ -832,6 +833,7 @@ h1 {
   box-shadow: 0 18px 40px rgba(23, 32, 38, 0.06);
 }
 
+.maintenance-workspace,
 .maintenance-toolbar,
 .maintenance-preview-panel,
 .maintenance-library-panel,
@@ -840,6 +842,8 @@ h1 {
   padding: 20px;
 }
 
+.maintenance-workspace-header h2,
+.maintenance-workspace-header p,
 .maintenance-toolbar h2,
 .maintenance-toolbar p,
 .maintenance-selector h3,
@@ -849,12 +853,14 @@ h1 {
   margin: 0;
 }
 
+.maintenance-workspace-header h2,
 .maintenance-toolbar h2,
 .alerts-toolbar h2 {
   color: #173844;
   font-size: 1.35rem;
 }
 
+.maintenance-workspace-header p,
 .maintenance-toolbar p,
 .maintenance-selector p,
 .alerts-toolbar p {
@@ -864,11 +870,19 @@ h1 {
   line-height: 1.55;
 }
 
+.maintenance-workspace,
 .maintenance-preview-panel,
 .maintenance-library-panel,
 .maintenance-schedule-panel,
 .alerts-module {
   display: grid;
+  gap: 18px;
+}
+
+.maintenance-workspace-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  align-items: end;
   gap: 18px;
 }
 
@@ -905,6 +919,32 @@ h1 {
   padding: 11px 12px;
 }
 
+.maintenance-command-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border: 1px solid #dce4e1;
+  border-radius: 8px;
+  background: #f8faf9;
+  padding: 14px;
+}
+
+.maintenance-command-bar > div:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.maintenance-command-bar strong {
+  color: #173844;
+}
+
+.maintenance-command-bar span {
+  color: #52636a;
+  font-size: 0.92rem;
+}
+
 .vehicle-rule-summary {
   display: flex;
   flex-wrap: wrap;
@@ -913,7 +953,8 @@ h1 {
 
 .vehicle-rule-summary span,
 .maintenance-category,
-.priority-pill {
+.priority-pill,
+.applicability-summary span {
   display: inline-flex;
   align-items: center;
   border-radius: 999px;
@@ -936,6 +977,56 @@ h1 {
   gap: 14px;
 }
 
+.maintenance-template-list {
+  display: grid;
+  gap: 10px;
+}
+
+.maintenance-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  border-bottom: 1px solid #dce4e1;
+}
+
+.maintenance-tabs button {
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: #52636a;
+  padding: 12px 14px;
+  font-size: 0.94rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.maintenance-tabs button.active,
+.maintenance-tabs button[aria-selected="true"] {
+  border-bottom-color: #173844;
+  color: #173844;
+}
+
+.maintenance-tab-panel,
+.maintenance-panel-stack,
+.template-library-groups,
+.template-library-group {
+  display: grid;
+  gap: 14px;
+}
+
+.applicability-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.applicability-summary span {
+  border: 1px solid #dce4e1;
+  background: #f9fbfa;
+  color: #31515b;
+  padding: 7px 10px;
+}
+
 .maintenance-template-card,
 .maintenance-schedule-card,
 .real-alert-card {
@@ -944,6 +1035,25 @@ h1 {
   gap: 12px;
   min-height: 220px;
   padding: 16px;
+}
+
+.maintenance-template-card.compact {
+  min-height: 0;
+  gap: 9px;
+  padding: 14px;
+  box-shadow: none;
+}
+
+.maintenance-template-card.with-applicability {
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.58fr);
+  align-items: start;
+  min-height: 0;
+}
+
+.maintenance-template-main {
+  display: grid;
+  min-width: 0;
+  gap: 9px;
 }
 
 .maintenance-card-heading {
@@ -992,6 +1102,22 @@ h1 {
   line-height: 1.5;
 }
 
+.template-library-group {
+  align-content: start;
+}
+
+.template-library-group h3 {
+  margin: 0;
+  color: #173844;
+  font-size: 1.02rem;
+}
+
+.template-library-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
 .maintenance-intervals {
   display: flex;
   flex-wrap: wrap;
@@ -1020,6 +1146,7 @@ h1 {
 
 .applicability-note {
   display: grid;
+  align-self: stretch;
   gap: 5px;
 }
 
@@ -1068,7 +1195,39 @@ h1 {
 }
 
 .maintenance-schedule-card {
-  min-height: 238px;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.55fr);
+  align-items: start;
+  min-height: 0;
+}
+
+.maintenance-schedule-list {
+  display: grid;
+  gap: 10px;
+}
+
+.maintenance-schedule-main {
+  display: grid;
+  min-width: 0;
+  gap: 9px;
+}
+
+.maintenance-schedule-meta {
+  display: grid;
+  gap: 8px;
+}
+
+.maintenance-schedule-meta span {
+  border: 1px solid #dce4e1;
+  border-radius: 8px;
+  background: #f9fbfa;
+  color: #31515b;
+  padding: 8px 10px;
+  font-size: 0.86rem;
+  font-weight: 750;
+}
+
+.maintenance-schedule-card .maintenance-action-note {
+  grid-column: 1 / -1;
 }
 
 .schedule-status-pill {
@@ -1172,7 +1331,13 @@ h1 {
   .vehicle-detail-grid,
   .maintenance-template-grid,
   .maintenance-schedule-grid,
+  .maintenance-template-card.with-applicability,
+  .maintenance-schedule-card,
   .alerts-list {
+    grid-template-columns: 1fr;
+  }
+
+  .maintenance-workspace-header {
     grid-template-columns: 1fr;
   }
 }
@@ -1243,6 +1408,7 @@ h1 {
   .vehicle-toolbar,
   .vehicle-profile-hero,
   .vehicle-photo-picker,
+  .maintenance-workspace-header,
   .maintenance-selector,
   .maintenance-section-actions,
   .alerts-toolbar,
@@ -1251,10 +1417,15 @@ h1 {
   }
 
   .maintenance-selector,
+  .maintenance-command-bar,
   .maintenance-section-actions,
   .alerts-toolbar {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .maintenance-command-bar {
+    display: flex;
   }
 
   .maintenance-vehicle-select {
@@ -1263,6 +1434,10 @@ h1 {
 
   .maintenance-action-row {
     justify-content: stretch;
+  }
+
+  .maintenance-action-row button {
+    flex: 1 1 180px;
   }
 
   .vehicle-toolbar {

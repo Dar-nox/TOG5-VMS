@@ -11,10 +11,21 @@ import {
 } from "../../services/api/maintenance";
 import { listVehicles, type VehicleRecord } from "../../services/api/vehicles";
 
+type MaintenanceTab = "schedules" | "applicability" | "library";
+
+type ApplicabilitySummary = Record<ApplicableMaintenanceTemplate["applicabilityStatus"], number>;
+
+const maintenanceTabs: Array<{ id: MaintenanceTab; label: string }> = [
+  { id: "schedules", label: "Schedules" },
+  { id: "applicability", label: "Applicability" },
+  { id: "library", label: "Template Library" },
+];
+
 export function MaintenanceTemplateModule() {
   const [templates, setTemplates] = useState<MaintenanceTemplateRecord[]>([]);
   const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>("");
+  const [activeTab, setActiveTab] = useState<MaintenanceTab>("schedules");
   const [applicability, setApplicability] = useState<ApplicableMaintenanceTemplate[]>([]);
   const [schedules, setSchedules] = useState<MaintenanceScheduleRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,6 +39,33 @@ export function MaintenanceTemplateModule() {
     () => vehicles.find((vehicle) => vehicle.id === selectedVehicleId) ?? null,
     [selectedVehicleId, vehicles],
   );
+
+  const applicabilitySummary = useMemo<ApplicabilitySummary>(
+    () =>
+      applicability.reduce<ApplicabilitySummary>(
+        (summary, result) => ({
+          ...summary,
+          [result.applicabilityStatus]: summary[result.applicabilityStatus] + 1,
+        }),
+        { applicable: 0, excluded: 0, requires_feature: 0, not_applicable: 0 },
+      ),
+    [applicability],
+  );
+
+  const templatesByCategory = useMemo(() => {
+    const groups = new Map<string, MaintenanceTemplateRecord[]>();
+
+    for (const template of templates) {
+      const categoryTemplates = groups.get(template.category) ?? [];
+      categoryTemplates.push(template);
+      groups.set(template.category, categoryTemplates);
+    }
+
+    return Array.from(groups, ([category, categoryTemplates]) => ({
+      category,
+      templates: categoryTemplates,
+    }));
+  }, [templates]);
 
   const loadPageData = useCallback(async () => {
     setLoading(true);
@@ -147,25 +185,13 @@ export function MaintenanceTemplateModule() {
 
   return (
     <div className="maintenance-module">
-      <section className="maintenance-toolbar">
-        <div>
-          <h2>Maintenance</h2>
-          <p>
-            Review template applicability, create vehicle-specific schedules, and refresh local
-            in-app maintenance alerts. Completion logs come later.
-          </p>
-        </div>
-      </section>
-
-      {errorMessage ? <div className="inline-error">{errorMessage}</div> : null}
-
-      <section className="maintenance-preview-panel">
-        <div className="maintenance-selector">
+      <section className="maintenance-workspace">
+        <div className="maintenance-workspace-header">
           <div>
-            <h3>Vehicle applicability preview</h3>
+            <h2>Maintenance</h2>
             <p>
-              Pick a saved vehicle to see which templates auto-apply, which are excluded, and which
-              need a feature flag such as DEF/AdBlue or DPF.
+              Work from vehicle schedules first, then review applicability and the default template
+              library when you need reference details.
             </p>
           </div>
 
@@ -185,7 +211,7 @@ export function MaintenanceTemplateModule() {
             </label>
           ) : (
             <div className="maintenance-empty-note">
-              Add a vehicle first to preview template applicability.
+              Add a vehicle first to create schedules and preview template applicability.
             </div>
           )}
         </div>
@@ -199,31 +225,12 @@ export function MaintenanceTemplateModule() {
           </div>
         ) : null}
 
-        <div className="maintenance-template-grid" aria-label="Applicable maintenance templates">
-          {applicabilityLoading ? (
-            <div className="maintenance-empty-note">Checking template applicability...</div>
-          ) : null}
-
-          {!applicabilityLoading && selectedVehicleId
-            ? applicability.map((result) => (
-                <MaintenanceTemplateCard
-                  key={result.template.id}
-                  result={result}
-                  showApplicability
-                />
-              ))
-            : null}
-        </div>
-      </section>
-
-      <section className="maintenance-schedule-panel">
-        <div className="section-heading maintenance-section-actions">
+        <div className="maintenance-command-bar">
           <div>
-            <h2>Vehicle schedules</h2>
-            <p>
-              Create schedules from auto-applicable templates only. Excluded, not-applicable, and
-              feature-required templates are left out until the vehicle details support them.
-            </p>
+            <strong>{selectedVehicle ? selectedVehicle.vehicleName : "No vehicle selected"}</strong>
+            <span>
+              Schedules are created only from templates that auto-apply to the selected vehicle.
+            </span>
           </div>
 
           <div className="maintenance-action-row">
@@ -250,58 +257,156 @@ export function MaintenanceTemplateModule() {
           <div className="maintenance-action-note">{scheduleActionMessage}</div>
         ) : null}
 
-        <div className="maintenance-schedule-grid" aria-label="Vehicle maintenance schedules">
-          {scheduleLoading ? (
-            <div className="maintenance-empty-note">Loading vehicle schedules...</div>
+        {errorMessage ? <div className="inline-error">{errorMessage}</div> : null}
+
+        <div className="maintenance-tabs" role="tablist" aria-label="Maintenance sections">
+          {maintenanceTabs.map((tab) => (
+            <button
+              key={tab.id}
+              aria-selected={activeTab === tab.id}
+              className={activeTab === tab.id ? "active" : ""}
+              role="tab"
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="maintenance-tab-panel" role="tabpanel">
+          {activeTab === "schedules" ? (
+            <SchedulesPanel
+              scheduleLoading={scheduleLoading}
+              schedules={schedules}
+              selectedVehicleId={selectedVehicleId}
+            />
           ) : null}
 
-          {!scheduleLoading && !selectedVehicleId ? (
-            <div className="maintenance-empty-note">
-              Add or select a vehicle before creating schedules.
-            </div>
+          {activeTab === "applicability" ? (
+            <ApplicabilityPanel
+              applicability={applicability}
+              applicabilityLoading={applicabilityLoading}
+              selectedVehicleId={selectedVehicleId}
+              summary={applicabilitySummary}
+            />
           ) : null}
 
-          {!scheduleLoading && selectedVehicleId && schedules.length === 0 ? (
-            <div className="maintenance-empty-note">
-              No schedules yet. Use Create / sync schedules to generate them from applicable
-              templates.
-            </div>
+          {activeTab === "library" ? (
+            <TemplateLibraryPanel
+              loading={loading}
+              templateGroups={templatesByCategory}
+              templates={templates}
+            />
           ) : null}
-
-          {!scheduleLoading
-            ? schedules.map((schedule) => (
-                <MaintenanceScheduleCard key={schedule.id} schedule={schedule} />
-              ))
-            : null}
         </div>
       </section>
+    </div>
+  );
+}
 
-      <section className="maintenance-library-panel">
-        <div className="section-heading">
-          <h2>Default template library</h2>
-          <p>
-            These defaults are seeded locally and are safe to run more than once. They do not create
-            schedules yet.
-          </p>
-        </div>
+function SchedulesPanel(props: {
+  scheduleLoading: boolean;
+  schedules: MaintenanceScheduleRecord[];
+  selectedVehicleId: string;
+}) {
+  if (props.scheduleLoading) {
+    return <div className="maintenance-empty-note">Loading vehicle schedules...</div>;
+  }
 
-        <div
-          className="maintenance-template-grid"
-          aria-label="Default maintenance template library"
-        >
-          {loading ? <div className="maintenance-empty-note">Loading templates...</div> : null}
-          {!loading && templates.length === 0 ? (
-            <div className="maintenance-empty-note">
-              No maintenance templates are available yet.
-            </div>
-          ) : null}
-          {!loading
-            ? templates.map((template) => (
-                <MaintenanceTemplateCard key={template.id} template={template} />
-              ))
-            : null}
-        </div>
-      </section>
+  if (!props.selectedVehicleId) {
+    return (
+      <div className="maintenance-empty-note">
+        Add or select a vehicle before creating schedules.
+      </div>
+    );
+  }
+
+  if (props.schedules.length === 0) {
+    return (
+      <div className="maintenance-empty-note">
+        No schedules yet. Use Create / sync schedules to generate them from applicable templates.
+      </div>
+    );
+  }
+
+  return (
+    <div className="maintenance-schedule-list" aria-label="Vehicle maintenance schedules">
+      {props.schedules.map((schedule) => (
+        <MaintenanceScheduleCard key={schedule.id} schedule={schedule} />
+      ))}
+    </div>
+  );
+}
+
+function ApplicabilityPanel(props: {
+  applicability: ApplicableMaintenanceTemplate[];
+  applicabilityLoading: boolean;
+  selectedVehicleId: string;
+  summary: ApplicabilitySummary;
+}) {
+  if (props.applicabilityLoading) {
+    return <div className="maintenance-empty-note">Checking template applicability...</div>;
+  }
+
+  if (!props.selectedVehicleId) {
+    return (
+      <div className="maintenance-empty-note">
+        Add or select a vehicle to preview template applicability.
+      </div>
+    );
+  }
+
+  return (
+    <div className="maintenance-panel-stack">
+      <div className="applicability-summary" aria-label="Applicability summary">
+        <span>Auto-applies: {props.summary.applicable}</span>
+        <span>Excluded: {props.summary.excluded}</span>
+        <span>Needs feature: {props.summary.requires_feature}</span>
+        <span>Not applicable: {props.summary.not_applicable}</span>
+      </div>
+
+      <div className="maintenance-template-list" aria-label="Applicable maintenance templates">
+        {props.applicability.map((result) => (
+          <MaintenanceTemplateCard
+            key={result.template.id}
+            compact
+            result={result}
+            showApplicability
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TemplateLibraryPanel(props: {
+  loading: boolean;
+  templateGroups: Array<{ category: string; templates: MaintenanceTemplateRecord[] }>;
+  templates: MaintenanceTemplateRecord[];
+}) {
+  if (props.loading) {
+    return <div className="maintenance-empty-note">Loading templates...</div>;
+  }
+
+  if (props.templates.length === 0) {
+    return (
+      <div className="maintenance-empty-note">No maintenance templates are available yet.</div>
+    );
+  }
+
+  return (
+    <div className="template-library-groups" aria-label="Default maintenance template library">
+      {props.templateGroups.map((group) => (
+        <section key={group.category} className="template-library-group">
+          <h3>{labelValue("", group.category)}</h3>
+          <div className="template-library-list">
+            {group.templates.map((template) => (
+              <MaintenanceTemplateCard key={template.id} template={template} compact />
+            ))}
+          </div>
+        </section>
+      ))}
     </div>
   );
 }
@@ -309,6 +414,7 @@ export function MaintenanceTemplateModule() {
 function MaintenanceTemplateCard(props: {
   result?: ApplicableMaintenanceTemplate;
   showApplicability?: boolean;
+  compact?: boolean;
   template?: MaintenanceTemplateRecord;
 }) {
   const template = props.result?.template ?? props.template;
@@ -318,20 +424,26 @@ function MaintenanceTemplateCard(props: {
   }
 
   return (
-    <article className="maintenance-template-card">
-      <div className="maintenance-card-heading">
-        <span className="maintenance-category">{labelValue("", template.category)}</span>
-        <span className={`priority-pill ${template.priority}`}>
-          {labelValue("", template.priority)}
-        </span>
-      </div>
+    <article
+      className={`maintenance-template-card ${props.compact ? "compact" : ""} ${
+        props.showApplicability ? "with-applicability" : ""
+      }`}
+    >
+      <div className="maintenance-template-main">
+        <div className="maintenance-card-heading">
+          <span className="maintenance-category">{labelValue("", template.category)}</span>
+          <span className={`priority-pill ${template.priority}`}>
+            {labelValue("", template.priority)}
+          </span>
+        </div>
 
-      <h3>{template.name}</h3>
-      {template.description ? <p>{template.description}</p> : null}
+        <h3>{template.name}</h3>
+        {template.description ? <p>{template.description}</p> : null}
 
-      <div className="maintenance-intervals">
-        <span>{intervalDays(template.defaultTimeIntervalDays)}</span>
-        <span>{intervalKm(template.defaultOdometerIntervalKm)}</span>
+        <div className="maintenance-intervals">
+          <span>{intervalDays(template.defaultTimeIntervalDays)}</span>
+          <span>{intervalKm(template.defaultOdometerIntervalKm)}</span>
+        </div>
       </div>
 
       {props.showApplicability && props.result ? (
@@ -350,30 +462,30 @@ function MaintenanceTemplateCard(props: {
 function MaintenanceScheduleCard({ schedule }: { schedule: MaintenanceScheduleRecord }) {
   return (
     <article className="maintenance-schedule-card">
-      <div className="maintenance-card-heading">
-        <span className="maintenance-category">{labelValue("", schedule.category)}</span>
-        <span className={`schedule-status-pill ${schedule.dueStatus}`}>
-          {scheduleStatusLabel(schedule.dueStatus)}
-        </span>
+      <div className="maintenance-schedule-main">
+        <div className="maintenance-card-heading">
+          <span className="maintenance-category">{labelValue("", schedule.category)}</span>
+          <span className={`schedule-status-pill ${schedule.dueStatus}`}>
+            {scheduleStatusLabel(schedule.dueStatus)}
+          </span>
+        </div>
+
+        <h3>{schedule.templateName}</h3>
+        <p>{schedule.dueReason}</p>
       </div>
 
-      <h3>{schedule.templateName}</h3>
-      <p>{schedule.dueReason}</p>
-
-      <div className="maintenance-intervals">
+      <div className="maintenance-schedule-meta">
         <span>
-          {schedule.nextDueDate ? `Due date: ${formatDate(schedule.nextDueDate)}` : "No due date"}
+          {schedule.nextDueDate ? `Date: ${formatDate(schedule.nextDueDate)}` : "No due date"}
         </span>
         <span>
           {schedule.nextDueOdometer
-            ? `Due odometer: ${formatOdometer(schedule.nextDueOdometer)} km`
+            ? `Odometer: ${formatOdometer(schedule.nextDueOdometer)} km`
             : "No odometer target"}
         </span>
-      </div>
-
-      <div className="schedule-thresholds">
-        <span>Due soon: {schedule.dueSoonDays} days</span>
-        <span>Due soon: {schedule.dueSoonKm.toLocaleString()} km</span>
+        <span>
+          Due soon: {schedule.dueSoonDays} days / {schedule.dueSoonKm.toLocaleString()} km
+        </span>
       </div>
 
       {schedule.notes ? <div className="maintenance-action-note">{schedule.notes}</div> : null}
