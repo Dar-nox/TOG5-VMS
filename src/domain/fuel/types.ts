@@ -25,12 +25,14 @@ export type FuelLog = {
   notes?: string;
 };
 
-export type FuelLogValidationInput = Pick<
-  FuelLog,
-  "odometer" | "fuelType" | "liters" | "totalAmount" | "isFullTank"
-> & {
+export type FuelLogValidationInput = {
+  odometer: unknown;
+  fuelType: FuelLogFuelType;
+  liters: unknown;
+  totalAmount: unknown;
+  isFullTank: boolean;
   vehicleFuelType?: VehicleFuelType;
-  pricePerLiter?: number;
+  pricePerLiter?: unknown;
   previousOdometer?: number;
   allowAdminOdometerOverride?: boolean;
 };

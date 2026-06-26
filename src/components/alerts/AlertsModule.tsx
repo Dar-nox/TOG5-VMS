@@ -83,7 +83,7 @@ export function AlertsModule() {
 
                 <div className="alert-meta">
                   <span>{alert.vehicleName ?? "Vehicle not available"}</span>
-                  <span>{alert.maintenanceTemplateName ?? "Maintenance item"}</span>
+                  <span>{relatedRecordLabel(alert)}</span>
                   <span>Status: {labelValue(alert.status)}</span>
                 </div>
 
@@ -113,13 +113,35 @@ function alertTypeLabel(alertType: string) {
       return "Due soon by date";
     case "due_soon_by_odometer":
       return "Due soon by odometer";
+    case "fuel_efficiency_drop":
+      return "Fuel efficiency drop";
     default:
       return labelValue(alertType);
   }
 }
 
 function alertStatusClass(alertType: string) {
-  return alertType.startsWith("overdue") ? "overdue" : "due_soon";
+  if (alertType.startsWith("overdue")) {
+    return "overdue";
+  }
+
+  if (alertType === "fuel_efficiency_drop") {
+    return "due_soon";
+  }
+
+  return "due_soon";
+}
+
+function relatedRecordLabel(alert: AlertRecord) {
+  if (alert.maintenanceTemplateName) {
+    return alert.maintenanceTemplateName;
+  }
+
+  if (alert.relatedRecordType === "fuel_log") {
+    return "Fuel log";
+  }
+
+  return "Maintenance item";
 }
 
 function labelValue(value: string) {

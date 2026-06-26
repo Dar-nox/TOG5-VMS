@@ -1,5 +1,6 @@
 mod db;
 pub mod domain;
+mod fuel;
 mod maintenance;
 mod vehicles;
 
@@ -17,6 +18,13 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             db::database_status,
+            fuel::commands::list_fuel_logs_for_vehicle,
+            fuel::commands::get_fuel_log,
+            fuel::commands::create_fuel_log,
+            fuel::commands::update_fuel_log,
+            fuel::commands::archive_fuel_log,
+            fuel::commands::store_fuel_receipt,
+            fuel::commands::get_fuel_efficiency_summary_for_vehicle,
             maintenance::commands::list_maintenance_templates,
             maintenance::commands::get_applicable_maintenance_templates_for_vehicle,
             maintenance::commands::seed_maintenance_templates,

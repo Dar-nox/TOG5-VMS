@@ -46,19 +46,19 @@ v1 local desktop MVP.
 
 ## Active Phase
 
-Phase 6 — Maintenance Scheduling and Alerts.
+Phase 7 — Fuel Logging and Efficiency.
 
 ## Phase State
 
-Phase 6 completed. Vehicle-specific maintenance schedule sync, due-status calculation, in-app maintenance alerts, backend commands, read-only schedule UI, active Alerts page, and schedule/alert tests are in place.
+Phase 7 completed. Fuel log CRUD, local receipt storage, odometer validation, fuel-type warnings, full-tank official efficiency calculations, conservative fuel-efficiency-drop alert groundwork, backend commands, frontend Fuel Logs UI, and fuel repository tests are in place.
 
 ## Last Completed Phase
 
-Phase 6 — Maintenance Scheduling and Alerts.
+Phase 7 — Fuel Logging and Efficiency.
 
 ## Next Planned Phase
 
-Phase 7 — Fuel Logging and Efficiency.
+Phase 8 — Maintenance Completion and Service History.
 
 ---
 
@@ -73,7 +73,7 @@ Phase 7 — Fuel Logging and Efficiency.
 | 4 | Vehicle Module | Completed | Vehicle CRUD, local photo storage, archive flow, profile UI, and repository tests |
 | 5 | Maintenance Template Engine | Completed | Default template library, idempotent seed, and vehicle applicability preview |
 | 6 | Maintenance Scheduling and Alerts | Completed | Schedule sync, due status, active in-app alerts, and tests |
-| 7 | Fuel Logging and Efficiency | Not started | Receipts, full-tank rule, km/L |
+| 7 | Fuel Logging and Efficiency | Completed | Fuel logs, local receipts, full-tank km/L, warnings, efficiency-drop alert groundwork |
 | 8 | Maintenance Completion and Service History | Not started | Complete tasks and logs |
 | 9 | Expenses and Reports | Not started | Expense tracking and reports |
 | 10 | Backup, Restore, and Local File Safety | Not started | Local backup package |
@@ -2292,9 +2292,213 @@ The Maintenance tabs now share a compact visual language. Future Maintenance UI 
 
 ---
 
+## Update 2026-06-26 12:58 +08:00 — Phase 7: Fuel Logging and Efficiency
+
+### Prompt / Task Given to Codex
+
+Implement Phase 7: Fuel Logging and Efficiency. Add fuel log CRUD, local receipt storage, odometer validation, fuel-type compatibility warnings, official full-tank fuel-efficiency calculation, basic fuel-efficiency-drop alert groundwork, a real Fuel Logs page, tests, validation, and update `specs/live-update.md`.
+
+### Confirmed Project Root
+
+- `C:\Development Projects\TOG5-VMS`
+
+### Fuel Log Approach
+
+- Added a Rust `fuel` module with typed Tauri commands, models, repository functions, receipt storage helpers, and tests.
+- Used the existing `fuel_logs` table; no schema migration was needed.
+- Fuel logs are soft archived through `fuel_logs.deleted_at`.
+- Vehicle odometer is advanced when a saved fuel log has a higher odometer reading.
+- The frontend Fuel Logs page uses one shared vehicle selector, an add/edit form, and a compact fuel history list.
+
+### Receipt / Local File Approach
+
+- Fuel receipts are copied into the Tauri app-data `fuel-receipts/` folder.
+- Receipt metadata is stored in `vehicle_documents` with `document_type = 'fuel_receipt'`.
+- Fuel logs link to receipts through the existing `fuel_logs.receipt_document_id` field.
+- Supported receipt types: PNG, JPG/JPEG, WEBP, and PDF.
+- Receipt size limit: 10 MB.
+- No OCR, cloud upload, or remote file handling was added.
+
+### Fuel Efficiency Calculation Approach
+
+- Official efficiency is recalculated for active fuel logs after create, update, or archive.
+- Official km/L is calculated only when the current log is full tank, there is a previous full-tank fuel log for the same vehicle, current odometer is higher, liters are valid, and the log is not DEF/AdBlue.
+- Stored calculated values use the existing `computed_km_per_liter`, `computed_l_per_100km`, and `computed_cost_per_km` columns.
+- Partial tank logs save successfully but stay `not_computed`.
+- First full-tank logs save successfully but wait for the next valid full-tank log.
+
+### Fuel Type Warning Approach
+
+- Fuel type mismatch returns a warning, not a hard failure.
+- DEF/AdBlue can be saved as a fluid entry but is not counted as diesel fuel consumption or official fuel efficiency.
+- Diesel and hybrid-diesel vehicles accept DEF/AdBlue as compatible fluid entries while still warning that it is not fuel consumption.
+
+### Alert Groundwork
+
+- Added conservative local fuel-efficiency-drop detection.
+- If at least three previous official efficiency logs exist and the latest official km/L is more than 20% below the recent average, the backend creates or updates one active `fuel_efficiency_drop` in-app alert.
+- If the drop is no longer present, active fuel-efficiency-drop alerts for that vehicle are resolved.
+- No OS notifications, email, push, or telemetry were added.
+
+### Backend Commands Added
+
+- `list_fuel_logs_for_vehicle`
+- `get_fuel_log`
+- `create_fuel_log`
+- `update_fuel_log`
+- `archive_fuel_log`
+- `store_fuel_receipt`
+- `get_fuel_efficiency_summary_for_vehicle`
+
+### Frontend Fuel Logs UI Added
+
+- Replaced the Fuel Logs placeholder with a real Fuel Logs module.
+- Added vehicle selector and selected vehicle chips.
+- Added add/edit fuel log form.
+- Added local receipt attachment input.
+- Added fuel history list with date/time, odometer, fuel type, liters, price per liter, total amount, full-tank status, official efficiency status, km/L, cost/km, receipt indicator/link, warnings, edit, and archive actions.
+- Added fuel summary cards for official log count, latest km/L, recent average, and efficiency-drop status.
+
+### Tests Added
+
+- Rust repository tests for create/list/update/archive fuel logs.
+- Rust tests for odometer rollback rejection.
+- Rust tests for partial tank, first full tank, and second full tank official km/L calculation.
+- Rust tests for cost/km calculation.
+- Rust tests for DEF/AdBlue non-computation.
+- Rust tests for fuel type mismatch warning.
+- Rust tests for receipt metadata linking.
+- Rust test for conservative efficiency-drop summary and in-app alert creation.
+- Rust receipt storage test using a temp folder.
+
+### Files Created
+
+- `src-tauri/src/fuel/mod.rs` — fuel module registration.
+- `src-tauri/src/fuel/models.rs` — typed fuel, receipt, warning, and summary models.
+- `src-tauri/src/fuel/receipt_storage.rs` — app-data receipt file storage and validation.
+- `src-tauri/src/fuel/repository.rs` — fuel log repository, validation, efficiency calculations, warnings, alerts, and tests.
+- `src-tauri/src/fuel/commands.rs` — Tauri command handlers.
+- `src/components/fuel/FuelLogsModule.tsx` — real Fuel Logs UI.
+- `src/services/api/fuel.ts` — typed frontend Tauri API wrapper for fuel commands.
+
+### Files Modified
+
+- `src-tauri/src/lib.rs` — registered the fuel module and fuel Tauri commands.
+- `src/app/routes/PlaceholderPages.tsx` — replaced Fuel Logs placeholder with `FuelLogsModule`.
+- `src/components/alerts/AlertsModule.tsx` — added friendly display handling for fuel-efficiency-drop alerts.
+- `src/domain/fuel/types.ts` — widened fuel validation input numeric fields to `unknown` so the UI can safely pass not-yet-valid form values into validation helpers.
+- `src/styles.css` — added Fuel Logs workspace, form, summary, warning, and history list styles.
+- `specs/live-update.md` — updated current phase status and recorded this Phase 7 entry.
+
+### Files Deleted
+
+- None.
+
+### Commands Run
+
+```bash
+cargo fmt --manifest-path src-tauri/Cargo.toml
+npm.cmd run typecheck
+cargo check --manifest-path src-tauri/Cargo.toml
+npm.cmd run lint
+npm.cmd run test
+cargo fmt --manifest-path src-tauri/Cargo.toml --check
+cargo test --manifest-path src-tauri/Cargo.toml
+npm.cmd run format:check
+npm.cmd run build
+npm.cmd exec prettier -- --write src/components/fuel/FuelLogsModule.tsx src/services/api/fuel.ts
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run test
+npm.cmd run build
+npm.cmd run tauri:dev
+```
+
+### Command Results
+
+- `cargo fmt --manifest-path src-tauri/Cargo.toml`: passed.
+- `npm.cmd run typecheck`: passed before and after formatting.
+- `cargo check --manifest-path src-tauri/Cargo.toml`: passed.
+- `npm.cmd run lint`: passed before and after formatting.
+- `npm.cmd run test`: passed before and after formatting; 1 Vitest file, 12 tests passed.
+- `cargo fmt --manifest-path src-tauri/Cargo.toml --check`: passed.
+- `cargo test --manifest-path src-tauri/Cargo.toml`: passed; 31 Rust tests passed.
+- First `npm.cmd run format:check`: failed because two new TypeScript files needed Prettier formatting.
+- `npm.cmd exec prettier -- --write src/components/fuel/FuelLogsModule.tsx src/services/api/fuel.ts`: passed.
+- Second `npm.cmd run format:check`: passed.
+- `npm.cmd run build`: passed; Vite production build completed.
+- First sandboxed `npm.cmd run tauri:dev`: reached the native app binary but failed during setup with `Could not configure SQLite connection: unable to open database file` because the sandbox blocked app-data SQLite access.
+- Escalated `npm.cmd run tauri:dev`: passed launch validation; Vite started and logs showed `Running target\debug\tog5-vms.exe`.
+- Cleanup check confirmed no process was left listening on port `1420`.
+
+### Whether Tauri Launched
+
+- Tauri native process launch: verified by escalated logs showing `Running target\debug\tog5-vms.exe`.
+- Human visual confirmation is still needed because Codex cannot reliably inspect the visible desktop window.
+
+### Issues Encountered
+
+- The managed sandbox blocked the Tauri app from opening the SQLite database in the Windows app-data directory during the first dev launch. Rerunning with escalation fixed this validation issue.
+- Prettier check initially failed for the two new TypeScript files and passed after formatting them.
+
+### Decisions Made
+
+- No database migration was added because the existing `fuel_logs`, `vehicle_documents`, and `alerts` schema supports Phase 7.
+- Used `vehicle_documents` rather than a new receipt table for fuel receipt metadata.
+- Used backend recalculation after fuel mutations so official efficiency values stay consistent after edits and archives.
+- Implemented conservative efficiency-drop alert creation only when there is enough official history.
+- Left Dashboard fuel cards static to avoid scope creep.
+
+### Important Implementation Details
+
+- Odometer rollback is a backend hard error until a future admin override workflow exists.
+- The frontend also warns before save when the odometer is below the latest fuel log reading for the selected vehicle.
+- Price per liter or total amount can be calculated from the other value when liters are valid.
+- Receipt files are local-only and app-managed; the app does not depend on the original selected file path after save.
+- Fuel logs use centralized frontend API wrappers instead of raw `invoke(...)` calls in the UI.
+
+### Known Issues / Technical Debt
+
+- Human visual testing is still needed for the Fuel Logs screen and receipt link behavior.
+- Receipt attachments are stored and linked, but there is no dedicated document viewer yet.
+- Fuel-efficiency-drop alerting is intentionally conservative and text-based; no reports or charts were added.
+- No admin odometer override UI exists yet.
+- No dashboard fuel/alert real-data rollup was added in this phase.
+
+### Manual Checks Completed
+
+- Confirmed project root.
+- Inspected existing fuel schema and verified no migration was required.
+- Confirmed app-data launch needs escalation in Codex because SQLite lives outside the workspace sandbox.
+- Confirmed no leftover process was listening on port `1420` after Tauri dev cleanup.
+
+### Manual Visual Checks Still Needed
+
+1. Open Fuel Logs.
+2. Confirm the vehicle selector works.
+3. Add a partial tank log and confirm it saves without official efficiency.
+4. Add a first full-tank log and confirm it waits for the next full-tank log.
+5. Add a second full-tank log and confirm km/L is calculated correctly.
+6. Attach a PNG/JPG/WEBP/PDF receipt and confirm it is shown in the fuel history.
+7. Try a mismatched fuel type and confirm a warning appears.
+8. Save DEF/AdBlue and confirm it is not shown as diesel fuel efficiency.
+9. Confirm edit and archive actions work.
+10. Confirm Vehicles, Maintenance tabs, and Alerts still open.
+
+### Suggested Next Step
+
+Proceed to Phase 8: Maintenance Completion and Service History after Fuel Logs receive a quick human visual check.
+
+### Notes for ChatGPT Prompt Optimization
+
+Phase 8 prompts should treat Fuel Logs as implemented and should avoid changing fuel behavior unless a user-reported bug appears. The most useful next focus is completing maintenance schedules into service history records while preserving the existing Maintenance tab layout and Fuel Logs receipt/file strategy.
+
+---
+
 # Current Blockers
 
-- No Phase 6 blocker remains.
+- No Phase 7 blocker remains.
 - Direct `npm` in PowerShell is still blocked by execution policy; use `npm.cmd` for now.
 - Tauri native process launch is verified, but visible desktop-window confirmation should be checked manually if Codex cannot observe the screen.
 

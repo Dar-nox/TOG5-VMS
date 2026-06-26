@@ -1,6 +1,7 @@
 import { AlertsModule } from "../../components/alerts/AlertsModule";
 import { PlaceholderSection } from "../../components/common/PlaceholderSection";
 import { SummaryCard } from "../../components/common/SummaryCard";
+import { FuelLogsModule } from "../../components/fuel/FuelLogsModule";
 import { MaintenanceTemplateModule } from "../../components/maintenance/MaintenanceTemplateModule";
 import { VehicleModule } from "../../components/vehicles/VehicleModule";
 
@@ -71,18 +72,7 @@ export function VehiclesPage() {
 }
 
 export function FuelLogsPage() {
-  return (
-    <PlaceholderSection
-      title="Fuel logs will focus on accurate, useful entries"
-      description="Fuel tracking is not connected yet. This page marks the future workflow and safety rules."
-      items={[
-        "Receipt and odometer readings are fuel log data points.",
-        "Official fuel efficiency should only be calculated between full-tank logs.",
-        "Fuel type mismatch should warn the user later.",
-        "DEF/AdBlue should not be counted as diesel fuel consumption.",
-      ]}
-    />
-  );
+  return <FuelLogsModule />;
 }
 
 export function MaintenancePage() {
