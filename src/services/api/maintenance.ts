@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import type {
   AlertPriority,
   AlertStatus,
@@ -16,6 +16,11 @@ const maintenanceCommands = {
   listSchedulesForVehicle: "list_maintenance_schedules_for_vehicle",
   syncSchedulesForVehicle: "sync_maintenance_schedules_for_vehicle",
   refreshAlertsForVehicle: "refresh_maintenance_alerts_for_vehicle",
+  completeSchedule: "complete_maintenance_schedule",
+  listServiceHistoryForVehicle: "list_service_history_for_vehicle",
+  getMaintenanceLog: "get_maintenance_log",
+  storeReceipt: "store_maintenance_receipt",
+  storePhoto: "store_maintenance_photo",
 } as const;
 
 export type MaintenanceTemplateRuleRecord = {
@@ -117,6 +122,70 @@ export type RefreshMaintenanceAlertsResult = {
   activeAlerts: AlertRecord[];
 };
 
+export type CompleteMaintenanceScheduleRequest = {
+  scheduleId: string;
+  completedDate: string;
+  odometer?: number;
+  workPerformed: string;
+  partsReplaced?: string;
+  laborCost?: number;
+  partsCost?: number;
+  totalCost?: number;
+  mechanicShop?: string;
+  receiptDocumentId?: string;
+  beforePhotoId?: string;
+  afterPhotoId?: string;
+  warrantyExpiration?: string;
+  notes?: string;
+};
+
+export type MaintenanceLogRecord = {
+  id: string;
+  vehicleId: string;
+  vehicleName: string;
+  templateId?: string | null;
+  templateKey?: string | null;
+  templateName?: string | null;
+  scheduleId?: string | null;
+  completedDate: string;
+  odometer: number;
+  workPerformed: string;
+  partsReplaced?: string | null;
+  laborCost: number;
+  partsCost: number;
+  totalCost: number;
+  mechanicShop?: string | null;
+  receiptDocumentId?: string | null;
+  receiptFilePath?: string | null;
+  receiptOriginalFilename?: string | null;
+  beforePhotoId?: string | null;
+  beforePhotoPath?: string | null;
+  afterPhotoId?: string | null;
+  afterPhotoPath?: string | null;
+  warrantyExpiration?: string | null;
+  nextRecommendedDate?: string | null;
+  nextRecommendedOdometer?: number | null;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CompleteMaintenanceScheduleResult = {
+  log: MaintenanceLogRecord;
+  schedule: MaintenanceScheduleRecord;
+  resolvedAlertCount: number;
+};
+
+export type MaintenanceAttachmentRecord = {
+  id: string;
+  vehicleId: string;
+  filePath: string;
+  originalFilename?: string | null;
+  mimeType?: string | null;
+  fileSizeBytes: number;
+  createdAt?: string | null;
+};
+
 export async function listMaintenanceTemplates(): Promise<MaintenanceTemplateRecord[]> {
   return invoke<MaintenanceTemplateRecord[]>(maintenanceCommands.listTemplates);
 }
@@ -155,4 +224,60 @@ export async function refreshMaintenanceAlertsForVehicle(
   return invoke<RefreshMaintenanceAlertsResult>(maintenanceCommands.refreshAlertsForVehicle, {
     vehicleId,
   });
+}
+
+export async function completeMaintenanceSchedule(
+  request: CompleteMaintenanceScheduleRequest,
+): Promise<CompleteMaintenanceScheduleResult> {
+  return invoke<CompleteMaintenanceScheduleResult>(maintenanceCommands.completeSchedule, {
+    request,
+  });
+}
+
+export async function listServiceHistoryForVehicle(
+  vehicleId: string,
+): Promise<MaintenanceLogRecord[]> {
+  return invoke<MaintenanceLogRecord[]>(maintenanceCommands.listServiceHistoryForVehicle, {
+    vehicleId,
+  });
+}
+
+export async function getMaintenanceLog(id: string): Promise<MaintenanceLogRecord> {
+  return invoke<MaintenanceLogRecord>(maintenanceCommands.getMaintenanceLog, { id });
+}
+
+export async function storeMaintenanceReceipt(
+  vehicleId: string,
+  file: File,
+): Promise<MaintenanceAttachmentRecord> {
+  const bytes = Array.from(new Uint8Array(await file.arrayBuffer()));
+
+  return invoke<MaintenanceAttachmentRecord>(maintenanceCommands.storeReceipt, {
+    request: {
+      vehicleId,
+      originalFilename: file.name,
+      mimeType: file.type || undefined,
+      bytes,
+    },
+  });
+}
+
+export async function storeMaintenancePhoto(
+  vehicleId: string,
+  file: File,
+): Promise<MaintenanceAttachmentRecord> {
+  const bytes = Array.from(new Uint8Array(await file.arrayBuffer()));
+
+  return invoke<MaintenanceAttachmentRecord>(maintenanceCommands.storePhoto, {
+    request: {
+      vehicleId,
+      originalFilename: file.name,
+      mimeType: file.type || undefined,
+      bytes,
+    },
+  });
+}
+
+export function maintenanceFileUrl(filePath?: string | null): string | undefined {
+  return filePath ? convertFileSrc(filePath.replace(/\\/g, "/")) : undefined;
 }

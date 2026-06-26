@@ -3,6 +3,7 @@ import { PlaceholderSection } from "../../components/common/PlaceholderSection";
 import { SummaryCard } from "../../components/common/SummaryCard";
 import { FuelLogsModule } from "../../components/fuel/FuelLogsModule";
 import { MaintenanceTemplateModule } from "../../components/maintenance/MaintenanceTemplateModule";
+import { ServiceHistoryModule } from "../../components/serviceHistory/ServiceHistoryModule";
 import { VehicleModule } from "../../components/vehicles/VehicleModule";
 
 const dashboardCards = [
@@ -80,17 +81,7 @@ export function MaintenancePage() {
 }
 
 export function ServiceHistoryPage() {
-  return (
-    <PlaceholderSection
-      title="Service history will keep completed work easy to review"
-      description="Later phases will show maintenance completion logs, parts replaced, shop notes, receipts, costs, and next recommended service."
-      items={[
-        "Completed maintenance will become part of the vehicle record.",
-        "Receipts and service notes will stay local to this desktop app.",
-        "Future entries will help calculate next due dates and odometer targets.",
-      ]}
-    />
-  );
+  return <ServiceHistoryModule />;
 }
 
 export function ExpensesPage() {

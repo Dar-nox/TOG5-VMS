@@ -1,17 +1,33 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  completeMaintenanceSchedule,
   getApplicableMaintenanceTemplatesForVehicle,
   listMaintenanceSchedulesForVehicle,
   listMaintenanceTemplates,
   refreshMaintenanceAlertsForVehicle,
+  storeMaintenancePhoto,
+  storeMaintenanceReceipt,
   syncMaintenanceSchedulesForVehicle,
   type ApplicableMaintenanceTemplate,
+  type CompleteMaintenanceScheduleRequest,
   type MaintenanceScheduleRecord,
   type MaintenanceTemplateRecord,
 } from "../../services/api/maintenance";
 import { listVehicles, type VehicleRecord } from "../../services/api/vehicles";
 
 type MaintenanceTab = "schedules" | "applicability" | "library";
+type CompletionFormState = {
+  completedDate: string;
+  odometer: string;
+  workPerformed: string;
+  partsReplaced: string;
+  laborCost: string;
+  partsCost: string;
+  totalCost: string;
+  mechanicShop: string;
+  warrantyExpiration: string;
+  notes: string;
+};
 
 type ApplicabilitySummary = Record<ApplicableMaintenanceTemplate["applicabilityStatus"], number>;
 
@@ -33,6 +49,17 @@ export function MaintenanceTemplateModule() {
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [scheduleActionLoading, setScheduleActionLoading] = useState(false);
   const [scheduleActionMessage, setScheduleActionMessage] = useState<string | null>(null);
+  const [completionSchedule, setCompletionSchedule] = useState<MaintenanceScheduleRecord | null>(
+    null,
+  );
+  const [completionForm, setCompletionForm] = useState<CompletionFormState>(() =>
+    emptyCompletionForm(),
+  );
+  const [completionReceiptFile, setCompletionReceiptFile] = useState<File | null>(null);
+  const [beforePhotoFile, setBeforePhotoFile] = useState<File | null>(null);
+  const [afterPhotoFile, setAfterPhotoFile] = useState<File | null>(null);
+  const [completionIssues, setCompletionIssues] = useState<string[]>([]);
+  const [completionLoading, setCompletionLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const selectedVehicle = useMemo(
@@ -183,6 +210,97 @@ export function MaintenanceTemplateModule() {
     }
   }, [selectedVehicleId]);
 
+  const handleOpenCompletion = useCallback(
+    (schedule: MaintenanceScheduleRecord) => {
+      setCompletionSchedule(schedule);
+      setCompletionForm(emptyCompletionForm(selectedVehicle));
+      setCompletionReceiptFile(null);
+      setBeforePhotoFile(null);
+      setAfterPhotoFile(null);
+      setCompletionIssues([]);
+      setScheduleActionMessage(null);
+    },
+    [selectedVehicle],
+  );
+
+  const handleCompletionFieldChange = useCallback(
+    <Field extends keyof CompletionFormState>(field: Field, value: CompletionFormState[Field]) => {
+      setCompletionForm((currentForm) => ({ ...currentForm, [field]: value }));
+      setCompletionIssues([]);
+    },
+    [],
+  );
+
+  const handleCompleteSchedule = useCallback(async () => {
+    if (!selectedVehicleId || !completionSchedule) {
+      return;
+    }
+
+    const prepared = prepareCompletionRequest(completionSchedule.id, completionForm);
+    setCompletionIssues(prepared.errors);
+
+    if (!prepared.request) {
+      return;
+    }
+
+    setCompletionLoading(true);
+    setErrorMessage(null);
+    setScheduleActionMessage(null);
+
+    try {
+      let receiptDocumentId = prepared.request.receiptDocumentId;
+      let beforePhotoId = prepared.request.beforePhotoId;
+      let afterPhotoId = prepared.request.afterPhotoId;
+
+      if (completionReceiptFile) {
+        const receipt = await storeMaintenanceReceipt(selectedVehicleId, completionReceiptFile);
+        receiptDocumentId = receipt.id;
+      }
+
+      if (beforePhotoFile) {
+        const beforePhoto = await storeMaintenancePhoto(selectedVehicleId, beforePhotoFile);
+        beforePhotoId = beforePhoto.id;
+      }
+
+      if (afterPhotoFile) {
+        const afterPhoto = await storeMaintenancePhoto(selectedVehicleId, afterPhotoFile);
+        afterPhotoId = afterPhoto.id;
+      }
+
+      const result = await completeMaintenanceSchedule({
+        ...prepared.request,
+        receiptDocumentId,
+        beforePhotoId,
+        afterPhotoId,
+      });
+      const [scheduleRecords, alertResult] = await Promise.all([
+        listMaintenanceSchedulesForVehicle(selectedVehicleId),
+        refreshMaintenanceAlertsForVehicle(selectedVehicleId),
+      ]);
+
+      setSchedules(scheduleRecords);
+      setCompletionSchedule(null);
+      setCompletionReceiptFile(null);
+      setBeforePhotoFile(null);
+      setAfterPhotoFile(null);
+      setCompletionIssues([]);
+      setScheduleActionMessage(
+        `${result.log.templateName ?? "Maintenance"} completed. ${result.resolvedAlertCount} alerts resolved and ${alertResult.createdCount} current alerts created.`,
+      );
+    } catch (error) {
+      setErrorMessage(messageFromError(error));
+    } finally {
+      setCompletionLoading(false);
+    }
+  }, [
+    afterPhotoFile,
+    beforePhotoFile,
+    completionForm,
+    completionReceiptFile,
+    completionSchedule,
+    selectedVehicleId,
+  ]);
+
   return (
     <div className="maintenance-module">
       <section className="maintenance-workspace">
@@ -277,9 +395,20 @@ export function MaintenanceTemplateModule() {
         <div className="maintenance-tab-panel" role="tabpanel">
           {activeTab === "schedules" ? (
             <SchedulesPanel
+              completionLoading={completionLoading}
+              completionSchedule={completionSchedule}
+              completionForm={completionForm}
+              completionIssues={completionIssues}
               scheduleLoading={scheduleLoading}
               schedules={schedules}
               selectedVehicleId={selectedVehicleId}
+              onAfterPhotoChange={setAfterPhotoFile}
+              onBeforePhotoChange={setBeforePhotoFile}
+              onCancelCompletion={() => setCompletionSchedule(null)}
+              onCompleteSchedule={() => void handleCompleteSchedule()}
+              onCompletionFieldChange={handleCompletionFieldChange}
+              onOpenCompletion={handleOpenCompletion}
+              onReceiptChange={setCompletionReceiptFile}
             />
           ) : null}
 
@@ -306,9 +435,23 @@ export function MaintenanceTemplateModule() {
 }
 
 function SchedulesPanel(props: {
+  completionLoading: boolean;
+  completionSchedule: MaintenanceScheduleRecord | null;
+  completionForm: CompletionFormState;
+  completionIssues: string[];
   scheduleLoading: boolean;
   schedules: MaintenanceScheduleRecord[];
   selectedVehicleId: string;
+  onAfterPhotoChange: (file: File | null) => void;
+  onBeforePhotoChange: (file: File | null) => void;
+  onCancelCompletion: () => void;
+  onCompleteSchedule: () => void;
+  onCompletionFieldChange: <Field extends keyof CompletionFormState>(
+    field: Field,
+    value: CompletionFormState[Field],
+  ) => void;
+  onOpenCompletion: (schedule: MaintenanceScheduleRecord) => void;
+  onReceiptChange: (file: File | null) => void;
 }) {
   if (props.scheduleLoading) {
     return <div className="maintenance-empty-note">Loading vehicle schedules...</div>;
@@ -331,10 +474,31 @@ function SchedulesPanel(props: {
   }
 
   return (
-    <div className="maintenance-schedule-list" aria-label="Vehicle maintenance schedules">
-      {props.schedules.map((schedule) => (
-        <MaintenanceScheduleCard key={schedule.id} schedule={schedule} />
-      ))}
+    <div className="maintenance-panel-stack">
+      {props.completionSchedule ? (
+        <MaintenanceCompletionPanel
+          completionLoading={props.completionLoading}
+          form={props.completionForm}
+          issues={props.completionIssues}
+          schedule={props.completionSchedule}
+          onAfterPhotoChange={props.onAfterPhotoChange}
+          onBeforePhotoChange={props.onBeforePhotoChange}
+          onCancel={props.onCancelCompletion}
+          onFieldChange={props.onCompletionFieldChange}
+          onReceiptChange={props.onReceiptChange}
+          onSubmit={props.onCompleteSchedule}
+        />
+      ) : null}
+
+      <div className="maintenance-schedule-list" aria-label="Vehicle maintenance schedules">
+        {props.schedules.map((schedule) => (
+          <MaintenanceScheduleCard
+            key={schedule.id}
+            schedule={schedule}
+            onComplete={props.onOpenCompletion}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -459,7 +623,13 @@ function MaintenanceTemplateCard(props: {
   );
 }
 
-function MaintenanceScheduleCard({ schedule }: { schedule: MaintenanceScheduleRecord }) {
+function MaintenanceScheduleCard({
+  schedule,
+  onComplete,
+}: {
+  schedule: MaintenanceScheduleRecord;
+  onComplete: (schedule: MaintenanceScheduleRecord) => void;
+}) {
   return (
     <article className="maintenance-schedule-card">
       <div className="maintenance-schedule-main">
@@ -489,7 +659,193 @@ function MaintenanceScheduleCard({ schedule }: { schedule: MaintenanceScheduleRe
       </div>
 
       {schedule.notes ? <div className="maintenance-action-note">{schedule.notes}</div> : null}
+
+      <div className="maintenance-card-actions">
+        <button className="primary-button" type="button" onClick={() => onComplete(schedule)}>
+          Complete
+        </button>
+      </div>
     </article>
+  );
+}
+
+function MaintenanceCompletionPanel(props: {
+  completionLoading: boolean;
+  form: CompletionFormState;
+  issues: string[];
+  schedule: MaintenanceScheduleRecord;
+  onAfterPhotoChange: (file: File | null) => void;
+  onBeforePhotoChange: (file: File | null) => void;
+  onCancel: () => void;
+  onFieldChange: <Field extends keyof CompletionFormState>(
+    field: Field,
+    value: CompletionFormState[Field],
+  ) => void;
+  onReceiptChange: (file: File | null) => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <section className="maintenance-completion-panel" aria-label="Complete maintenance schedule">
+      <div>
+        <h3>Complete {props.schedule.templateName}</h3>
+        <p>
+          Save the service details, update the next due target, and resolve related maintenance
+          alerts.
+        </p>
+      </div>
+
+      <div className="maintenance-completion-grid">
+        <label className="form-field">
+          <span>Completion date</span>
+          <input
+            required
+            type="date"
+            value={props.form.completedDate}
+            onChange={(event) => props.onFieldChange("completedDate", event.target.value)}
+          />
+        </label>
+
+        <label className="form-field">
+          <span>Completion odometer</span>
+          <input
+            min="0"
+            step="0.1"
+            type="number"
+            value={props.form.odometer}
+            onChange={(event) => props.onFieldChange("odometer", event.target.value)}
+          />
+        </label>
+
+        <label className="form-field maintenance-form-wide">
+          <span>Work performed</span>
+          <textarea
+            rows={3}
+            value={props.form.workPerformed}
+            onChange={(event) => props.onFieldChange("workPerformed", event.target.value)}
+          />
+        </label>
+
+        <label className="form-field maintenance-form-wide">
+          <span>Parts replaced</span>
+          <input
+            type="text"
+            value={props.form.partsReplaced}
+            onChange={(event) => props.onFieldChange("partsReplaced", event.target.value)}
+          />
+        </label>
+
+        <label className="form-field">
+          <span>Labor cost</span>
+          <input
+            min="0"
+            step="0.01"
+            type="number"
+            value={props.form.laborCost}
+            onChange={(event) => props.onFieldChange("laborCost", event.target.value)}
+          />
+        </label>
+
+        <label className="form-field">
+          <span>Parts cost</span>
+          <input
+            min="0"
+            step="0.01"
+            type="number"
+            value={props.form.partsCost}
+            onChange={(event) => props.onFieldChange("partsCost", event.target.value)}
+          />
+        </label>
+
+        <label className="form-field">
+          <span>Total cost</span>
+          <input
+            min="0"
+            step="0.01"
+            type="number"
+            value={props.form.totalCost}
+            onChange={(event) => props.onFieldChange("totalCost", event.target.value)}
+          />
+        </label>
+
+        <label className="form-field">
+          <span>Service provider</span>
+          <input
+            type="text"
+            value={props.form.mechanicShop}
+            onChange={(event) => props.onFieldChange("mechanicShop", event.target.value)}
+          />
+        </label>
+
+        <label className="form-field">
+          <span>Warranty until</span>
+          <input
+            type="date"
+            value={props.form.warrantyExpiration}
+            onChange={(event) => props.onFieldChange("warrantyExpiration", event.target.value)}
+          />
+        </label>
+
+        <label className="form-field maintenance-form-wide">
+          <span>Notes</span>
+          <textarea
+            rows={2}
+            value={props.form.notes}
+            onChange={(event) => props.onFieldChange("notes", event.target.value)}
+          />
+        </label>
+      </div>
+
+      <div className="maintenance-attachment-row">
+        <label className="maintenance-file-picker">
+          <span>Receipt</span>
+          <input
+            accept="image/png,image/jpeg,image/webp,application/pdf"
+            type="file"
+            onChange={(event) => props.onReceiptChange(event.target.files?.[0] ?? null)}
+          />
+        </label>
+
+        <label className="maintenance-file-picker">
+          <span>Before photo</span>
+          <input
+            accept="image/png,image/jpeg,image/webp"
+            type="file"
+            onChange={(event) => props.onBeforePhotoChange(event.target.files?.[0] ?? null)}
+          />
+        </label>
+
+        <label className="maintenance-file-picker">
+          <span>After photo</span>
+          <input
+            accept="image/png,image/jpeg,image/webp"
+            type="file"
+            onChange={(event) => props.onAfterPhotoChange(event.target.files?.[0] ?? null)}
+          />
+        </label>
+      </div>
+
+      {props.issues.length > 0 ? (
+        <div className="inline-error">
+          {props.issues.map((issue) => (
+            <span key={issue}>{issue}</span>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="maintenance-completion-actions">
+        <button className="secondary-button" type="button" onClick={props.onCancel}>
+          Cancel
+        </button>
+        <button
+          className="primary-button"
+          disabled={props.completionLoading}
+          type="button"
+          onClick={props.onSubmit}
+        >
+          {props.completionLoading ? "Saving..." : "Save completion"}
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -508,6 +864,92 @@ function intervalDays(days?: number | null) {
 
 function intervalKm(kilometers?: number | null) {
   return kilometers ? `${kilometers.toLocaleString()} km` : "No odometer interval";
+}
+
+function emptyCompletionForm(vehicle?: VehicleRecord | null): CompletionFormState {
+  return {
+    completedDate: new Date().toISOString().slice(0, 10),
+    odometer: vehicle ? String(vehicle.currentOdometer) : "",
+    workPerformed: "",
+    partsReplaced: "",
+    laborCost: "",
+    partsCost: "",
+    totalCost: "",
+    mechanicShop: "",
+    warrantyExpiration: "",
+    notes: "",
+  };
+}
+
+function prepareCompletionRequest(
+  scheduleId: string,
+  form: CompletionFormState,
+): { errors: string[]; request?: CompleteMaintenanceScheduleRequest } {
+  const errors: string[] = [];
+  const completedDate = form.completedDate.trim();
+  const workPerformed = form.workPerformed.trim();
+  const odometer = optionalNonNegativeNumber(form.odometer, "Completion odometer", errors);
+  const laborCost = optionalNonNegativeNumber(form.laborCost, "Labor cost", errors);
+  const partsCost = optionalNonNegativeNumber(form.partsCost, "Parts cost", errors);
+  const totalCost = optionalNonNegativeNumber(form.totalCost, "Total cost", errors);
+
+  if (!completedDate) {
+    errors.push("Completion date is required.");
+  }
+
+  if (!workPerformed) {
+    errors.push("Work performed is required.");
+  }
+
+  if (errors.length > 0) {
+    return { errors };
+  }
+
+  return {
+    errors: [],
+    request: {
+      scheduleId,
+      completedDate,
+      odometer,
+      workPerformed,
+      partsReplaced: trimToUndefined(form.partsReplaced),
+      laborCost,
+      partsCost,
+      totalCost,
+      mechanicShop: trimToUndefined(form.mechanicShop),
+      warrantyExpiration: trimToUndefined(form.warrantyExpiration),
+      notes: trimToUndefined(form.notes),
+    },
+  };
+}
+
+function optionalNonNegativeNumber(
+  value: string,
+  label: string,
+  errors: string[],
+): number | undefined {
+  if (!value.trim()) {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed)) {
+    errors.push(`${label} must be a valid number.`);
+    return undefined;
+  }
+
+  if (parsed < 0) {
+    errors.push(`${label} cannot be negative.`);
+    return undefined;
+  }
+
+  return parsed;
+}
+
+function trimToUndefined(value: string) {
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
 }
 
 function statusLabel(status: ApplicableMaintenanceTemplate["applicabilityStatus"]) {

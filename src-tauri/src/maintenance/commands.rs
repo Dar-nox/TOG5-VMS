@@ -3,12 +3,18 @@ use tauri::AppHandle;
 use crate::db;
 
 use super::{
-    models::{
-        AlertRecord, ApplicableMaintenanceTemplate, MaintenanceScheduleRecord,
-        MaintenanceTemplateRecord, RefreshMaintenanceAlertsResult, SeedMaintenanceTemplatesResult,
-        SyncMaintenanceSchedulesResult,
+    file_storage::{
+        maintenance_photos_dir, maintenance_receipts_dir, prepare_maintenance_photo,
+        prepare_maintenance_receipt, remove_file_if_present,
     },
-    repository, scheduling,
+    models::{
+        AlertRecord, ApplicableMaintenanceTemplate, CompleteMaintenanceScheduleRequest,
+        CompleteMaintenanceScheduleResult, MaintenanceAttachmentRecord, MaintenanceLogRecord,
+        MaintenanceScheduleRecord, MaintenanceTemplateRecord, RefreshMaintenanceAlertsResult,
+        SeedMaintenanceTemplatesResult, StoreMaintenancePhotoRequest,
+        StoreMaintenanceReceiptRequest, SyncMaintenanceSchedulesResult,
+    },
+    repository, scheduling, service_history,
 };
 
 #[tauri::command]
@@ -73,4 +79,61 @@ pub fn list_alerts(app: AppHandle) -> Result<Vec<AlertRecord>, String> {
 pub fn dismiss_alert(app: AppHandle, alert_id: String) -> Result<(), String> {
     let connection = db::open_app_connection(&app)?;
     scheduling::dismiss_alert(&connection, &alert_id)
+}
+
+#[tauri::command]
+pub fn complete_maintenance_schedule(
+    app: AppHandle,
+    request: CompleteMaintenanceScheduleRequest,
+) -> Result<CompleteMaintenanceScheduleResult, String> {
+    let mut connection = db::open_app_connection(&app)?;
+    service_history::complete_maintenance_schedule(&mut connection, request)
+}
+
+#[tauri::command]
+pub fn list_service_history_for_vehicle(
+    app: AppHandle,
+    vehicle_id: String,
+) -> Result<Vec<MaintenanceLogRecord>, String> {
+    let connection = db::open_app_connection(&app)?;
+    service_history::list_service_history_for_vehicle(&connection, &vehicle_id)
+}
+
+#[tauri::command]
+pub fn get_maintenance_log(app: AppHandle, id: String) -> Result<MaintenanceLogRecord, String> {
+    let connection = db::open_app_connection(&app)?;
+    service_history::get_maintenance_log(&connection, &id)?
+        .ok_or_else(|| "Service history record was not found.".to_string())
+}
+
+#[tauri::command]
+pub fn store_maintenance_receipt(
+    app: AppHandle,
+    request: StoreMaintenanceReceiptRequest,
+) -> Result<MaintenanceAttachmentRecord, String> {
+    let receipts_dir = maintenance_receipts_dir(&app)?;
+    let receipt = prepare_maintenance_receipt(&receipts_dir, request)?;
+    let file_path = receipt.file_path.clone();
+    let connection = db::open_app_connection(&app)?;
+
+    service_history::insert_maintenance_receipt(&connection, receipt).map_err(|error| {
+        remove_file_if_present(&file_path);
+        error
+    })
+}
+
+#[tauri::command]
+pub fn store_maintenance_photo(
+    app: AppHandle,
+    request: StoreMaintenancePhotoRequest,
+) -> Result<MaintenanceAttachmentRecord, String> {
+    let photos_dir = maintenance_photos_dir(&app)?;
+    let photo = prepare_maintenance_photo(&photos_dir, request)?;
+    let file_path = photo.file_path.clone();
+    let connection = db::open_app_connection(&app)?;
+
+    service_history::insert_maintenance_photo(&connection, photo).map_err(|error| {
+        remove_file_if_present(&file_path);
+        error
+    })
 }

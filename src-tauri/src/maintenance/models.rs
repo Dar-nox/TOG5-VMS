@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -130,4 +130,113 @@ pub struct MaintenanceVehicleProfile {
     pub transmission_type: String,
     pub drivetrain: String,
     pub features: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompleteMaintenanceScheduleRequest {
+    pub schedule_id: String,
+    pub completed_date: String,
+    pub odometer: Option<f64>,
+    pub work_performed: String,
+    pub parts_replaced: Option<String>,
+    pub labor_cost: Option<f64>,
+    pub parts_cost: Option<f64>,
+    pub total_cost: Option<f64>,
+    pub mechanic_shop: Option<String>,
+    pub receipt_document_id: Option<String>,
+    pub before_photo_id: Option<String>,
+    pub after_photo_id: Option<String>,
+    pub warranty_expiration: Option<String>,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CompleteMaintenanceScheduleResult {
+    pub log: MaintenanceLogRecord,
+    pub schedule: MaintenanceScheduleRecord,
+    pub resolved_alert_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct MaintenanceLogRecord {
+    pub id: String,
+    pub vehicle_id: String,
+    pub vehicle_name: String,
+    pub template_id: Option<String>,
+    pub template_key: Option<String>,
+    pub template_name: Option<String>,
+    pub schedule_id: Option<String>,
+    pub completed_date: String,
+    pub odometer: f64,
+    pub work_performed: String,
+    pub parts_replaced: Option<String>,
+    pub labor_cost: f64,
+    pub parts_cost: f64,
+    pub total_cost: f64,
+    pub mechanic_shop: Option<String>,
+    pub receipt_document_id: Option<String>,
+    pub receipt_file_path: Option<String>,
+    pub receipt_original_filename: Option<String>,
+    pub before_photo_id: Option<String>,
+    pub before_photo_path: Option<String>,
+    pub after_photo_id: Option<String>,
+    pub after_photo_path: Option<String>,
+    pub warranty_expiration: Option<String>,
+    pub next_recommended_date: Option<String>,
+    pub next_recommended_odometer: Option<f64>,
+    pub notes: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StoreMaintenanceReceiptRequest {
+    pub vehicle_id: String,
+    pub original_filename: Option<String>,
+    pub mime_type: Option<String>,
+    pub bytes: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StoreMaintenancePhotoRequest {
+    pub vehicle_id: String,
+    pub original_filename: Option<String>,
+    pub mime_type: Option<String>,
+    pub bytes: Vec<u8>,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewMaintenanceReceipt {
+    pub id: String,
+    pub vehicle_id: String,
+    pub file_path: String,
+    pub original_filename: Option<String>,
+    pub file_size_bytes: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewMaintenancePhoto {
+    pub id: String,
+    pub vehicle_id: String,
+    pub file_path: String,
+    pub original_filename: Option<String>,
+    pub mime_type: Option<String>,
+    pub file_size_bytes: i64,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct MaintenanceAttachmentRecord {
+    pub id: String,
+    pub vehicle_id: String,
+    pub file_path: String,
+    pub original_filename: Option<String>,
+    pub mime_type: Option<String>,
+    pub file_size_bytes: i64,
+    pub created_at: Option<String>,
 }

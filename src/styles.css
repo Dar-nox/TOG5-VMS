@@ -823,10 +823,13 @@ h1 {
 .maintenance-preview-panel,
 .maintenance-library-panel,
 .maintenance-schedule-panel,
+.maintenance-completion-panel,
 .maintenance-template-card,
 .maintenance-schedule-card,
 .alerts-toolbar,
-.real-alert-card {
+.real-alert-card,
+.service-history-workspace,
+.service-history-card {
   border: 1px solid #d8e0dd;
   border-radius: 8px;
   background: #ffffff;
@@ -838,7 +841,9 @@ h1 {
 .maintenance-preview-panel,
 .maintenance-library-panel,
 .maintenance-schedule-panel,
-.alerts-toolbar {
+.maintenance-completion-panel,
+.alerts-toolbar,
+.service-history-workspace {
   padding: 20px;
 }
 
@@ -849,13 +854,18 @@ h1 {
 .maintenance-selector h3,
 .maintenance-selector p,
 .alerts-toolbar h2,
-.alerts-toolbar p {
+.alerts-toolbar p,
+.service-history-header h2,
+.service-history-header p,
+.maintenance-completion-panel h3,
+.maintenance-completion-panel p {
   margin: 0;
 }
 
 .maintenance-workspace-header h2,
 .maintenance-toolbar h2,
-.alerts-toolbar h2 {
+.alerts-toolbar h2,
+.service-history-header h2 {
   color: #173844;
   font-size: 1.35rem;
 }
@@ -863,7 +873,9 @@ h1 {
 .maintenance-workspace-header p,
 .maintenance-toolbar p,
 .maintenance-selector p,
-.alerts-toolbar p {
+.alerts-toolbar p,
+.service-history-header p,
+.maintenance-completion-panel p {
   max-width: 78ch;
   margin-top: 8px;
   color: #52636a;
@@ -874,12 +886,16 @@ h1 {
 .maintenance-preview-panel,
 .maintenance-library-panel,
 .maintenance-schedule-panel,
-.alerts-module {
+.maintenance-completion-panel,
+.alerts-module,
+.service-history-module,
+.service-history-workspace {
   display: grid;
   gap: 18px;
 }
 
-.maintenance-workspace-header {
+.maintenance-workspace-header,
+.service-history-header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
   align-items: end;
@@ -1230,6 +1246,63 @@ h1 {
   grid-column: 1 / -1;
 }
 
+.maintenance-card-actions {
+  display: flex;
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+}
+
+.maintenance-completion-panel {
+  box-shadow: none;
+}
+
+.maintenance-completion-panel h3 {
+  color: #173844;
+  font-size: 1.08rem;
+}
+
+.maintenance-completion-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.maintenance-form-wide {
+  grid-column: 1 / -1;
+}
+
+.maintenance-attachment-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.maintenance-file-picker {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #dce4e1;
+  border-radius: 8px;
+  background: #f9fbfa;
+  padding: 12px;
+}
+
+.maintenance-file-picker span {
+  color: #31515b;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.maintenance-file-picker input {
+  min-width: 0;
+  width: 100%;
+}
+
+.maintenance-completion-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 .schedule-status-pill {
   display: inline-flex;
   align-items: center;
@@ -1283,6 +1356,72 @@ h1 {
 
 .real-alert-card.low {
   border-left-color: #2f8f5b;
+}
+
+.service-history-list {
+  display: grid;
+  gap: 10px;
+}
+
+.service-history-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(250px, 0.62fr);
+  align-items: start;
+  gap: 12px;
+  min-height: 0;
+  padding: 16px;
+  box-shadow: none;
+}
+
+.service-history-main {
+  display: grid;
+  min-width: 0;
+  gap: 9px;
+}
+
+.service-history-main h3 {
+  margin: 0;
+  color: #173844;
+  font-size: 1.05rem;
+}
+
+.service-history-main p {
+  margin: 0;
+  color: #52636a;
+  line-height: 1.5;
+}
+
+.service-history-meta {
+  display: grid;
+  gap: 8px;
+}
+
+.service-history-meta span,
+.service-history-attachments span,
+.service-history-attachments a {
+  border: 1px solid #dce4e1;
+  border-radius: 8px;
+  background: #f9fbfa;
+  color: #31515b;
+  padding: 8px 10px;
+  font-size: 0.86rem;
+  font-weight: 750;
+}
+
+.service-history-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 1 / -1;
+  gap: 8px;
+}
+
+.service-history-attachments a {
+  color: #173844;
+  text-decoration: none;
+}
+
+.service-history-card .maintenance-action-note {
+  grid-column: 1 / -1;
 }
 
 .fuel-module {
@@ -1621,6 +1760,10 @@ h1 {
   .maintenance-schedule-grid,
   .maintenance-template-card.with-applicability,
   .maintenance-schedule-card,
+  .maintenance-completion-grid,
+  .maintenance-attachment-row,
+  .service-history-header,
+  .service-history-card,
   .fuel-workspace-header,
   .fuel-layout,
   .fuel-log-card,
@@ -1703,6 +1846,9 @@ h1 {
   .maintenance-selector,
   .maintenance-section-actions,
   .alerts-toolbar,
+  .service-history-header,
+  .maintenance-completion-grid,
+  .maintenance-attachment-row,
   .fuel-workspace-header,
   .fuel-form-grid,
   .fuel-form-row,

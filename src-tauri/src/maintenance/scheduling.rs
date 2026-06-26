@@ -654,7 +654,7 @@ fn upsert_schedule_alert(
     }
 }
 
-fn resolve_active_alerts_for_schedule(
+pub(crate) fn resolve_active_alerts_for_schedule(
     connection: &Connection,
     schedule_id: &str,
     keep_alert_type: Option<&str>,

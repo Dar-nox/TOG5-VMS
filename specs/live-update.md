@@ -46,19 +46,19 @@ v1 local desktop MVP.
 
 ## Active Phase
 
-Phase 7 — Fuel Logging and Efficiency.
+Phase 8 — Maintenance Completion and Service History.
 
 ## Phase State
 
-Phase 7 completed. Fuel log CRUD, local receipt storage, odometer validation, fuel-type warnings, full-tank official efficiency calculations, conservative fuel-efficiency-drop alert groundwork, backend commands, frontend Fuel Logs UI, and fuel repository tests are in place.
+Phase 8 completed. Maintenance schedules can be completed into local service history records, next-due values recalculate, related maintenance alerts resolve, local maintenance receipt/photo storage is available, and real Service History UI is in place.
 
 ## Last Completed Phase
 
-Phase 7 — Fuel Logging and Efficiency.
+Phase 8 — Maintenance Completion and Service History.
 
 ## Next Planned Phase
 
-Phase 8 — Maintenance Completion and Service History.
+Phase 9 — Expenses and Reports.
 
 ---
 
@@ -74,7 +74,7 @@ Phase 8 — Maintenance Completion and Service History.
 | 5 | Maintenance Template Engine | Completed | Default template library, idempotent seed, and vehicle applicability preview |
 | 6 | Maintenance Scheduling and Alerts | Completed | Schedule sync, due status, active in-app alerts, and tests |
 | 7 | Fuel Logging and Efficiency | Completed | Fuel logs, local receipts, full-tank km/L, warnings, efficiency-drop alert groundwork |
-| 8 | Maintenance Completion and Service History | Not started | Complete tasks and logs |
+| 8 | Maintenance Completion and Service History | Completed | Complete schedules, service logs, next due recalculation, alert resolution |
 | 9 | Expenses and Reports | Not started | Expense tracking and reports |
 | 10 | Backup, Restore, and Local File Safety | Not started | Local backup package |
 | 11 | User Access and Settings | Not started | Roles and app settings |
@@ -2580,9 +2580,237 @@ Future Fuel Logs UI polish should keep the purpose-built form row structure. Avo
 
 ---
 
+## Update 2026-06-26 17:20 +08:00 — Phase 8: Maintenance Completion and Service History
+
+### Prompt / Task Given to Codex
+
+Implement Phase 8: Maintenance Completion and Service History. Allow completing maintenance schedules, creating service history records, recalculating next due date/odometer, resolving related active maintenance alerts, supporting local maintenance receipt/photo storage, adding Maintenance completion UI, replacing the Service History placeholder, adding tests, running validation, and updating `specs/live-update.md`.
+
+### Confirmed Project Root
+
+- `C:\Development Projects\TOG5-VMS`
+
+### Maintenance Completion Approach
+
+- Added a focused Rust service-history implementation inside the existing maintenance module.
+- Completing a schedule inserts a `maintenance_logs` record using the existing schema.
+- Completion updates the existing `maintenance_schedules` row instead of deleting or recreating schedules.
+- Completion date and work performed are required.
+- Completion odometer is optional; if omitted, the current vehicle odometer is used for the maintenance log.
+- Completion odometer must be finite, non-negative, and not lower than the schedule's previous completed odometer.
+- Vehicle current odometer is advanced when the completion odometer is higher.
+
+### Service History Approach
+
+- Replaced the Service History placeholder with a real local service-history page.
+- Service History uses a vehicle selector and lists completed maintenance records newest first.
+- Service history records show date, odometer, maintenance item, work performed, parts, costs, provider, warranty date, next recommended date/odometer, notes, and receipt/photo indicators.
+- Editing and archiving service history were deferred to avoid expanding Phase 8 beyond completion and display.
+
+### Next-Due Recalculation Approach
+
+- If the related template has a time interval, `next_due_date` is calculated from completion date plus the template interval.
+- If the related template has an odometer interval, `next_due_odometer` is calculated from completion odometer plus the template interval.
+- Templates with both intervals store both next due values and keep the existing due-status behavior.
+- Legal/setup-needed schedules can create service history, but only safe template intervals are used for next due values.
+
+### Alert Resolution Approach
+
+- Completing a schedule resolves active maintenance alerts linked to that schedule.
+- The implementation reuses the existing maintenance alert resolution behavior and does not resolve unrelated alerts.
+- Fuel-efficiency-drop alerts remain untouched.
+- The existing alert refresh flow can recreate an appropriate alert later if unusual completion input still leaves a schedule due soon or overdue.
+
+### Receipt / Photo Local File Approach
+
+- Added app-managed maintenance receipt storage under `maintenance-receipts/`.
+- Added app-managed maintenance photo storage under `maintenance-photos/`.
+- Receipts support PNG, JPG/JPEG, WEBP, and PDF.
+- Before/after photos support PNG, JPG/JPEG, and WEBP.
+- Maintenance files are limited to 10 MB.
+- Maintenance receipts use `vehicle_documents` with `document_type = 'maintenance_receipt'`.
+- Maintenance before/after photos use `vehicle_photos` with `is_primary = 0`.
+- No OCR, upload, cloud, or remote file behavior was added.
+
+### Backend Commands Added
+
+- `complete_maintenance_schedule`
+- `list_service_history_for_vehicle`
+- `get_maintenance_log`
+- `store_maintenance_receipt`
+- `store_maintenance_photo`
+
+### Frontend Maintenance Completion UI Added
+
+- Added a `Complete` action to each schedule card in the existing Maintenance `Schedules` tab.
+- Added an inline completion panel while preserving the tabbed Maintenance workspace and `Schedules` as the default tab.
+- Completion panel collects completion date, odometer, work performed, parts, labor cost, parts cost, total cost, service provider, warranty date, notes, receipt, before photo, and after photo.
+- After completion, schedules and alerts are refreshed and a success message is shown.
+- Applicability and Template Library tabs remain unchanged.
+
+### Frontend Service History UI Added
+
+- Added `ServiceHistoryModule`.
+- Replaced the Service History placeholder route with the real service history module.
+- Added service-history layout styles consistent with Maintenance/Fuel card patterns.
+
+### Tests Added
+
+- Rust tests for completing a schedule and creating a maintenance log.
+- Rust tests for updating last completed date and odometer.
+- Rust tests for recalculating next due date and odometer from template intervals.
+- Rust tests for resolving active maintenance alerts linked to the completed schedule.
+- Rust tests confirming unrelated `fuel_efficiency_drop` alerts remain active.
+- Rust tests for rejecting completion odometer lower than previous completed odometer.
+- Rust tests for listing service history newest first.
+- Rust tests for maintenance receipt/photo local storage.
+
+### Files Created
+
+- `src-tauri/src/maintenance/file_storage.rs` — local maintenance receipt/photo storage helpers and tests.
+- `src-tauri/src/maintenance/service_history.rs` — maintenance completion, service history repository functions, attachment linking, alert resolution, and tests.
+- `src/components/serviceHistory/ServiceHistoryModule.tsx` — real Service History page UI.
+
+### Files Modified
+
+- `src-tauri/src/lib.rs` — registered Phase 8 Tauri commands.
+- `src-tauri/src/maintenance/mod.rs` — added `file_storage` and `service_history` modules.
+- `src-tauri/src/maintenance/models.rs` — added completion, service history, and maintenance attachment types.
+- `src-tauri/src/maintenance/commands.rs` — added completion, service history, receipt, and photo commands.
+- `src-tauri/src/maintenance/scheduling.rs` — exposed maintenance alert resolution for completion flow reuse.
+- `src/services/api/maintenance.ts` — added typed frontend API wrappers and file URL helper for Phase 8 commands.
+- `src/components/maintenance/MaintenanceTemplateModule.tsx` — added schedule completion action and inline completion panel.
+- `src/app/routes/PlaceholderPages.tsx` — replaced Service History placeholder with `ServiceHistoryModule`.
+- `src/styles.css` — added completion panel and service history styles.
+- `specs/live-update.md` — updated current phase status and recorded this Phase 8 entry.
+
+### Files Deleted
+
+- None.
+
+### Commands Run
+
+```bash
+cargo fmt --manifest-path src-tauri/Cargo.toml
+npm.cmd run test
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+cargo fmt --manifest-path src-tauri/Cargo.toml --check
+cargo check --manifest-path src-tauri/Cargo.toml
+cargo test --manifest-path src-tauri/Cargo.toml
+npm.cmd run tauri:dev
+```
+
+### Command Results
+
+- `cargo fmt --manifest-path src-tauri/Cargo.toml`: passed.
+- `npm.cmd run test`: passed; 1 Vitest file, 12 tests passed.
+- `npm.cmd run typecheck`: passed.
+- `npm.cmd run lint`: passed.
+- `npm.cmd run format:check`: passed.
+- `npm.cmd run build`: passed; Vite production build completed.
+- `cargo fmt --manifest-path src-tauri/Cargo.toml --check`: passed.
+- `cargo check --manifest-path src-tauri/Cargo.toml`: passed.
+- First `cargo test --manifest-path src-tauri/Cargo.toml`: initially failed due test expectations that did not match existing seed intervals/title casing, and once timed out while waiting on a parallel Cargo build lock.
+- Final `cargo test --manifest-path src-tauri/Cargo.toml`: passed; 36 Rust tests passed.
+- `npm.cmd run tauri:dev`: passed launch validation with escalation for app-data SQLite access; logs showed `Running target\debug\tog5-vms.exe`.
+- Confirmed no process remained listening on port `1420` after cleanup.
+
+### Whether Tauri Launched
+
+- Tauri native process launch: verified by logs showing `Running target\debug\tog5-vms.exe`.
+- Human visual confirmation is still needed because Codex cannot reliably inspect the visible desktop window.
+
+### Issues Encountered
+
+- The run was interrupted by usage limits mid-validation, but no file edit was cut off and the repository remained coherent.
+- New Rust tests originally expected a 180-day/10,000 km oil interval title differently than the existing seed data. Expectations were corrected to the actual seed behavior: 180 days, 5,000 km, and `Engine Oil Change`.
+- One `cargo test` attempt timed out because it waited on a Cargo build lock from a parallel `cargo check`; rerunning alone passed.
+
+### Decisions Made
+
+- No migration was added because the existing `maintenance_logs`, `maintenance_schedules`, `vehicle_documents`, `vehicle_photos`, and `alerts` schema supports the Phase 8 workflow.
+- Used existing `maintenance_logs.mechanic_shop`, cost, receipt, before/after photo, warranty expiration, and next recommended fields.
+- Deferred warranty odometer and warranty notes because the current schema has no dedicated columns and adding a migration was not necessary for the core Phase 8 workflow.
+- Deferred service-history edit/archive flows to keep Phase 8 focused.
+- Did not create expense records from maintenance costs.
+
+### Important Implementation Details
+
+- Completion preserves schedule identity.
+- Completion date is used as the base for time-based next due calculation.
+- Completion odometer, or current vehicle odometer if omitted, is used as the base for odometer-based next due calculation.
+- Related active maintenance alerts are resolved during completion.
+- Unrelated fuel alerts remain active.
+- Maintenance attachments are copied into app-managed folders and the database stores only local references/metadata.
+
+### Known Issues / Technical Debt
+
+- Human visual testing is needed for the completion panel and Service History page.
+- Service history edit/archive is not implemented yet.
+- Warranty until odometer and warranty notes are not represented as dedicated fields.
+- Costs are stored on service history but not connected to the future Expenses module.
+- There is no dedicated receipt/photo viewer beyond local file links.
+
+### Manual Checks Completed
+
+- Confirmed project root.
+- Inspected existing Phase 2 schema and verified no migration was needed.
+- Confirmed Tauri launch needs escalation in Codex because SQLite lives in app data outside the workspace sandbox.
+- Confirmed no leftover process was listening on port `1420` after Tauri dev cleanup.
+
+### Manual Visual Checks Still Needed
+
+1. Open Maintenance.
+2. Confirm `Schedules` is still the default tab.
+3. Complete a schedule.
+4. Confirm a service history record is created.
+5. Confirm schedule next due date/odometer updates.
+6. Confirm related maintenance alerts resolve.
+7. Open Service History.
+8. Confirm vehicle selector works.
+9. Confirm completed service appears.
+10. Confirm receipt/photo indicators or links work if attachments were used.
+11. Confirm Vehicles, Fuel Logs, Alerts, Applicability, and Template Library still open.
+
+### Suggested Next Step
+
+Proceed to Phase 9: Expenses and Reports after completing the Phase 8 visual checks.
+
+### Notes for ChatGPT Prompt Optimization
+
+Phase 9 prompts should treat maintenance costs as stored in service history but not yet linked to expenses. The next useful step is to design the Expenses module so it can optionally relate to fuel logs, maintenance logs, and repair records without duplicating service-history data.
+
+## Phase 8 Cutoff Recovery Verification - 2026-06-26 17:27 +08:00
+
+Codex resumed after a usage cutoff and verified that no file edit was left half-applied. The project root was reconfirmed as `C:\Development Projects\TOG5-VMS`.
+
+Additional commands run after resuming:
+
+- `npm.cmd run format:check` - Passed after the `live-update.md` edit.
+- `git status --short` - Showed expected Phase 8 modified/new files only.
+- `git diff --stat` - Confirmed Phase 8 changes were scoped to maintenance completion, service history, maintenance APIs/UI, styles, and live update notes.
+- `npm.cmd run test` - Passed, 1 Vitest file / 12 tests.
+- `npm.cmd run typecheck` - Passed.
+- `npm.cmd run lint` - Passed.
+- `npm.cmd run build` - Passed.
+- `cargo fmt --manifest-path src-tauri/Cargo.toml --check` - Passed.
+- `cargo check --manifest-path src-tauri/Cargo.toml` - Passed.
+- `cargo test --manifest-path src-tauri/Cargo.toml` - Passed, 36 Rust tests.
+- `npm.cmd run tauri:dev` - Retried after clearing leftover TOG5-VMS dev server processes. The final run started `tog5-vms.exe` and WebView2, confirming Tauri launch. Codex then stopped the dev process tree and confirmed port `1420` was clear.
+
+Notes:
+
+- One hidden redirected Tauri launch attempt returned `STATUS_DLL_INIT_FAILED`; a normal launch path then succeeded after clearing stale Vite/Tauri processes.
+- Human visual confirmation is still needed for the Maintenance completion form and Service History page.
+
+---
+
 # Current Blockers
 
-- No Phase 7 blocker remains.
+- No Phase 8 blocker remains.
 - Direct `npm` in PowerShell is still blocked by execution policy; use `npm.cmd` for now.
 - Tauri native process launch is verified, but visible desktop-window confirmation should be checked manually if Codex cannot observe the screen.
 
