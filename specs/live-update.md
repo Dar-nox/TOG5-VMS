@@ -46,19 +46,19 @@ v1 local desktop MVP.
 
 ## Active Phase
 
-Phase 10 — Backup, Restore, and Local File Safety.
+Phase 11 — User Access and Settings.
 
 ## Phase State
 
-Phase 10 completed. Local backup packages include a consistent SQLite snapshot, app-managed file folders, a manifest with checksums, validation, restore safety backup, and a real Backup & Restore UI.
+Phase 11 completed. Settings are persisted locally in SQLite, default local owner access scaffolding is created, alert preferences are wired into maintenance/fuel alert generation, and the Settings placeholder is replaced with a real local Settings page.
 
 ## Last Completed Phase
 
-Phase 10 — Backup, Restore, and Local File Safety.
+Phase 11 — User Access and Settings.
 
 ## Next Planned Phase
 
-Phase 11 — User Access and Settings.
+Phase 12 — Dashboard Polish and UX Refinement.
 
 ---
 
@@ -77,7 +77,7 @@ Phase 11 — User Access and Settings.
 | 8 | Maintenance Completion and Service History | Completed | Complete schedules, service logs, next due recalculation, alert resolution |
 | 9 | Expenses and Reports | Completed | Manual expenses, report summaries, source cost aggregation, and double-count prevention |
 | 10 | Backup, Restore, and Local File Safety | Completed | Local .tog5backup folder package, manifest/checksums, validation, safe restore, and file safety summary |
-| 11 | User Access and Settings | Not started | Roles and app settings |
+| 11 | User Access and Settings | Completed | Local settings, owner/role scaffolding, alert toggles, startup preference, and data safety notes |
 | 12 | Dashboard Polish and UX Refinement | Not started | Friendly UI pass |
 | 13 | Packaging and Release Preparation | Not started | Windows installer |
 | 14 | Client Testing and Fixes | Not started | Feedback and stabilization |
@@ -3247,9 +3247,235 @@ Phase 11 prompts should account for local-only user access and settings. Avoid c
 
 ---
 
+## Update 2026-06-26 22:45 +08:00 - Phase 11: User Access and Settings
+
+### Prompt / Task Given to Codex
+
+Implement Phase 11: replace the Settings placeholder with real local settings, add local user/access scaffolding, persist settings in SQLite, wire low-risk settings into existing behavior, and keep everything local-only. Do not implement cloud login, online accounts, packaging, dashboard redesign, OCR, native OS notifications, or plaintext passwords/PINs.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Settings Persistence Approach
+
+- Used the existing `settings` key/value SQLite table; no migration was required.
+- Added default settings creation at app startup and on settings reads.
+- Settings persisted:
+  - preferred currency, default `PHP`
+  - distance unit, default `km`
+  - fuel efficiency unit, default `km_per_liter`
+  - date display preference
+  - default due-soon days and km thresholds
+  - setup-needed schedule display preference
+  - backup reminder enabled and interval days
+  - maintenance alert enabled flag
+  - fuel-efficiency-drop alert enabled flag
+  - startup-on-boot preference
+- Startup-on-boot is persisted as a preference only; actual OS startup registration remains future packaging/startup work.
+
+### User / Access Approach
+
+- Used the existing `users` table; no migration was required.
+- Ensured a default active local owner user exists at startup.
+- Added local role scaffolding for:
+  - `owner`
+  - `manager`
+  - `viewer`
+- Added list/update user profile behavior.
+- Did not add login, app lock, password, or PIN storage.
+- Settings UI clearly states that roles are scaffolding only and that no database encryption or login enforcement exists yet.
+
+### Alert / Settings Integration Approach
+
+- New maintenance schedules use the saved global due-soon day/km defaults.
+- Existing schedules keep their stored thresholds; no bulk rewrite was performed.
+- When maintenance alerts are disabled, refresh does not create new maintenance alerts.
+- When fuel-efficiency-drop alerts are disabled, fuel efficiency drop detection still computes summaries but does not create active fuel drop alerts.
+
+### Backup Reminder / Settings Approach
+
+- Added backup reminder summary from settings plus backup history.
+- Reminder shows whether a backup is due based on the configured interval and latest completed backup.
+- No OS notification or scheduled backup was added.
+
+### Startup Preference Approach
+
+- `startup_on_boot_enabled` is persisted locally.
+- Settings UI explains that actual Windows startup registration is future packaging/startup work.
+
+### Backend Commands Added
+
+- `get_app_settings`
+- `update_app_settings`
+- `reset_app_settings`
+- `list_local_users`
+- `update_local_user`
+- `get_access_summary`
+
+### Frontend Settings UI Added
+
+- Replaced the Settings placeholder with a real Settings page.
+- Added sections:
+  - Profile & Access
+  - General Preferences
+  - Maintenance & Alerts
+  - Backup & Local Data Safety
+  - Startup & App Behavior
+- Added editable controls for local user display name/role and app settings.
+- Added save, reset-to-defaults, loading, success, error, and validation states.
+- Added read-only local database path, app-data path, backup package format, and encryption status notes.
+- Expenses and Reports now read the preferred currency for display formatting.
+
+### Tests Added
+
+- Rust settings tests:
+  - default settings are created
+  - get settings returns defaults
+  - update settings persists values
+  - reset settings restores defaults
+  - invalid negative due-soon threshold is rejected
+  - invalid backup reminder interval is rejected
+- Rust user/access tests:
+  - default owner user is created
+  - list users returns owner
+  - update user display name/role persists
+  - invalid role is rejected
+- Rust settings-driven behavior tests:
+  - newly synced schedules use saved global due-soon thresholds
+  - disabled maintenance alerts do not create new active maintenance alerts
+  - disabled fuel-efficiency-drop alerts do not create new active fuel alerts
+  - backup reminder summary changes based on settings/history
+
+### Files Created
+
+- `src-tauri/src/settings/mod.rs` - Rust settings module registration.
+- `src-tauri/src/settings/models.rs` - Settings, user, role, access, reminder, and data safety models.
+- `src-tauri/src/settings/repository.rs` - Settings persistence, validation, user scaffolding, reminder summary, and tests.
+- `src-tauri/src/settings/commands.rs` - Tauri command wrappers for settings/access.
+- `src/services/api/settings.ts` - Typed frontend API wrapper for settings/access commands.
+- `src/components/settings/SettingsModule.tsx` - Real Settings page.
+
+### Files Modified
+
+- `src-tauri/src/lib.rs` - Registered settings module, startup defaults, and settings/access commands.
+- `src-tauri/src/maintenance/scheduling.rs` - Used saved due-soon defaults for newly synced schedules and respected maintenance alert toggle.
+- `src-tauri/src/fuel/repository.rs` - Respected fuel-efficiency-drop alert toggle.
+- `src/app/routes/PlaceholderPages.tsx` - Replaced Settings placeholder with real Settings module.
+- `src/components/expenses/ExpensesModule.tsx` - Loaded preferred currency for expense display labels.
+- `src/components/reports/ReportsModule.tsx` - Loaded preferred currency for report display labels.
+- `src/styles.css` - Added Settings page layout, form, role, path, reminder, and responsive styles.
+- `specs/live-update.md` - Updated Phase 11 status and this progress entry.
+
+### Files Deleted
+
+- None.
+
+### Commands Run
+
+- `npm.cmd run typecheck`
+- `npm.cmd run lint`
+- `npm.cmd run test`
+- `npm.cmd run build`
+- `npm.cmd run format`
+- `npm.cmd run format:check`
+- `cargo fmt --manifest-path src-tauri/Cargo.toml`
+- `cargo fmt --manifest-path src-tauri/Cargo.toml --check`
+- `cargo check --manifest-path src-tauri/Cargo.toml`
+- `cargo test --manifest-path src-tauri/Cargo.toml`
+- `npm.cmd run tauri:dev`
+- `git status --short`
+
+### Command Results
+
+- Initial `npm.cmd run typecheck`: failed because parsed numeric form fields in the new Settings page needed explicit narrowing. Fixed and reran successfully.
+- Typecheck: Passed.
+- Lint: Passed.
+- TypeScript tests: Passed, 1 Vitest file / 12 tests.
+- Frontend build: Passed.
+- Rust format: Passed.
+- Rust format check: Passed.
+- Rust check: Passed.
+- Rust tests: Passed, 56 tests.
+- Prettier check: initially failed on the new Settings page and Reports currency wiring; `npm.cmd run format` fixed them and the rerun passed.
+- Tauri dev launch: Passed with escalation for app-data database access. The dev run started `target\debug\tog5-vms.exe` and WebView2, then Codex stopped the dev process tree and confirmed port `1420` was clear.
+
+### Whether Tauri App Launched
+
+Yes. `npm.cmd run tauri:dev` started the Tauri native app process and WebView2. Codex cannot visually inspect the desktop window, so human visual confirmation is still needed.
+
+### Whether Human Visual Confirmation Is Needed
+
+Yes. Codex can confirm process launch, but the human should visually inspect the Settings page and affected existing pages.
+
+### Issues Encountered
+
+- A TypeScript form parsing type issue appeared during validation and was fixed.
+- Prettier style drift appeared in new/modified frontend files and was fixed with the project formatter.
+- No schema migration was required.
+- No password/PIN/app-lock was added because the project does not yet include a suitable password hashing approach and database encryption remains future work.
+
+### Decisions Made
+
+- Kept Phase 11 local-only with no cloud login or online account concepts.
+- Used the existing `settings` and `users` tables instead of adding a migration.
+- Persisted startup-on-boot preference but did not register OS startup behavior.
+- Applied currency display in Expenses/Reports without converting stored numeric values.
+- Did not bulk-update existing maintenance schedules when global thresholds change; settings apply to newly synced schedules.
+- Fuel alert suppression resolves or avoids active fuel drop alerts through the existing refresh path when disabled.
+
+### Important Implementation Details
+
+- Default settings and the default owner user are ensured during app startup.
+- Settings commands return backup reminder and local data safety context for the Settings UI.
+- Access summary is explicit that permissions are not enforced yet.
+- Database encryption status is shown as `Not enabled`.
+- Backup package format is shown as `.tog5backup local folder package`.
+
+### Known Issues / Technical Debt
+
+- No login screen yet.
+- No password/PIN/app-lock yet.
+- No database encryption yet.
+- No actual OS startup registration yet.
+- Existing maintenance schedules keep their saved thresholds after global setting changes.
+- Distance and fuel efficiency unit preferences are stored but do not perform unit conversion yet.
+- Dashboard remains mostly static and should be revisited in Phase 12.
+
+### Manual Checks Completed
+
+- Confirmed repository root.
+- Confirmed `users` and `settings` table schemas were sufficient.
+- Confirmed Settings placeholder is replaced with a real module.
+- Confirmed `npm.cmd run tauri:dev` starts the Tauri native process, then stopped the dev process tree.
+- Confirmed no cloud login, remote sync, telemetry, native notifications, OCR, packaging, or dashboard redesign was added.
+
+### Manual Checks Still Needed
+
+1. Open Settings.
+2. Confirm Profile & Access section appears.
+3. Confirm default local owner user appears.
+4. Update the display name and save.
+5. Change general preferences and save.
+6. Change maintenance/alert settings and save.
+7. Confirm backup reminder settings and data safety notes appear.
+8. Reset settings to defaults.
+9. Confirm Expenses and Reports still show money values using the preferred currency.
+10. Confirm Vehicles, Fuel Logs, Maintenance, Service History, Expenses, Reports, Backup & Restore, and Alerts still open.
+
+### Suggested Next Step
+
+Proceed to Phase 12: Dashboard Polish and UX Refinement after Phase 11 visual checks.
+
+### Notes for ChatGPT Prompt Optimization
+
+Phase 12 prompts should focus on turning the mostly static Dashboard into a real overview using existing vehicles, maintenance schedules, alerts, fuel efficiency, expenses/reports, backup reminder status, and settings. Keep it local-only and avoid broad redesigns of finished modules unless small consistency fixes are needed.
+
+---
+
 # Current Blockers
 
-- No Phase 10 blocker remains.
+- No Phase 11 blocker remains.
 - Direct `npm` in PowerShell is still blocked by execution policy; use `npm.cmd` for now.
 - Tauri native process launch is verified, but visible desktop-window confirmation should be checked manually if Codex cannot observe the screen.
 

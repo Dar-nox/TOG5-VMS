@@ -4,6 +4,7 @@ pub mod domain;
 mod expenses;
 mod fuel;
 mod maintenance;
+mod settings;
 mod vehicles;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -14,6 +15,10 @@ pub fn run() {
             let mut connection =
                 db::open_app_connection(app.handle()).map_err(std::io::Error::other)?;
             maintenance::repository::seed_default_templates(&mut connection)
+                .map_err(std::io::Error::other)?;
+            settings::repository::ensure_default_settings(&connection)
+                .map_err(std::io::Error::other)?;
+            settings::repository::ensure_default_owner_user(&connection)
                 .map_err(std::io::Error::other)?;
             Ok(())
         })
@@ -54,6 +59,12 @@ pub fn run() {
             maintenance::commands::get_maintenance_log,
             maintenance::commands::store_maintenance_receipt,
             maintenance::commands::store_maintenance_photo,
+            settings::commands::get_app_settings,
+            settings::commands::update_app_settings,
+            settings::commands::reset_app_settings,
+            settings::commands::list_local_users,
+            settings::commands::update_local_user,
+            settings::commands::get_access_summary,
             vehicles::commands::list_vehicles,
             vehicles::commands::get_vehicle,
             vehicles::commands::store_vehicle_photo,

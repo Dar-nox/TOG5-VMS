@@ -14,6 +14,7 @@ import {
   type ExpenseSummaryReport,
   type RelatedRecordType,
 } from "../../services/api/expenses";
+import { getAppSettings } from "../../services/api/settings";
 import { listVehicles, type VehicleRecord } from "../../services/api/vehicles";
 
 type ExpenseFormState = {
@@ -57,6 +58,7 @@ export function ExpensesModule() {
   const [endDate, setEndDate] = useState("");
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
   const [summary, setSummary] = useState<ExpenseSummaryReport | null>(null);
+  const [currency, setCurrency] = useState("PHP");
   const [form, setForm] = useState<ExpenseFormState>(() => emptyForm());
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -101,8 +103,9 @@ export function ExpensesModule() {
     setErrorMessage(null);
 
     try {
-      const vehicleRecords = await listVehicles();
+      const [vehicleRecords, settings] = await Promise.all([listVehicles(), getAppSettings()]);
       setVehicles(vehicleRecords);
+      setCurrency(settings.settings.preferredCurrency);
       setForm((currentForm) => ({
         ...currentForm,
         vehicleId: currentForm.vehicleId || vehicleRecords[0]?.id || "",
@@ -240,7 +243,7 @@ export function ExpensesModule() {
 
         {errorMessage ? <div className="inline-error">{errorMessage}</div> : null}
 
-        <ExpenseSummaryCards summary={summary} />
+        <ExpenseSummaryCards currency={currency} summary={summary} />
 
         <div className="expenses-layout">
           <ExpenseForm
@@ -256,6 +259,7 @@ export function ExpensesModule() {
 
           <ExpenseHistory
             actionExpenseId={actionExpenseId}
+            currency={currency}
             expenses={expenses}
             loading={expensesLoading}
             onArchive={(expenseId) => void handleArchive(expenseId)}
@@ -331,17 +335,26 @@ function ExpenseFilters(props: {
   );
 }
 
-function ExpenseSummaryCards({ summary }: { summary: ExpenseSummaryReport | null }) {
+function ExpenseSummaryCards({
+  currency,
+  summary,
+}: {
+  currency: string;
+  summary: ExpenseSummaryReport | null;
+}) {
   return (
     <div className="expense-summary-grid" aria-label="Expense summary">
-      <SummaryMetric label="Manual total" value={formatMoney(summary?.manualExpenseTotal ?? 0)} />
+      <SummaryMetric
+        label="Manual total"
+        value={formatMoney(summary?.manualExpenseTotal ?? 0, currency)}
+      />
       <SummaryMetric
         label="Direct expense rows"
-        value={formatMoney(summary?.directExpenseTotal ?? 0)}
+        value={formatMoney(summary?.directExpenseTotal ?? 0, currency)}
       />
       <SummaryMetric
         label="Linked source copies"
-        value={formatMoney(summary?.linkedExpenseTotal ?? 0)}
+        value={formatMoney(summary?.linkedExpenseTotal ?? 0, currency)}
       />
       <SummaryMetric
         label="Expense records"
@@ -516,6 +529,7 @@ function ExpenseForm(props: {
 
 function ExpenseHistory(props: {
   actionExpenseId: string | null;
+  currency: string;
   expenses: ExpenseRecord[];
   loading: boolean;
   onArchive: (expenseId: string) => void;
@@ -540,6 +554,7 @@ function ExpenseHistory(props: {
             <ExpenseCard
               key={expense.id}
               actionExpenseId={props.actionExpenseId}
+              currency={props.currency}
               expense={expense}
               onArchive={props.onArchive}
               onEdit={props.onEdit}
@@ -553,6 +568,7 @@ function ExpenseHistory(props: {
 
 function ExpenseCard(props: {
   actionExpenseId: string | null;
+  currency: string;
   expense: ExpenseRecord;
   onArchive: (expenseId: string) => void;
   onEdit: (expense: ExpenseRecord) => void;
@@ -562,7 +578,7 @@ function ExpenseCard(props: {
       <div className="expense-card-main">
         <div className="maintenance-card-heading">
           <span className="maintenance-category">{formatDate(props.expense.expenseDate)}</span>
-          <span className="priority-pill">{formatMoney(props.expense.amount)}</span>
+          <span className="priority-pill">{formatMoney(props.expense.amount, props.currency)}</span>
         </div>
         <h3>{props.expense.description}</h3>
         <p>{props.expense.vehicleName ?? "Vehicle not selected"}</p>
@@ -683,9 +699,9 @@ function formatDate(value: string) {
   return value.slice(0, 10);
 }
 
-function formatMoney(value: number) {
+function formatMoney(value: number, currency = "PHP") {
   return new Intl.NumberFormat(undefined, {
-    currency: "PHP",
+    currency,
     maximumFractionDigits: 2,
     style: "currency",
   }).format(value);

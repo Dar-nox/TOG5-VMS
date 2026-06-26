@@ -7,6 +7,7 @@ import { FuelLogsModule } from "../../components/fuel/FuelLogsModule";
 import { MaintenanceTemplateModule } from "../../components/maintenance/MaintenanceTemplateModule";
 import { ReportsModule } from "../../components/reports/ReportsModule";
 import { ServiceHistoryModule } from "../../components/serviceHistory/ServiceHistoryModule";
+import { SettingsModule } from "../../components/settings/SettingsModule";
 import { VehicleModule } from "../../components/vehicles/VehicleModule";
 
 const dashboardCards = [
@@ -104,15 +105,5 @@ export function BackupPage() {
 }
 
 export function SettingsPage() {
-  return (
-    <PlaceholderSection
-      title="Settings will keep local preferences understandable"
-      description="This page will eventually hold due-soon thresholds, startup-on-boot, backup reminders, and local user access settings."
-      items={[
-        "Default due-soon thresholds are planned as 14 days or 500 km.",
-        "Startup-on-boot should be controlled by a clear app setting.",
-        "Admin, staff, and viewer access are planned for a later phase.",
-      ]}
-    />
-  );
+  return <SettingsModule />;
 }

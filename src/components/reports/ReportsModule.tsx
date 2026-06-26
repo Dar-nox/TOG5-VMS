@@ -9,6 +9,7 @@ import {
   type VehicleCostReport,
   type VehicleCostSummaryRecord,
 } from "../../services/api/expenses";
+import { getAppSettings } from "../../services/api/settings";
 import { listVehicles, type VehicleRecord } from "../../services/api/vehicles";
 
 export function ReportsModule() {
@@ -18,6 +19,7 @@ export function ReportsModule() {
   const [endDate, setEndDate] = useState("");
   const [overview, setOverview] = useState<ReportsOverview | null>(null);
   const [vehicleReport, setVehicleReport] = useState<VehicleCostReport | null>(null);
+  const [currency, setCurrency] = useState("PHP");
   const [loading, setLoading] = useState(true);
   const [reportsLoading, setReportsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -56,7 +58,9 @@ export function ReportsModule() {
     setErrorMessage(null);
 
     try {
-      setVehicles(await listVehicles());
+      const [vehicleRecords, settings] = await Promise.all([listVehicles(), getAppSettings()]);
+      setVehicles(vehicleRecords);
+      setCurrency(settings.settings.preferredCurrency);
     } catch (error) {
       setErrorMessage(messageFromError(error));
     } finally {
@@ -124,51 +128,60 @@ export function ReportsModule() {
         {reportsLoading ? <div className="maintenance-empty-note">Loading reports...</div> : null}
         {errorMessage ? <div className="inline-error">{errorMessage}</div> : null}
 
-        <ReportSummary overview={overview} />
+        <ReportSummary currency={currency} overview={overview} />
 
         <div className="report-grid">
           <ReportPanel title="Cost by category">
-            <CategoryTotals totals={overview?.categoryTotals ?? []} />
+            <CategoryTotals currency={currency} totals={overview?.categoryTotals ?? []} />
           </ReportPanel>
 
           <ReportPanel title="Monthly totals">
-            <MonthlyTotals totals={overview?.monthlyTotals ?? []} />
+            <MonthlyTotals currency={currency} totals={overview?.monthlyTotals ?? []} />
           </ReportPanel>
         </div>
 
         {vehicleReport ? (
-          <SelectedVehicleReport report={vehicleReport} />
+          <SelectedVehicleReport currency={currency} report={vehicleReport} />
         ) : (
           <ReportPanel title="Vehicle cost summary">
-            <VehicleSummaryList summaries={overview?.vehicleSummaries ?? []} />
+            <VehicleSummaryList currency={currency} summaries={overview?.vehicleSummaries ?? []} />
           </ReportPanel>
         )}
 
         <ReportPanel title="Recent cost events">
-          <CostEventList events={overview?.recentCostEvents ?? []} />
+          <CostEventList currency={currency} events={overview?.recentCostEvents ?? []} />
         </ReportPanel>
       </section>
     </div>
   );
 }
 
-function ReportSummary({ overview }: { overview: ReportsOverview | null }) {
+function ReportSummary({
+  currency,
+  overview,
+}: {
+  currency: string;
+  overview: ReportsOverview | null;
+}) {
   return (
     <div className="report-summary-grid" aria-label="Reports overview">
       <ReportMetric
         label="Total tracked cost"
-        value={formatMoney(overview?.totalTrackedCost ?? 0)}
+        value={formatMoney(overview?.totalTrackedCost ?? 0, currency)}
       />
-      <ReportMetric label="Fuel" value={formatMoney(overview?.fuelTotal ?? 0)} />
-      <ReportMetric label="Service" value={formatMoney(overview?.maintenanceTotal ?? 0)} />
-      <ReportMetric label="Repairs" value={formatMoney(overview?.repairTotal ?? 0)} />
+      <ReportMetric label="Fuel" value={formatMoney(overview?.fuelTotal ?? 0, currency)} />
+      <ReportMetric
+        label="Service"
+        value={formatMoney(overview?.maintenanceTotal ?? 0, currency)}
+      />
+      <ReportMetric label="Repairs" value={formatMoney(overview?.repairTotal ?? 0, currency)} />
       <ReportMetric
         label="Manual expenses"
-        value={formatMoney(overview?.manualExpenseTotal ?? 0)}
+        value={formatMoney(overview?.manualExpenseTotal ?? 0, currency)}
       />
       <ReportMetric
         label="Linked copies excluded"
-        value={formatMoney(overview?.linkedExpenseTotal ?? 0)}
+        value={formatMoney(overview?.linkedExpenseTotal ?? 0, currency)}
       />
     </div>
   );
@@ -192,7 +205,7 @@ function ReportPanel(props: { title: string; children: ReactNode }) {
   );
 }
 
-function CategoryTotals({ totals }: { totals: CategoryTotalRecord[] }) {
+function CategoryTotals({ currency, totals }: { currency: string; totals: CategoryTotalRecord[] }) {
   if (totals.length === 0) {
     return <div className="maintenance-empty-note">No category totals for this filter yet.</div>;
   }
@@ -202,7 +215,7 @@ function CategoryTotals({ totals }: { totals: CategoryTotalRecord[] }) {
       {totals.map((total) => (
         <div className="report-row" key={total.category}>
           <span>{labelFromKey(total.category)}</span>
-          <strong>{formatMoney(total.total)}</strong>
+          <strong>{formatMoney(total.total, currency)}</strong>
           <em>{total.count.toLocaleString()} records</em>
         </div>
       ))}
@@ -211,8 +224,10 @@ function CategoryTotals({ totals }: { totals: CategoryTotalRecord[] }) {
 }
 
 function MonthlyTotals({
+  currency,
   totals,
 }: {
+  currency: string;
   totals: Array<{ month: string; total: number; count: number }>;
 }) {
   if (totals.length === 0) {
@@ -224,7 +239,7 @@ function MonthlyTotals({
       {totals.map((total) => (
         <div className="report-row" key={total.month}>
           <span>{total.month}</span>
-          <strong>{formatMoney(total.total)}</strong>
+          <strong>{formatMoney(total.total, currency)}</strong>
           <em>{total.count.toLocaleString()} records</em>
         </div>
       ))}
@@ -232,7 +247,13 @@ function MonthlyTotals({
   );
 }
 
-function VehicleSummaryList({ summaries }: { summaries: VehicleCostSummaryRecord[] }) {
+function VehicleSummaryList({
+  currency,
+  summaries,
+}: {
+  currency: string;
+  summaries: VehicleCostSummaryRecord[];
+}) {
   if (summaries.length === 0) {
     return (
       <div className="maintenance-empty-note">
@@ -245,50 +266,62 @@ function VehicleSummaryList({ summaries }: { summaries: VehicleCostSummaryRecord
   return (
     <div className="vehicle-cost-list">
       {summaries.map((summary) => (
-        <VehicleCostCard key={summary.vehicleId} summary={summary} />
+        <VehicleCostCard key={summary.vehicleId} currency={currency} summary={summary} />
       ))}
     </div>
   );
 }
 
-function SelectedVehicleReport({ report }: { report: VehicleCostReport }) {
+function SelectedVehicleReport({
+  currency,
+  report,
+}: {
+  currency: string;
+  report: VehicleCostReport;
+}) {
   return (
     <ReportPanel title={`${report.vehicle.vehicleName} cost report`}>
       <div className="vehicle-cost-list">
-        <VehicleCostCard summary={report.vehicle} />
+        <VehicleCostCard currency={currency} summary={report.vehicle} />
       </div>
 
       <div className="report-grid nested">
         <section>
           <h4>Vehicle categories</h4>
-          <CategoryTotals totals={report.categoryTotals} />
+          <CategoryTotals currency={currency} totals={report.categoryTotals} />
         </section>
         <section>
           <h4>Vehicle monthly totals</h4>
-          <MonthlyTotals totals={report.monthlyTotals} />
+          <MonthlyTotals currency={currency} totals={report.monthlyTotals} />
         </section>
       </div>
     </ReportPanel>
   );
 }
 
-function VehicleCostCard({ summary }: { summary: VehicleCostSummaryRecord }) {
+function VehicleCostCard({
+  currency,
+  summary,
+}: {
+  currency: string;
+  summary: VehicleCostSummaryRecord;
+}) {
   return (
     <article className="vehicle-cost-card">
       <div className="expense-card-main">
         <div className="maintenance-card-heading">
           <span className="maintenance-category">{summary.vehicleName}</span>
-          <span className="priority-pill">{formatMoney(summary.totalCost)}</span>
+          <span className="priority-pill">{formatMoney(summary.totalCost, currency)}</span>
         </div>
-        <h3>{formatCostPerKm(summary)}</h3>
+        <h3>{formatCostPerKm(summary, currency)}</h3>
         <p>{summary.costPerKmReason}</p>
       </div>
 
       <div className="expense-card-meta">
-        <span>Fuel: {formatMoney(summary.fuelTotal)}</span>
-        <span>Service: {formatMoney(summary.maintenanceTotal)}</span>
-        <span>Repairs: {formatMoney(summary.repairTotal)}</span>
-        <span>Manual: {formatMoney(summary.manualExpenseTotal)}</span>
+        <span>Fuel: {formatMoney(summary.fuelTotal, currency)}</span>
+        <span>Service: {formatMoney(summary.maintenanceTotal, currency)}</span>
+        <span>Repairs: {formatMoney(summary.repairTotal, currency)}</span>
+        <span>Manual: {formatMoney(summary.manualExpenseTotal, currency)}</span>
         <span>
           Distance:{" "}
           {summary.distanceKm
@@ -301,7 +334,7 @@ function VehicleCostCard({ summary }: { summary: VehicleCostSummaryRecord }) {
   );
 }
 
-function CostEventList({ events }: { events: CostEventRecord[] }) {
+function CostEventList({ currency, events }: { currency: string; events: CostEventRecord[] }) {
   if (events.length === 0) {
     return <div className="maintenance-empty-note">No recent cost events for this filter yet.</div>;
   }
@@ -318,7 +351,7 @@ function CostEventList({ events }: { events: CostEventRecord[] }) {
               {labelFromKey(event.category)}
             </p>
           </div>
-          <strong>{formatMoney(event.amount)}</strong>
+          <strong>{formatMoney(event.amount, currency)}</strong>
         </article>
       ))}
     </div>
@@ -330,9 +363,9 @@ function trimToUndefined(value: string): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
-function formatMoney(value: number) {
+function formatMoney(value: number, currency = "PHP") {
   return new Intl.NumberFormat(undefined, {
-    currency: "PHP",
+    currency,
     maximumFractionDigits: 2,
     style: "currency",
   }).format(value);
@@ -342,8 +375,8 @@ function formatDate(value: string) {
   return value.slice(0, 10);
 }
 
-function formatCostPerKm(summary: VehicleCostSummaryRecord) {
-  return summary.costPerKm == null ? "-- / km" : `${formatMoney(summary.costPerKm)} / km`;
+function formatCostPerKm(summary: VehicleCostSummaryRecord, currency: string) {
+  return summary.costPerKm == null ? "-- / km" : `${formatMoney(summary.costPerKm, currency)} / km`;
 }
 
 function formatEfficiency(value?: number | null) {

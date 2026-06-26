@@ -1,6 +1,6 @@
 use rusqlite::{params, Connection, OptionalExtension, Row};
 
-use crate::vehicles::photo_storage::generate_local_id;
+use crate::{settings, vehicles::photo_storage::generate_local_id};
 
 use super::models::{
     FuelEfficiencySummaryRecord, FuelLogMutationRequest, FuelLogRecord, FuelReceiptRecord,
@@ -470,8 +470,9 @@ fn refresh_fuel_efficiency_alert_for_vehicle(
         .into_iter()
         .next()
         .map(|(id, _)| id);
+    let fuel_alerts_enabled = settings::repository::fuel_efficiency_alerts_enabled(connection)?;
 
-    if summary.efficiency_drop_detected {
+    if summary.efficiency_drop_detected && fuel_alerts_enabled {
         let alert_id = active_fuel_efficiency_alert_id(connection, vehicle_id)?;
         let title = "Fuel efficiency drop detected";
         let message = match (
@@ -1009,6 +1010,22 @@ mod tests {
             .expect("vehicle should insert");
     }
 
+    fn set_setting(connection: &Connection, key: &str, value: &str, value_type: &str) {
+        connection
+            .execute(
+                "
+                INSERT INTO settings (key, value, value_type, description)
+                VALUES (?1, ?2, ?3, 'test setting')
+                ON CONFLICT(key) DO UPDATE SET
+                  value = excluded.value,
+                  value_type = excluded.value_type,
+                  updated_at = datetime('now')
+                ",
+                params![key, value, value_type],
+            )
+            .expect("setting should save");
+    }
+
     fn request(
         vehicle_id: &str,
         fuel_date: &str,
@@ -1235,5 +1252,53 @@ mod tests {
             )
             .expect("alert count should query");
         assert_eq!(active_alert_count, 1);
+    }
+
+    #[test]
+    fn disabled_fuel_efficiency_alert_setting_suppresses_drop_alerts() {
+        let (_temp_dir, mut connection) = setup_database();
+        insert_vehicle(&connection, "vehicle-1", "diesel", 1_000.0);
+        set_setting(
+            &connection,
+            "fuel_efficiency_alerts_enabled",
+            "false",
+            "boolean",
+        );
+
+        for (index, odometer) in [1_000.0, 1_300.0, 1_600.0, 1_900.0, 2_050.0]
+            .iter()
+            .enumerate()
+        {
+            create_fuel_log(
+                &mut connection,
+                request(
+                    "vehicle-1",
+                    &format!("2026-01-0{}T08:00", index + 1),
+                    *odometer,
+                    30.0,
+                    true,
+                ),
+            )
+            .expect("fuel log should save");
+        }
+
+        let summary =
+            fuel_efficiency_summary_for_vehicle(&connection, "vehicle-1").expect("summary loads");
+        let active_alert_count: i64 = connection
+            .query_row(
+                "
+                SELECT COUNT(*)
+                FROM alerts
+                WHERE vehicle_id = 'vehicle-1'
+                  AND alert_type = 'fuel_efficiency_drop'
+                  AND status = 'active'
+                ",
+                [],
+                |row| row.get(0),
+            )
+            .expect("alert count should query");
+
+        assert!(summary.efficiency_drop_detected);
+        assert_eq!(active_alert_count, 0);
     }
 }

@@ -2174,6 +2174,178 @@ h1 {
   box-shadow: none;
 }
 
+.settings-module {
+  display: grid;
+  gap: 18px;
+}
+
+.settings-workspace,
+.settings-card,
+.settings-role-card,
+.settings-user-row {
+  border: 1px solid #d8e0dd;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 18px 40px rgba(23, 32, 38, 0.06);
+}
+
+.settings-workspace,
+.settings-card {
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+}
+
+.settings-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 18px;
+}
+
+.settings-header h2,
+.settings-header p,
+.settings-card h3,
+.settings-card p {
+  margin: 0;
+}
+
+.settings-header h2,
+.settings-card h3 {
+  color: #173844;
+  font-size: 1.35rem;
+}
+
+.settings-card h3 {
+  font-size: 1.08rem;
+}
+
+.settings-header p,
+.settings-card p {
+  max-width: 78ch;
+  margin-top: 8px;
+  color: #52636a;
+  line-height: 1.55;
+}
+
+.settings-section-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.settings-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 14px;
+}
+
+.settings-form-wide {
+  grid-column: 1 / -1;
+}
+
+.settings-toggle,
+.settings-access-note,
+.settings-reminder,
+.settings-path-row {
+  border: 1px solid #dce4e1;
+  border-radius: 8px;
+  background: #f9fbfa;
+  color: #31515b;
+  padding: 12px;
+}
+
+.settings-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 50px;
+  font-weight: 800;
+}
+
+.settings-toggle input {
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+}
+
+.settings-access-note,
+.settings-reminder {
+  display: grid;
+  gap: 6px;
+  line-height: 1.45;
+}
+
+.settings-access-note span,
+.settings-reminder span,
+.settings-reminder em {
+  color: #52636a;
+}
+
+.settings-reminder.due {
+  border-color: #ead497;
+  background: #fff9e8;
+  color: #725515;
+}
+
+.settings-reminder em,
+.settings-path-row span {
+  overflow-wrap: anywhere;
+  font-style: normal;
+}
+
+.settings-role-grid,
+.settings-user-list,
+.settings-path-list {
+  display: grid;
+  gap: 10px;
+}
+
+.settings-role-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.settings-role-card,
+.settings-user-row {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  box-shadow: none;
+}
+
+.settings-role-card strong,
+.settings-user-row span,
+.settings-path-row strong {
+  color: #173844;
+}
+
+.settings-role-card span,
+.settings-user-row em {
+  color: #52636a;
+  font-size: 0.9rem;
+}
+
+.settings-user-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.settings-user-row em {
+  font-style: normal;
+  font-weight: 850;
+}
+
+.settings-path-row {
+  display: grid;
+  gap: 5px;
+}
+
+.settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 @media (max-width: 1120px) {
   .desktop-shell {
     grid-template-columns: 94px minmax(0, 1fr);
@@ -2239,6 +2411,10 @@ h1 {
   .backup-grid,
   .backup-folder-row,
   .backup-history-card,
+  .settings-header,
+  .settings-form-grid,
+  .settings-role-grid,
+  .settings-user-row,
   .alerts-list {
     grid-template-columns: 1fr;
   }

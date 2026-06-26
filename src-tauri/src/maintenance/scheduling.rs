@@ -1,6 +1,6 @@
 use rusqlite::{params, Connection, OptionalExtension, Row};
 
-use crate::vehicles::photo_storage::generate_local_id;
+use crate::{settings, vehicles::photo_storage::generate_local_id};
 
 use super::{
     models::{
@@ -84,6 +84,8 @@ pub fn sync_schedules_for_vehicle_on(
 
     let applicable_templates =
         repository::applicable_templates_for_vehicle(connection, vehicle_id)?;
+    let (default_due_soon_days, default_due_soon_km) =
+        settings::repository::schedule_default_thresholds(connection)?;
     let mut created_count = 0;
     let mut skipped_count = 0;
 
@@ -122,8 +124,8 @@ pub fn sync_schedules_for_vehicle_on(
             vehicle.current_odometer,
             next_due_date.as_deref(),
             next_due_odometer,
-            result.template.default_due_soon_days,
-            result.template.default_due_soon_km,
+            default_due_soon_days,
+            default_due_soon_km,
             false,
         );
 
@@ -150,8 +152,8 @@ pub fn sync_schedules_for_vehicle_on(
                     result.template.id,
                     next_due_date,
                     next_due_odometer,
-                    result.template.default_due_soon_days,
-                    result.template.default_due_soon_km,
+                    default_due_soon_days,
+                    default_due_soon_km,
                     evaluation.status,
                     result.template.priority,
                     notes,
@@ -194,6 +196,16 @@ pub fn refresh_maintenance_alerts_for_vehicle_on(
 
     refresh_schedule_statuses_for_vehicle_on(connection, vehicle_id, today)?;
     let schedules = load_schedule_records(connection, &vehicle, today)?;
+
+    if !settings::repository::maintenance_alerts_enabled(connection)? {
+        return Ok(RefreshMaintenanceAlertsResult {
+            vehicle_id: vehicle.id,
+            created_count,
+            updated_count,
+            resolved_count,
+            active_alerts: list_alerts_for_vehicle(connection, vehicle_id)?,
+        });
+    }
 
     for schedule in &schedules {
         if vehicle_is_archived(&vehicle) {
@@ -1015,6 +1027,22 @@ mod tests {
             .expect("feature should insert");
     }
 
+    fn set_setting(connection: &Connection, key: &str, value: &str, value_type: &str) {
+        connection
+            .execute(
+                "
+                INSERT INTO settings (key, value, value_type, description)
+                VALUES (?1, ?2, ?3, 'test setting')
+                ON CONFLICT(key) DO UPDATE SET
+                  value = excluded.value,
+                  value_type = excluded.value_type,
+                  updated_at = datetime('now')
+                ",
+                params![key, value, value_type],
+            )
+            .expect("setting should save");
+    }
+
     fn schedule_for<'a>(
         schedules: &'a [MaintenanceScheduleRecord],
         key: &str,
@@ -1096,6 +1124,20 @@ mod tests {
 
         assert_eq!(oil.next_due_date.as_deref(), Some("2026-06-30"));
         assert_eq!(oil.next_due_odometer, Some(6_000.0));
+    }
+
+    #[test]
+    fn new_schedules_use_global_due_soon_threshold_settings() {
+        let (_temp_dir, connection) = setup_database();
+        insert_vehicle(&connection, "gas", "gasoline", "automatic", "fwd", 1_000.0);
+        set_setting(&connection, "default_due_soon_days", "21", "integer");
+        set_setting(&connection, "default_due_soon_km", "750", "integer");
+
+        let result = sync_schedules_for_vehicle_on(&connection, "gas", "2026-01-01").expect("sync");
+        let oil = schedule_for(&result.schedules, "engine_oil_change");
+
+        assert_eq!(oil.due_soon_days, 21);
+        assert_eq!(oil.due_soon_km, 750);
     }
 
     #[test]
@@ -1249,6 +1291,57 @@ mod tests {
             Some(oil_id.as_str())
         );
         assert_eq!(second.active_alerts[0].vehicle_id.as_deref(), Some("gas"));
+    }
+
+    #[test]
+    fn disabled_maintenance_alert_setting_suppresses_new_alerts() {
+        let (_temp_dir, connection) = setup_database();
+        insert_vehicle(&connection, "gas", "gasoline", "automatic", "fwd", 7_000.0);
+        set_setting(
+            &connection,
+            "maintenance_alerts_enabled",
+            "false",
+            "boolean",
+        );
+        sync_schedules_for_vehicle_on(&connection, "gas", "2026-01-01").expect("sync");
+        let oil_id: String = connection
+            .query_row(
+                "
+                SELECT maintenance_schedules.id
+                FROM maintenance_schedules
+                INNER JOIN maintenance_templates
+                  ON maintenance_templates.id = maintenance_schedules.template_id
+                WHERE maintenance_schedules.vehicle_id = 'gas'
+                  AND maintenance_templates.template_key = 'engine_oil_change'
+                ",
+                [],
+                |row| row.get(0),
+            )
+            .expect("oil schedule id should read");
+
+        connection
+            .execute(
+                "
+                UPDATE maintenance_schedules
+                SET next_due_date = '2025-12-01', next_due_odometer = 6000
+                WHERE id = ?1
+                ",
+                params![oil_id],
+            )
+            .expect("schedule should update");
+
+        let result = refresh_maintenance_alerts_for_vehicle_on(&connection, "gas", "2026-01-10")
+            .expect("refresh should respect settings");
+        let active_alert_count: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM alerts WHERE vehicle_id = 'gas' AND status = 'active'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("alert count should read");
+
+        assert_eq!(result.created_count, 0);
+        assert_eq!(active_alert_count, 0);
     }
 
     #[test]
