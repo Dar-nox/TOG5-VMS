@@ -1,8 +1,10 @@
 import { AlertsModule } from "../../components/alerts/AlertsModule";
 import { PlaceholderSection } from "../../components/common/PlaceholderSection";
 import { SummaryCard } from "../../components/common/SummaryCard";
+import { ExpensesModule } from "../../components/expenses/ExpensesModule";
 import { FuelLogsModule } from "../../components/fuel/FuelLogsModule";
 import { MaintenanceTemplateModule } from "../../components/maintenance/MaintenanceTemplateModule";
+import { ReportsModule } from "../../components/reports/ReportsModule";
 import { ServiceHistoryModule } from "../../components/serviceHistory/ServiceHistoryModule";
 import { VehicleModule } from "../../components/vehicles/VehicleModule";
 
@@ -85,31 +87,11 @@ export function ServiceHistoryPage() {
 }
 
 export function ExpensesPage() {
-  return (
-    <PlaceholderSection
-      title="Expenses will connect vehicle costs in one place"
-      description="This placeholder prepares for fuel, preventive maintenance, repairs, registration, insurance, and other local expense records."
-      items={[
-        "Fuel and maintenance records will create linked expenses later.",
-        "Costs will be filterable by vehicle and date range in a future phase.",
-        "Amounts must be clear, friendly, and safe to review before saving.",
-      ]}
-    />
-  );
+  return <ExpensesModule />;
 }
 
 export function ReportsPage() {
-  return (
-    <PlaceholderSection
-      title="Reports will be local and export-friendly"
-      description="Reports are not implemented yet. Future screens will summarize vehicle cost, fuel efficiency, upcoming work, overdue work, and service history."
-      items={[
-        "CSV and printable report flows are planned for a later phase.",
-        "Reports should match the records saved in the local database.",
-        "No online reporting or remote upload will be added.",
-      ]}
-    />
-  );
+  return <ReportsModule />;
 }
 
 export function AlertsPage() {

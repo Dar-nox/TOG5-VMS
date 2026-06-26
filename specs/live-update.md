@@ -46,19 +46,19 @@ v1 local desktop MVP.
 
 ## Active Phase
 
-Phase 8 — Maintenance Completion and Service History.
+Phase 9 — Expenses and Reports.
 
 ## Phase State
 
-Phase 8 completed. Maintenance schedules can be completed into local service history records, next-due values recalculate, related maintenance alerts resolve, local maintenance receipt/photo storage is available, and real Service History UI is in place.
+Phase 9 completed. Manual local expense tracking is available, MVP reports aggregate fuel, service, repair, and manual expense costs, and combined report totals avoid counting linked source-copy expenses twice.
 
 ## Last Completed Phase
 
-Phase 8 — Maintenance Completion and Service History.
+Phase 9 — Expenses and Reports.
 
 ## Next Planned Phase
 
-Phase 9 — Expenses and Reports.
+Phase 10 — Backup, Restore, and Local File Safety.
 
 ---
 
@@ -75,7 +75,7 @@ Phase 9 — Expenses and Reports.
 | 6 | Maintenance Scheduling and Alerts | Completed | Schedule sync, due status, active in-app alerts, and tests |
 | 7 | Fuel Logging and Efficiency | Completed | Fuel logs, local receipts, full-tank km/L, warnings, efficiency-drop alert groundwork |
 | 8 | Maintenance Completion and Service History | Completed | Complete schedules, service logs, next due recalculation, alert resolution |
-| 9 | Expenses and Reports | Not started | Expense tracking and reports |
+| 9 | Expenses and Reports | Completed | Manual expenses, report summaries, source cost aggregation, and double-count prevention |
 | 10 | Backup, Restore, and Local File Safety | Not started | Local backup package |
 | 11 | User Access and Settings | Not started | Roles and app settings |
 | 12 | Dashboard Polish and UX Refinement | Not started | Friendly UI pass |
@@ -2806,11 +2806,216 @@ Notes:
 - One hidden redirected Tauri launch attempt returned `STATUS_DLL_INIT_FAILED`; a normal launch path then succeeded after clearing stale Vite/Tauri processes.
 - Human visual confirmation is still needed for the Maintenance completion form and Service History page.
 
+## Update 2026-06-26 17:47 +08:00 - Phase 9: Expenses and Reports
+
+### Prompt / Task Given to Codex
+
+Implement Phase 9: local expense tracking and useful MVP reports. Add an Expenses page, replace the Reports placeholder with real local summaries, connect expenses safely to vehicles and optional source records, aggregate fuel/service/repair/manual costs without obvious duplicate counting, preserve completed modules, and update this file.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Expenses Approach
+
+- Added a focused Rust `expenses` module using the existing `expenses` table.
+- Manual expenses require vehicle, date, category, description, and non-negative finite amount.
+- Expenses can optionally link to `fuel_log`, `maintenance_log`, `repair_record`, or `other` records.
+- Soft archive uses the existing `deleted_at` column.
+- Existing schema was sufficient; no new migration was added.
+
+### Reports Approach
+
+- Added backend report aggregation for:
+  - total tracked cost
+  - fuel total
+  - maintenance/service total
+  - repair total
+  - manual expenses total
+  - cost by category
+  - monthly totals
+  - recent cost events
+  - vehicle cost summaries
+  - selected vehicle cost report
+- Reports support optional vehicle and date-range filters.
+- Reports are read-only; no CSV/PDF/Excel export was added in this phase.
+
+### Cost Aggregation / Double-Counting Prevention Approach
+
+- Fuel costs are read from `fuel_logs.total_amount`.
+- Maintenance/service costs are read from `maintenance_logs.total_cost`.
+- Repair costs are read from `repair_records.total_cost`.
+- Manual expenses are read from `expenses.amount` only when the row is not linked to a source record type that already carries a cost.
+- Expense rows linked to `fuel_log`, `maintenance_log`, or `repair_record` are still visible as direct expense rows, but combined report totals exclude them as source-copy duplicates.
+- No automatic expense rows are created from fuel logs or maintenance logs in Phase 9.
+
+### Backend Commands Added
+
+- `list_expenses`
+- `list_expenses_for_vehicle`
+- `get_expense`
+- `create_expense`
+- `update_expense`
+- `archive_expense`
+- `get_expense_summary`
+- `get_vehicle_cost_report`
+- `get_reports_overview`
+
+### Frontend Expenses UI Added
+
+- Replaced the Expenses placeholder with a real Expenses page.
+- Added vehicle, category, and date filters.
+- Added manual expense form with add/edit behavior.
+- Added archive action.
+- Added summary cards for manual total, direct expense rows, linked source-copy rows, and record count.
+- Added compact expense history cards.
+
+### Frontend Reports UI Added
+
+- Replaced the Reports placeholder with a real Reports page.
+- Added vehicle and date filters.
+- Added overview summary cards.
+- Added cost by category, monthly totals, vehicle cost summaries, selected vehicle cost report, and recent cost events.
+- Kept the UI in the compact card/list style used by Maintenance, Fuel Logs, and Service History.
+
+### Tests Added
+
+- Rust expense CRUD tests:
+  - create expense
+  - list expenses for vehicle
+  - update expense
+  - archive expense
+  - reject negative amount
+  - reject missing vehicle/date/category/description
+- Rust report aggregation tests:
+  - manual expenses total correctly
+  - fuel costs aggregate from fuel logs
+  - maintenance costs aggregate from maintenance logs
+  - repair costs aggregate from repair records
+  - combined report avoids linked source-copy double counting
+  - category totals are correct
+  - monthly totals are correct
+  - vehicle/date filters work
+  - cost per km only appears when enough odometer movement exists
+
+### Files Created
+
+- `src-tauri/src/expenses/mod.rs` - Rust expenses module registration.
+- `src-tauri/src/expenses/models.rs` - Expense and report command models.
+- `src-tauri/src/expenses/repository.rs` - Expense CRUD and report aggregation logic.
+- `src-tauri/src/expenses/commands.rs` - Tauri command wrappers.
+- `src/services/api/expenses.ts` - Typed frontend API wrapper for expense/report commands.
+- `src/components/expenses/ExpensesModule.tsx` - Real Expenses page.
+- `src/components/reports/ReportsModule.tsx` - Real Reports page.
+
+### Files Modified
+
+- `src-tauri/src/lib.rs` - Registered expenses module and commands.
+- `src/app/routes/PlaceholderPages.tsx` - Replaced Expenses and Reports placeholders with real modules.
+- `src/styles.css` - Added Expenses and Reports layout/card styles.
+- `specs/live-update.md` - Updated Phase 9 status and this progress entry.
+
+### Files Deleted
+
+- None.
+
+### Commands Run
+
+- `cargo fmt --manifest-path src-tauri/Cargo.toml`
+- `cargo check --manifest-path src-tauri/Cargo.toml`
+- `npm.cmd run typecheck`
+- `cargo test --manifest-path src-tauri/Cargo.toml`
+- `npm.cmd run test`
+- `npm.cmd run lint`
+- `npm.cmd run build`
+- `cargo fmt --manifest-path src-tauri/Cargo.toml --check`
+- `npm.cmd run format:check`
+- `npm.cmd run format`
+- `git status --short`
+- `npm.cmd run tauri:dev`
+
+### Command Results
+
+- Rust format: Passed.
+- Rust check: Passed.
+- Rust tests: Passed, 40 tests.
+- TypeScript tests: Passed, 1 Vitest file / 12 tests.
+- Typecheck: Passed.
+- Lint: Passed.
+- Frontend build: Passed.
+- Prettier check: Initially failed on the new Expenses/Reports/API TypeScript files; `npm.cmd run format` fixed them and the rerun passed.
+- Tauri dev launch: Passed after allowing extra compile time; `tog5-vms.exe` and WebView2 processes were observed, then the dev process tree was stopped.
+
+### Whether Tauri App Launched
+
+Yes. `npm.cmd run tauri:dev` started the Tauri native app process. Codex cannot visually inspect the desktop window, so human visual confirmation is still needed.
+
+### Whether Human Visual Confirmation Is Needed
+
+Yes. Codex can confirm process launch, but the human should visually inspect the new Expenses and Reports pages.
+
+### Issues Encountered
+
+- The initial Prettier check found style drift in the new TypeScript files only. The project formatter corrected it.
+- The Tauri launch command timed out while the dev build was still running; a follow-up process check confirmed `tog5-vms.exe` and WebView2 were running. The dev process tree was stopped afterward.
+- No schema issue required a migration.
+
+### Decisions Made
+
+- Did not create automatic expense rows for fuel logs or service history because that would risk duplicate totals.
+- Used reports to aggregate source costs directly from fuel, maintenance, and repair tables.
+- Required a vehicle for manual expense creation even though the existing schema allows nullable `vehicle_id`, because Phase 9 product behavior says expenses should belong to a vehicle whenever possible.
+- Did not implement CSV/PDF/Excel export in this phase to keep scope focused on local MVP reports.
+- Did not add expense receipt file storage; existing source modules already store fuel and maintenance receipts, and manual expense receipt handling can be added later if needed.
+
+### Important Implementation Details
+
+- Combined reports exclude expense rows linked to `fuel_log`, `maintenance_log`, or `repair_record` from manual totals.
+- Direct expense summary still shows direct expense rows, including linked source-copy rows, so the user can inspect what was saved.
+- Vehicle cost per km is calculated only when at least two cost/source records provide different odometer readings.
+- Latest official fuel efficiency is read from `fuel_logs` when available.
+
+### Known Issues / Technical Debt
+
+- CSV/PDF/Excel export remains future work.
+- Manual expense receipt storage remains future work.
+- Repair record CRUD does not exist yet; reports can include repair records already present in the database.
+- Dashboard cards are still mostly static and were not redesigned in this phase.
+
+### Manual Checks Completed
+
+- Confirmed repository root.
+- Confirmed Expenses and Reports placeholders are replaced by real modules.
+- Confirmed no database migration was needed.
+- Confirmed no cloud, telemetry, backup/restore, auth, packaging, or dashboard redesign work was added.
+
+### Manual Checks Still Needed
+
+1. Open Expenses.
+2. Confirm vehicle/category/date filters work.
+3. Create a manual expense.
+4. Confirm it appears in history and summary cards.
+5. Edit a manual expense.
+6. Archive a manual expense.
+7. Open Reports.
+8. Confirm overview cards show real data.
+9. Confirm vehicle filter changes vehicle cost summary.
+10. Confirm fuel and maintenance costs appear without obvious duplicate counting.
+11. Confirm Vehicles, Fuel Logs, Maintenance, Service History, and Alerts still open.
+
+### Suggested Next Step
+
+Proceed to Phase 10: Backup, Restore, and Local File Safety after Phase 9 visual checks.
+
+### Notes for ChatGPT Prompt Optimization
+
+Phase 10 prompts should treat the app data directory as containing the SQLite database plus managed folders for vehicle photos, fuel receipts, maintenance receipts, and maintenance photos. Backup should include the database and those file folders, and restore should be careful, local-only, and user-confirmed.
+
 ---
 
 # Current Blockers
 
-- No Phase 8 blocker remains.
+- No Phase 9 blocker remains.
 - Direct `npm` in PowerShell is still blocked by execution policy; use `npm.cmd` for now.
 - Tauri native process launch is verified, but visible desktop-window confirmation should be checked manually if Codex cannot observe the screen.
 

@@ -1,5 +1,6 @@
 mod db;
 pub mod domain;
+mod expenses;
 mod fuel;
 mod maintenance;
 mod vehicles;
@@ -18,6 +19,15 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             db::database_status,
+            expenses::commands::list_expenses,
+            expenses::commands::list_expenses_for_vehicle,
+            expenses::commands::get_expense,
+            expenses::commands::create_expense,
+            expenses::commands::update_expense,
+            expenses::commands::archive_expense,
+            expenses::commands::get_expense_summary,
+            expenses::commands::get_vehicle_cost_report,
+            expenses::commands::get_reports_overview,
             fuel::commands::list_fuel_logs_for_vehicle,
             fuel::commands::get_fuel_log,
             fuel::commands::create_fuel_log,
