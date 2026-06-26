@@ -46,19 +46,19 @@ v1 local desktop MVP.
 
 ## Active Phase
 
-Phase 12 - Dashboard Polish and UX Refinement.
+Phase 13 - Packaging and Release Preparation.
 
 ## Phase State
 
-Phase 12 completed. The Dashboard is now a real local overview powered by vehicles, maintenance schedules, active alerts, official fuel efficiency, monthly costs, backup reminder status, settings, and recent activity.
+Phase 13 completed. Windows release metadata and NSIS bundle configuration were validated, the optimized release executable and NSIS setup artifact were generated, release checklist/notes were added, and the release executable smoke-launched successfully.
 
 ## Last Completed Phase
 
-Phase 12 - Dashboard Polish and UX Refinement.
+Phase 13 - Packaging and Release Preparation.
 
 ## Next Planned Phase
 
-Phase 13 - Packaging and Release Preparation.
+Phase 14 - Client Testing and Fixes.
 
 ---
 
@@ -79,7 +79,7 @@ Phase 13 - Packaging and Release Preparation.
 | 10 | Backup, Restore, and Local File Safety | Completed | Local .tog5backup folder package, manifest/checksums, validation, safe restore, and file safety summary |
 | 11 | User Access and Settings | Completed | Local settings, owner/role scaffolding, alert toggles, startup preference, and data safety notes |
 | 12 | Dashboard Polish and UX Refinement | Completed | Real local Dashboard overview, quick actions, needs-attention list, recent activity, and aggregation tests |
-| 13 | Packaging and Release Preparation | Not started | Windows installer |
+| 13 | Packaging and Release Preparation | Completed | Windows NSIS packaging configured, release exe/setup artifact generated, release checklist and notes added |
 | 14 | Client Testing and Fixes | Not started | Feedback and stabilization |
 
 ---
@@ -3653,11 +3653,193 @@ Phase 13 prompts should focus on release readiness, Windows packaging/installer 
 
 ---
 
+## Update 2026-06-26 23:48 - Phase 13: Packaging and Release Preparation
+
+### Prompt / Task Given to Codex
+
+Prepare the local Windows desktop MVP for release packaging: audit release metadata, configure Windows bundle output, validate production builds, generate installer artifacts, create release checklist/notes, smoke-launch the release binary, and update this tracker. Do not add new business modules or out-of-scope platform features.
+
+### Summary of What Changed
+
+- Audited package, Rust, Tauri, icon, build, and ignore configuration for release readiness.
+- Updated Tauri bundle configuration from all bundle targets to a focused Windows NSIS target.
+- Added explicit bundle icon references and NSIS installer/uninstaller icon settings.
+- Kept the app identifier `com.tog5.vms` unchanged to avoid app-data path disruption.
+- Created a Windows release checklist and local MVP release notes.
+- Produced an optimized release executable and NSIS setup artifact.
+- Smoke-launched the release executable and confirmed the expected app-data SQLite database path exists.
+
+### Release Metadata / Config Changes
+
+- `package.json` already uses `tog5-vms` and version `0.1.0`.
+- `src-tauri/Cargo.toml` already uses package name `tog5-vms`, version `0.1.0`, and a local desktop VMS description.
+- `src-tauri/tauri.conf.json` already used product name `TOG 5 VMS`, version `0.1.0`, identifier `com.tog5.vms`, and the correct `npm.cmd run build` before-build command.
+- Tauri bundle targets are now `["nsis"]` for the Windows MVP release instead of `"all"`.
+- Bundle publisher and icon paths are explicit.
+- NSIS install mode is `currentUser` to avoid requiring administrator rights by default.
+
+### Windows Bundle Configuration Result
+
+- Bundle active: yes.
+- Windows installer target: NSIS.
+- Installer icon: `src-tauri/icons/icon.ico`.
+- Generated NSIS artifact: `src-tauri/target/release/bundle/nsis/TOG 5 VMS_0.1.0_x64-setup.exe`.
+- Generated optimized release executable: `src-tauri/target/release/tog5-vms.exe`.
+- Build artifacts remain under `src-tauri/target/`, which is ignored by Git.
+
+### Production Build Result
+
+- Frontend production build passed.
+- Rust release build passed.
+- NSIS bundling passed after rerunning with escalation so Tauri could download the NSIS packaging tool.
+
+### Files Created
+
+- `docs/release/phase-13-windows-release-checklist.md` - Windows release validation, packaging, installer, smoke-test, caveat, and artifact naming checklist.
+- `docs/release/v0.1.0-local-mvp-notes.md` - brief local MVP release notes and known limitations.
+
+### Files Modified
+
+- `src-tauri/tauri.conf.json` - focused bundle target to NSIS, added publisher/icons, and set safe NSIS installer metadata.
+- `specs/live-update.md` - updated Phase 13 status and appended this release preparation entry.
+
+### Files Deleted
+
+- None.
+
+### Commands Run
+
+```bash
+Resolve-Path "C:\Development Projects\TOG5-VMS"
+git status --short
+git check-ignore -v dist src-tauri/target src-tauri/target/release/bundle/nsis/example-setup.exe
+rg -n '"NsisConfig"|"installerIcon"|"installMode"|"languages"|"displayLanguageSelector"|"publisher"|"targets"|"icon"' node_modules\@tauri-apps\cli\config.schema.json
+npm.cmd run test
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+cargo fmt --manifest-path src-tauri/Cargo.toml
+cargo fmt --manifest-path src-tauri/Cargo.toml --check
+cargo check --manifest-path src-tauri/Cargo.toml
+cargo test --manifest-path src-tauri/Cargo.toml
+npm.cmd run tauri:build
+npm.cmd run tauri:build
+Get-ChildItem -Recurse -File src-tauri\target\release\bundle
+Get-Item src-tauri\target\release\tog5-vms.exe
+Start-Process src-tauri\target\release\tog5-vms.exe
+Get-NetTCPConnection -LocalPort 1420
+```
+
+### Command Results
+
+- Project root confirmed as `C:\Development Projects\TOG5-VMS`.
+- Git ignore check confirmed `dist/` and `src-tauri/target/` release outputs are ignored.
+- TypeScript tests: passed, 1 Vitest file / 12 tests.
+- Typecheck: passed.
+- Lint: passed.
+- Prettier format check: passed.
+- Frontend build: passed.
+- Rust format: passed.
+- Rust format check: passed.
+- Rust check: passed.
+- Rust tests: passed, 62 tests.
+- First `npm.cmd run tauri:build`: frontend and optimized Rust release build passed, but NSIS bundling failed when the sandbox blocked Tauri's download of the NSIS package with socket permission error `os error 10013`.
+- Second `npm.cmd run tauri:build` with escalation: passed and produced the NSIS installer.
+- Release executable smoke launch: passed; `tog5-vms.exe` stayed running for the 10-second check and was stopped.
+- App-data database check: `C:\Users\Darnocs\AppData\Roaming\com.tog5.vms\tog5-vms.sqlite3` exists.
+- Port `1420` check returned no active listener, as expected for release mode.
+
+### Whether Tauri Dev Launched
+
+Not run for Phase 13. This phase used production build and release-binary smoke validation instead.
+
+### Whether Production Release Binary Launched
+
+Yes. `src-tauri/target/release/tog5-vms.exe` launched successfully and was stopped after validation.
+
+### Whether Installer Artifacts Were Produced
+
+Yes. NSIS setup artifact produced at `src-tauri/target/release/bundle/nsis/TOG 5 VMS_0.1.0_x64-setup.exe`.
+
+### Whether Human Visual Confirmation Is Needed
+
+Yes. Codex confirmed process launch and artifact creation, but human visual confirmation is still needed for the app window, icon/title appearance, and installer install/uninstall behavior.
+
+### Issues Encountered
+
+- NSIS bundling initially failed because the sandbox blocked the Tauri NSIS package download. Rerunning with escalation resolved it.
+- No code-signing certificate is configured; the installer is expected to be unsigned.
+- No installer install/uninstall test was performed by Codex.
+
+### Decisions Made
+
+- Targeted only NSIS for the Windows MVP to avoid unnecessary cross-platform/MSI packaging complexity.
+- Used current-user install mode so the installer does not require administrator privileges by default.
+- Kept the existing app identifier to avoid changing app-data storage paths.
+- Added release documentation instead of adding risky installer scripting or update infrastructure.
+- Did not add an About screen or version UI in this phase.
+
+### Important Implementation Details
+
+- No database migrations were added.
+- No Tauri asset protocol scope changes were made.
+- No user data, app-data database, uploaded photos, receipts, backups, `node_modules`, or target output are bundled from the project root.
+- Release artifacts remain generated output under the ignored `src-tauri/target/` tree.
+
+### Known Issues / Release Caveats
+
+- Unsigned installer may trigger Windows SmartScreen warnings.
+- Startup-on-boot is still a stored preference only; OS startup registration is future packaging/startup work.
+- Database encryption is not enabled.
+- Backup packages remain local folder-style `.tog5backup` packages.
+- No auto-updater is configured.
+- No cloud sync, OCR, native OS notifications, or report export is included.
+
+### Manual Checks Completed
+
+- Confirmed project root.
+- Confirmed current Git status before and after changes.
+- Confirmed icon files exist.
+- Confirmed Tauri metadata and build scripts.
+- Confirmed generated outputs are ignored by Git.
+- Confirmed validation commands pass.
+- Confirmed production release executable and NSIS setup artifact are generated.
+- Confirmed release executable process launches and stops without leaving a leftover process.
+
+### Manual Checks Still Needed
+
+1. Launch the release app visibly and confirm Dashboard opens.
+2. Confirm quick actions still navigate.
+3. Confirm Vehicles opens and photos display.
+4. Confirm Maintenance opens.
+5. Confirm Fuel Logs opens.
+6. Confirm Service History opens.
+7. Confirm Expenses opens.
+8. Confirm Reports opens.
+9. Confirm Backup & Restore opens.
+10. Confirm Alerts opens.
+11. Confirm Settings opens and data safety notes remain clear.
+12. Confirm no obvious debug/scaffold text remains.
+13. Confirm app icon/window title look correct.
+14. Run the NSIS installer manually on a test machine.
+15. Confirm installer launch, install, app launch from shortcut/Start Menu, local app-data behavior, and uninstall behavior.
+
+### Suggested Next Step
+
+Proceed to Phase 14: Client Testing and Fixes after manually checking the release app and installer artifact.
+
+### Notes for ChatGPT Prompt Optimization
+
+Phase 14 prompts should focus on structured client smoke testing, bug triage, installer/manual QA feedback, and narrowly scoped stabilization fixes. Avoid adding new business features during release testing.
+
+---
+
 # Current Blockers
 
-- No Phase 11 blocker remains.
+- No Phase 13 packaging blocker remains after allowing the NSIS packaging download.
 - Direct `npm` in PowerShell is still blocked by execution policy; use `npm.cmd` for now.
-- Tauri native process launch is verified, but visible desktop-window confirmation should be checked manually if Codex cannot observe the screen.
+- Release binary process launch is verified, but visible desktop-window and installer install/uninstall confirmation should be checked manually.
 
 ---
 
