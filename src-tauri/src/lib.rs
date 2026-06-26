@@ -1,4 +1,5 @@
 mod backup;
+mod dashboard;
 mod db;
 pub mod domain;
 mod expenses;
@@ -30,6 +31,7 @@ pub fn run() {
             backup::commands::restore_backup,
             backup::commands::list_backups,
             backup::commands::get_local_file_safety_summary,
+            dashboard::commands::get_dashboard_overview,
             expenses::commands::list_expenses,
             expenses::commands::list_expenses_for_vehicle,
             expenses::commands::get_expense,

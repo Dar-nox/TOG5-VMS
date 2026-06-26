@@ -46,19 +46,19 @@ v1 local desktop MVP.
 
 ## Active Phase
 
-Phase 11 — User Access and Settings.
+Phase 12 - Dashboard Polish and UX Refinement.
 
 ## Phase State
 
-Phase 11 completed. Settings are persisted locally in SQLite, default local owner access scaffolding is created, alert preferences are wired into maintenance/fuel alert generation, and the Settings placeholder is replaced with a real local Settings page.
+Phase 12 completed. The Dashboard is now a real local overview powered by vehicles, maintenance schedules, active alerts, official fuel efficiency, monthly costs, backup reminder status, settings, and recent activity.
 
 ## Last Completed Phase
 
-Phase 11 — User Access and Settings.
+Phase 12 - Dashboard Polish and UX Refinement.
 
 ## Next Planned Phase
 
-Phase 12 — Dashboard Polish and UX Refinement.
+Phase 13 - Packaging and Release Preparation.
 
 ---
 
@@ -78,7 +78,7 @@ Phase 12 — Dashboard Polish and UX Refinement.
 | 9 | Expenses and Reports | Completed | Manual expenses, report summaries, source cost aggregation, and double-count prevention |
 | 10 | Backup, Restore, and Local File Safety | Completed | Local .tog5backup folder package, manifest/checksums, validation, safe restore, and file safety summary |
 | 11 | User Access and Settings | Completed | Local settings, owner/role scaffolding, alert toggles, startup preference, and data safety notes |
-| 12 | Dashboard Polish and UX Refinement | Not started | Friendly UI pass |
+| 12 | Dashboard Polish and UX Refinement | Completed | Real local Dashboard overview, quick actions, needs-attention list, recent activity, and aggregation tests |
 | 13 | Packaging and Release Preparation | Not started | Windows installer |
 | 14 | Client Testing and Fixes | Not started | Feedback and stabilization |
 
@@ -3470,6 +3470,186 @@ Proceed to Phase 12: Dashboard Polish and UX Refinement after Phase 11 visual ch
 ### Notes for ChatGPT Prompt Optimization
 
 Phase 12 prompts should focus on turning the mostly static Dashboard into a real overview using existing vehicles, maintenance schedules, alerts, fuel efficiency, expenses/reports, backup reminder status, and settings. Keep it local-only and avoid broad redesigns of finished modules unless small consistency fixes are needed.
+
+---
+
+## Update 2026-06-26 23:19 +08:00 - Phase 12: Dashboard Polish and UX Refinement
+
+### Prompt / Task Given to Codex
+
+Implement Phase 12 by replacing the mostly static Dashboard with a real local overview powered by existing data: vehicles, maintenance schedules, active alerts, fuel logs/efficiency, expenses/reports, backup reminder status, and settings. Keep the work focused on dashboard and small UX consistency only.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Dashboard Data Aggregation Approach
+
+- Added one focused Rust dashboard backend module and command: `get_dashboard_overview`.
+- Aggregation is read-only and uses existing SQLite tables; no migration was needed.
+- The dashboard overview returns vehicle counts, maintenance due counts, active alerts, official fuel efficiency, monthly cost totals, backup reminder status, recent activity, and setup hints.
+- Maintenance due status is evaluated through the existing Phase 6 due-status helper so date/odometer/needs-setup logic remains consistent.
+
+### Backend Commands Added
+
+- `get_dashboard_overview`
+
+### Frontend Dashboard UI Added
+
+- Replaced the static Dashboard placeholder with a real `DashboardModule`.
+- Added a greeting using the local owner display name.
+- Added overview cards for Vehicles, Maintenance due, Active alerts, Fuel efficiency, Monthly costs, and Backup status.
+- Added Needs attention rows for due maintenance, active alerts, backup/setup hints.
+- Added Recent activity rows for fuel logs, maintenance completions, manual expenses, active alerts, and backup events.
+- Added Monthly cost mix bars without adding a chart dependency.
+- Added Quick actions that navigate to existing pages through the app's current navigation state.
+
+### Settings Integration
+
+- Preferred currency is returned and used for dashboard cost display.
+- Local owner display name is used in the dashboard greeting.
+- Backup reminder status comes from the existing settings plus backup history helper.
+- Alert preferences are respected indirectly through the existing alert-generation behavior; no duplicate frontend alert rules were added.
+
+### Cost / Fuel / Maintenance / Backup Aggregation Behavior
+
+- Fuel efficiency shows only official full-tank values stored by the Fuel Logs module.
+- Recent average km/L uses the latest official values only.
+- Monthly costs aggregate current-month fuel, maintenance/service, repair, and manual expense totals.
+- Manual expenses linked to fuel, maintenance, or repair source records are excluded from dashboard totals to avoid obvious double counting.
+- Backup status uses latest completed backup history and reminder settings.
+
+### Tests Added
+
+- Rust dashboard aggregation tests:
+  - empty database returns a safe dashboard
+  - active/archived/under-maintenance vehicles are counted
+  - overdue, due soon, needs setup, and active alert counts are aggregated
+  - official fuel efficiency excludes non-official logs
+  - current-month costs avoid linked expense duplicates
+  - preferred currency and backup reminder status are returned
+
+### Files Created
+
+- `src-tauri/src/dashboard/mod.rs` - dashboard module registration.
+- `src-tauri/src/dashboard/models.rs` - dashboard overview response models.
+- `src-tauri/src/dashboard/repository.rs` - local dashboard aggregation queries and tests.
+- `src-tauri/src/dashboard/commands.rs` - Tauri command wrapper.
+- `src/services/api/dashboard.ts` - typed frontend dashboard API wrapper.
+- `src/components/dashboard/DashboardModule.tsx` - real Dashboard UI.
+
+### Files Modified
+
+- `src-tauri/src/lib.rs` - registered dashboard module and command.
+- `src/app/App.tsx` - changed page rendering so Dashboard quick actions can navigate through existing app state.
+- `src/app/routes/PlaceholderPages.tsx` - replaced Dashboard placeholder with `DashboardModule`.
+- `src/styles.css` - added Dashboard layout, cards, attention rows, activity rows, cost bars, quick actions, and responsive rules.
+- `specs/live-update.md` - updated Phase 12 status and this progress entry.
+
+### Files Deleted
+
+- None.
+
+### Commands Run
+
+- `Resolve-Path 'C:\Development Projects\TOG5-VMS'`
+- `git status --short`
+- `npm.cmd exec prettier -- --write src/app/App.tsx src/app/routes/PlaceholderPages.tsx src/components/dashboard/DashboardModule.tsx src/services/api/dashboard.ts src/styles.css`
+- `npm.cmd run test`
+- `npm.cmd run typecheck`
+- `npm.cmd run lint`
+- `npm.cmd run format:check`
+- `npm.cmd run build`
+- `cargo fmt --manifest-path src-tauri/Cargo.toml`
+- `cargo fmt --manifest-path src-tauri/Cargo.toml --check`
+- `cargo check --manifest-path src-tauri/Cargo.toml`
+- `cargo test --manifest-path src-tauri/Cargo.toml`
+- `npm.cmd run tauri:dev`
+- `Get-Process -Name 'tog5-vms' -ErrorAction SilentlyContinue`
+- `Get-NetTCPConnection -LocalPort 1420 -ErrorAction SilentlyContinue`
+
+### Command Results
+
+- TypeScript tests: Passed, 1 Vitest file / 12 tests.
+- Typecheck: Passed.
+- Lint: Passed.
+- Prettier format check: Passed.
+- Frontend build: Passed.
+- Rust format: Passed.
+- Rust format check: Passed.
+- Rust check: Passed.
+- Rust tests: Passed, 62 tests.
+- Initial full Rust test run failed because a new dashboard test fixture inserted two schedules for the same vehicle/template pair, violating the existing unique schedule rule. The fixture was corrected to use distinct templates, and the rerun passed.
+- Tauri dev launch: Passed with escalation for app-data database access. The dev run started Vite and `target\debug\tog5-vms.exe`; Codex stopped the process tree after confirmation.
+- Process cleanup: no remaining `tog5-vms` process or port `1420` listener was reported after shutdown.
+
+### Whether Tauri App Launched
+
+Yes. `npm.cmd run tauri:dev` launched the native `tog5-vms.exe` process. The final Tauri log noted `beforeDevCommand` ended with a non-zero status because Codex intentionally stopped the dev server after validation.
+
+### Whether Human Visual Confirmation Is Needed
+
+Yes. Codex confirmed process launch but cannot visually inspect the desktop window.
+
+### Issues Encountered
+
+- One dashboard Rust test fixture used duplicate schedule keys and was fixed.
+- `Get-Location` reports a sandbox-mapped path, but `Resolve-Path 'C:\Development Projects\TOG5-VMS'` confirms the requested root exists and all commands used that project path.
+- No database migration was required.
+
+### Decisions Made
+
+- Added one dashboard overview command instead of stitching many unrelated commands together in the frontend.
+- Kept Dashboard aggregation read-only.
+- Did not add charting dependencies.
+- Quick actions navigate to existing pages rather than performing mutations from the Dashboard.
+- Did not redesign existing modules.
+
+### Important Implementation Details
+
+- Dashboard photo display uses the existing Tauri asset URL pattern through `convertFileSrc`.
+- Cost totals mirror the Phase 9 double-counting decision by excluding linked manual expenses from tracked dashboard totals.
+- Maintenance counts are based on existing due-status logic using current vehicle odometer and due thresholds.
+- Setup hints remain helpful but non-destructive.
+
+### Known Issues / Technical Debt
+
+- Dashboard does not auto-refresh after data changes in other pages until it is loaded/refreshed again.
+- Quick actions navigate to pages; they do not deep-link into a specific add form yet.
+- No charts or exports were added.
+- Visual desktop confirmation is still manual.
+
+### Manual Checks Completed
+
+- Confirmed project root path.
+- Confirmed Dashboard placeholder was replaced.
+- Confirmed no migration/schema change was needed.
+- Confirmed the dashboard command compiles and is registered.
+- Confirmed full validation commands pass after the test fixture fix.
+- Confirmed Tauri native process launches and is stopped after validation.
+
+### Manual Checks Still Needed
+
+1. Open Dashboard.
+2. Confirm real overview cards load.
+3. Confirm empty states look friendly if there is little data.
+4. Confirm vehicles count matches existing vehicles.
+5. Confirm maintenance counts match schedules.
+6. Confirm alerts summary matches Alerts page.
+7. Confirm fuel efficiency shows not-enough-data or official values correctly.
+8. Confirm monthly costs align with Reports.
+9. Confirm backup status reflects backup history/settings.
+10. Confirm quick actions navigate to the expected pages.
+11. Confirm Dashboard looks good at normal and narrow window widths.
+12. Confirm Vehicles, Fuel Logs, Maintenance, Service History, Expenses, Reports, Backup & Restore, Alerts, and Settings still open.
+
+### Suggested Next Step
+
+Proceed to Phase 13: Packaging and Release Preparation after Phase 12 visual checks.
+
+### Notes for ChatGPT Prompt Optimization
+
+Phase 13 prompts should focus on release readiness, Windows packaging/installer preparation, metadata/icons, production build validation, and final pre-release QA. Avoid adding new business modules during packaging work.
 
 ---
 

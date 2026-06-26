@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import type { ReactNode } from "react";
 import { AppLayout } from "../components/common/AppLayout";
 import type { PageId } from "../types/navigation";
 import { navigationItems } from "../types/navigation";
@@ -16,19 +15,6 @@ import {
   VehiclesPage,
 } from "./routes/PlaceholderPages";
 
-const pageContent: Record<PageId, ReactNode> = {
-  dashboard: <DashboardPage />,
-  vehicles: <VehiclesPage />,
-  fuel: <FuelLogsPage />,
-  maintenance: <MaintenancePage />,
-  "service-history": <ServiceHistoryPage />,
-  expenses: <ExpensesPage />,
-  reports: <ReportsPage />,
-  alerts: <AlertsPage />,
-  backup: <BackupPage />,
-  settings: <SettingsPage />,
-};
-
 export function App() {
   const [activePage, setActivePage] = useState<PageId>("dashboard");
 
@@ -44,7 +30,32 @@ export function App() {
       navigationItems={navigationItems}
       onNavigate={setActivePage}
     >
-      {pageContent[activePage]}
+      {renderPage(activePage, setActivePage)}
     </AppLayout>
   );
+}
+
+function renderPage(activePage: PageId, onNavigate: (page: PageId) => void) {
+  switch (activePage) {
+    case "dashboard":
+      return <DashboardPage onNavigate={onNavigate} />;
+    case "vehicles":
+      return <VehiclesPage />;
+    case "fuel":
+      return <FuelLogsPage />;
+    case "maintenance":
+      return <MaintenancePage />;
+    case "service-history":
+      return <ServiceHistoryPage />;
+    case "expenses":
+      return <ExpensesPage />;
+    case "reports":
+      return <ReportsPage />;
+    case "alerts":
+      return <AlertsPage />;
+    case "backup":
+      return <BackupPage />;
+    case "settings":
+      return <SettingsPage />;
+  }
 }
