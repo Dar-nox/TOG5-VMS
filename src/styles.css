@@ -1960,6 +1960,220 @@ h1 {
   white-space: nowrap;
 }
 
+.backup-module {
+  display: grid;
+  gap: 18px;
+}
+
+.backup-workspace,
+.backup-panel,
+.backup-summary-card,
+.backup-history-card {
+  border: 1px solid #d8e0dd;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 18px 40px rgba(23, 32, 38, 0.06);
+}
+
+.backup-workspace,
+.backup-panel {
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+}
+
+.backup-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 18px;
+}
+
+.backup-header h2,
+.backup-header p,
+.backup-panel h3,
+.backup-panel p {
+  margin: 0;
+}
+
+.backup-header h2,
+.backup-panel h3 {
+  color: #173844;
+  font-size: 1.35rem;
+}
+
+.backup-panel h3 {
+  font-size: 1.08rem;
+}
+
+.backup-header p,
+.backup-panel p {
+  max-width: 78ch;
+  margin-top: 8px;
+  color: #52636a;
+  line-height: 1.55;
+}
+
+.backup-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.backup-summary-card {
+  display: grid;
+  gap: 8px;
+  min-height: 96px;
+  padding: 14px;
+  box-shadow: none;
+}
+
+.backup-summary-card span {
+  color: #607179;
+  font-size: 0.8rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.backup-summary-card strong {
+  color: #173844;
+  font-size: 1.08rem;
+}
+
+.backup-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.9fr);
+  align-items: start;
+  gap: 14px;
+}
+
+.backup-path-note,
+.backup-success-note,
+.backup-confirm-row {
+  border: 1px solid #dce4e1;
+  border-radius: 8px;
+  background: #f9fbfa;
+  color: #31515b;
+  padding: 12px;
+  line-height: 1.45;
+}
+
+.backup-success-note {
+  display: grid;
+  gap: 6px;
+  border-color: #b8ddc8;
+  background: #f1faf5;
+  color: #216846;
+}
+
+.backup-path-note {
+  display: grid;
+  gap: 5px;
+}
+
+.backup-path-note span,
+.backup-folder-row span,
+.backup-history-card p,
+.backup-issue span {
+  overflow-wrap: anywhere;
+}
+
+.backup-folder-list,
+.backup-history-list,
+.backup-issue-list {
+  display: grid;
+  gap: 10px;
+}
+
+.backup-folder-row,
+.backup-history-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+}
+
+.backup-folder-row {
+  border: 1px solid #dce4e1;
+  border-radius: 8px;
+  background: #f9fbfa;
+  padding: 12px;
+}
+
+.backup-folder-row > div,
+.backup-history-card > div {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.backup-folder-row strong,
+.backup-history-card h3 {
+  color: #173844;
+}
+
+.backup-folder-row span,
+.backup-history-card p {
+  color: #52636a;
+  font-size: 0.88rem;
+}
+
+.backup-folder-row em {
+  color: #31515b;
+  font-style: normal;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.backup-action-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.backup-confirm-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #fff9e8;
+  border-color: #ead497;
+  color: #725515;
+}
+
+.backup-confirm-row input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+}
+
+.backup-issue {
+  display: grid;
+  gap: 4px;
+  border: 1px solid #ead497;
+  border-radius: 8px;
+  background: #fff9e8;
+  color: #725515;
+  padding: 10px 12px;
+  line-height: 1.45;
+}
+
+.backup-issue.error {
+  border-color: #efc9c4;
+  background: #fff4f2;
+  color: #8f2f27;
+}
+
+.backup-issue.warning {
+  border-color: #ead497;
+  background: #fff9e8;
+  color: #725515;
+}
+
+.backup-history-card {
+  padding: 14px;
+  box-shadow: none;
+}
+
 @media (max-width: 1120px) {
   .desktop-shell {
     grid-template-columns: 94px minmax(0, 1fr);
@@ -2021,6 +2235,10 @@ h1 {
   .reports-header,
   .report-grid,
   .vehicle-cost-card,
+  .backup-header,
+  .backup-grid,
+  .backup-folder-row,
+  .backup-history-card,
   .alerts-list {
     grid-template-columns: 1fr;
   }
@@ -2113,6 +2331,7 @@ h1 {
   .expense-summary-grid,
   .report-filter-grid,
   .report-summary-grid,
+  .backup-summary-grid,
   .form-grid {
     grid-template-columns: 1fr;
   }
@@ -2166,6 +2385,14 @@ h1 {
   .report-row,
   .cost-event-row {
     grid-template-columns: 1fr;
+  }
+
+  .backup-header {
+    align-items: stretch;
+  }
+
+  .backup-action-row {
+    justify-content: stretch;
   }
 
   h1 {

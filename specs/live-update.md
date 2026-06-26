@@ -46,19 +46,19 @@ v1 local desktop MVP.
 
 ## Active Phase
 
-Phase 9 — Expenses and Reports.
+Phase 10 — Backup, Restore, and Local File Safety.
 
 ## Phase State
 
-Phase 9 completed. Manual local expense tracking is available, MVP reports aggregate fuel, service, repair, and manual expense costs, and combined report totals avoid counting linked source-copy expenses twice.
+Phase 10 completed. Local backup packages include a consistent SQLite snapshot, app-managed file folders, a manifest with checksums, validation, restore safety backup, and a real Backup & Restore UI.
 
 ## Last Completed Phase
 
-Phase 9 — Expenses and Reports.
+Phase 10 — Backup, Restore, and Local File Safety.
 
 ## Next Planned Phase
 
-Phase 10 — Backup, Restore, and Local File Safety.
+Phase 11 — User Access and Settings.
 
 ---
 
@@ -76,7 +76,7 @@ Phase 10 — Backup, Restore, and Local File Safety.
 | 7 | Fuel Logging and Efficiency | Completed | Fuel logs, local receipts, full-tank km/L, warnings, efficiency-drop alert groundwork |
 | 8 | Maintenance Completion and Service History | Completed | Complete schedules, service logs, next due recalculation, alert resolution |
 | 9 | Expenses and Reports | Completed | Manual expenses, report summaries, source cost aggregation, and double-count prevention |
-| 10 | Backup, Restore, and Local File Safety | Not started | Local backup package |
+| 10 | Backup, Restore, and Local File Safety | Completed | Local .tog5backup folder package, manifest/checksums, validation, safe restore, and file safety summary |
 | 11 | User Access and Settings | Not started | Roles and app settings |
 | 12 | Dashboard Polish and UX Refinement | Not started | Friendly UI pass |
 | 13 | Packaging and Release Preparation | Not started | Windows installer |
@@ -3011,11 +3011,245 @@ Proceed to Phase 10: Backup, Restore, and Local File Safety after Phase 9 visual
 
 Phase 10 prompts should treat the app data directory as containing the SQLite database plus managed folders for vehicle photos, fuel receipts, maintenance receipts, and maintenance photos. Backup should include the database and those file folders, and restore should be careful, local-only, and user-confirmed.
 
+## Update 2026-06-26 18:17 +08:00 - Phase 10: Backup, Restore, and Local File Safety
+
+### Prompt / Task Given to Codex
+
+Implement Phase 10: local backup creation, backup validation, restore safety, and local file integrity checks for the app-managed database and folders. Keep everything local-only and do not add cloud sync, auth, packaging, dashboard redesign, OCR, or report export.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Backup Package Approach
+
+- Added local `.tog5backup` directory-style packages under the app-managed `backups/` folder.
+- Package structure:
+  - `manifest.json`
+  - `database/tog5-vms.sqlite3`
+  - `files/vehicle-photos/...`
+  - `files/fuel-receipts/...`
+  - `files/maintenance-receipts/...`
+  - `files/maintenance-photos/...`
+- The manifest records app name/version, format version, created timestamp, database filename, included folders, file count, total size, checksum algorithm, and one checksum entry per included file.
+- Compression was not added because the project does not currently include a zip dependency and network access is restricted. The directory-style package is inspectable, deterministic, and tested.
+
+### Database Snapshot Approach
+
+- Used SQLite `VACUUM INTO` to create a consistent database snapshot.
+- The backup includes only the snapshot database, not stale WAL/SHM sidecar files.
+- Backup validation opens the snapshot read-only so validation does not mutate the backup database or alter manifest checksums.
+
+### Managed File Inclusion Approach
+
+- Backups include app-managed folders:
+  - `vehicle-photos`
+  - `fuel-receipts`
+  - `maintenance-receipts`
+  - `maintenance-photos`
+- Backups do not depend on original user-selected source paths.
+- Empty managed folders are created in the package so the package shape remains predictable.
+
+### Restore Validation / Safety Approach
+
+- Restore requires explicit frontend confirmation.
+- Restore validates before applying:
+  - package exists and is a `.tog5backup` folder
+  - manifest exists and is valid JSON
+  - format version is supported
+  - database snapshot exists and opens read-only
+  - required schema/migrations are present
+  - manifest paths are safe relative paths
+  - file sizes and checksums match the manifest
+- Restore creates a pre-restore safety backup before replacing local app data.
+- Restore stages files in a temporary restore folder before applying.
+- Restore replaces the app-data database and managed folders, clears SQLite sidecar files, records restore history, and returns `restartRequired = true`.
+- Failed validation does not replace existing data.
+
+### Local File Safety Summary Approach
+
+- Added a summary that checks database presence, managed folder presence, file counts, folder sizes, and database references to local files.
+- Checks references from:
+  - `vehicle_photos.file_path`
+  - `vehicle_documents.file_path`
+- Missing referenced files are returned as warnings.
+- Orphan cleanup was not implemented; deletion of local files remains future user-confirmed work.
+
+### Backend Commands Added
+
+- `create_backup`
+- `validate_backup_file`
+- `restore_backup`
+- `list_backups`
+- `get_local_file_safety_summary`
+
+### Frontend Backup & Restore UI Added
+
+- Replaced the Backup placeholder with a real Backup & Restore page.
+- Added backup status cards.
+- Added managed folder and local file safety summary.
+- Added create backup action.
+- Added readable/copyable backup path display.
+- Added backup package path field with history suggestions.
+- Added validate backup action and validation result display.
+- Added explicit restore confirmation checkbox.
+- Added restore action with restart-required messaging.
+- Added backup history list with reusable backup paths.
+
+### Tests Added
+
+- Rust backup package tests:
+  - package creates manifest
+  - database snapshot is included
+  - vehicle photos are included
+  - fuel receipts are included
+  - maintenance receipts/photos are included
+  - manifest file count and size are populated
+- Rust database snapshot tests:
+  - backup database opens successfully
+  - expected schema exists
+  - expected test vehicle data exists
+- Rust validation tests:
+  - valid backup passes
+  - missing manifest fails
+  - missing database fails
+  - unsupported format version fails
+  - checksum/size mismatch fails
+  - path traversal manifest entry fails
+- Rust restore tests:
+  - restore applies validated backup into a temp app-data directory
+  - failed validation does not replace existing data
+  - pre-restore safety backup is created
+  - restore response marks restart required
+- Rust local file safety tests:
+  - missing referenced file is reported
+  - existing referenced files are not reported
+  - managed folder file counts are returned
+
+### Files Created
+
+- `src-tauri/src/backup/mod.rs` - Rust backup module registration.
+- `src-tauri/src/backup/models.rs` - Backup, manifest, validation, restore, history, and safety response models.
+- `src-tauri/src/backup/service.rs` - Backup package creation, validation, restore, history, and local file safety logic.
+- `src-tauri/src/backup/commands.rs` - Tauri command wrappers for backup operations.
+- `src/services/api/backup.ts` - Typed frontend API wrapper for backup commands.
+- `src/components/backup/BackupRestoreModule.tsx` - Real Backup & Restore page.
+
+### Files Modified
+
+- `src-tauri/src/db/mod.rs` - Exposed the canonical database filename for backup code.
+- `src-tauri/src/lib.rs` - Registered backup module and Tauri commands.
+- `src/app/routes/PlaceholderPages.tsx` - Replaced Backup placeholder with the real Backup & Restore module.
+- `src/styles.css` - Added Backup & Restore workspace, card, validation, history, and responsive styles.
+- `specs/live-update.md` - Updated Phase 10 status and this progress entry.
+
+### Files Deleted
+
+- None.
+
+### Commands Run
+
+- `cargo fmt --manifest-path src-tauri/Cargo.toml`
+- `cargo fmt --manifest-path src-tauri/Cargo.toml --check`
+- `cargo check --manifest-path src-tauri/Cargo.toml`
+- `cargo test --manifest-path src-tauri/Cargo.toml backup::service::tests`
+- `cargo test --manifest-path src-tauri/Cargo.toml`
+- `npm.cmd run typecheck`
+- `npm.cmd run lint`
+- `npm.cmd run test`
+- `npm.cmd run format:check`
+- `npm.cmd run build`
+- `npm.cmd run format`
+- `npm.cmd run tauri:dev`
+- `git status --short`
+
+### Command Results
+
+- Rust format: Passed.
+- Rust format check: Passed.
+- Rust check: Passed.
+- Backup-specific Rust tests: Passed, 7 tests.
+- Full Rust tests: Passed, 47 tests.
+- TypeScript tests: Passed, 1 Vitest file / 12 tests.
+- Typecheck: Passed.
+- Lint: Passed.
+- Frontend build: Passed.
+- Prettier check: Initially failed on the new backup API/UI files; `npm.cmd run format` fixed them and the rerun passed.
+- Tauri dev launch: Passed with escalation for app-data database access. The dev run started `target\debug\tog5-vms.exe` and WebView2, then Codex stopped the dev process tree and confirmed port `1420` was clear.
+
+### Whether Tauri App Launched
+
+Yes. `npm.cmd run tauri:dev` started the Tauri native app process and WebView2. Codex cannot visually inspect the desktop window, so human visual confirmation is still needed.
+
+### Whether Human Visual Confirmation Is Needed
+
+Yes. Codex can confirm process launch, but the human should visually inspect the Backup & Restore page and actual backup/restore UX.
+
+### Issues Encountered
+
+- Backup validation initially opened the snapshot through the normal app DB helper, which enables WAL mode and could mutate backup files, causing checksum validation to fail. Fixed by opening backup snapshots read-only during validation.
+- No schema migration was required.
+- No compressed archive dependency was added.
+
+### Decisions Made
+
+- Used an inspectable `.tog5backup` directory package instead of zip compression for this phase.
+- Used a built-in FNV-1a 64-bit checksum implementation to avoid adding dependencies while still detecting tampering/mismatch.
+- Did not widen Tauri asset protocol scopes because Backup & Restore does not render backup files directly.
+- Did not implement cloud backup, scheduled backup, encryption, or orphan cleanup.
+
+### Important Implementation Details
+
+- Restore returns `restartRequired = true`.
+- Restore creates a safety backup first and records restore history after applying the validated package.
+- Validation rejects unsafe manifest paths containing traversal or absolute path components.
+- Backup history uses the existing `backups` table.
+
+### Known Issues / Technical Debt
+
+- Backup packages are folder packages, not compressed single files.
+- Checksums use FNV-1a 64-bit, not SHA-256. SHA-256 can be added later if a vetted hash crate is introduced.
+- Arbitrary external backup picking is path-based; a Tauri dialog plugin could improve this later.
+- No encryption yet.
+- No scheduled backup reminder workflow yet.
+- No orphan cleanup yet.
+
+### Manual Checks Completed
+
+- Confirmed repository root.
+- Confirmed backup table schema was sufficient.
+- Confirmed app-data database path and managed folder names.
+- Confirmed current Tauri asset scope did not need expansion.
+- Confirmed Backup placeholder is replaced with a real module.
+- Confirmed `npm.cmd run tauri:dev` starts the Tauri native process, then stopped the dev process tree.
+- Confirmed no cloud, network sync, authentication, packaging, OCR, or dashboard redesign was added.
+
+### Manual Checks Still Needed
+
+1. Open Backup & Restore.
+2. Confirm local file safety summary appears.
+3. Confirm managed folder counts appear.
+4. Create a backup.
+5. Confirm backup history updates.
+6. Validate the created backup path.
+7. Confirm restore requires explicit confirmation.
+8. Restore a backup only after intentionally testing with safe data.
+9. Restart the app after restore and confirm data/files are present.
+10. Confirm Vehicles, Fuel Logs, Maintenance, Service History, Expenses, Reports, and Alerts still open.
+
+### Suggested Next Step
+
+Proceed to Phase 11: User Access and Settings after Phase 10 visual checks.
+
+### Notes for ChatGPT Prompt Optimization
+
+Phase 11 prompts should account for local-only user access and settings. Avoid cloud login. Settings should likely include backup reminder preferences, due-soon defaults, startup-on-boot preference, and role scaffolding while preserving the existing local database and backup behavior.
+
 ---
 
 # Current Blockers
 
-- No Phase 9 blocker remains.
+- No Phase 10 blocker remains.
 - Direct `npm` in PowerShell is still blocked by execution policy; use `npm.cmd` for now.
 - Tauri native process launch is verified, but visible desktop-window confirmation should be checked manually if Codex cannot observe the screen.
 

@@ -1,3 +1,4 @@
+mod backup;
 mod db;
 pub mod domain;
 mod expenses;
@@ -19,6 +20,11 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             db::database_status,
+            backup::commands::create_backup,
+            backup::commands::validate_backup_file,
+            backup::commands::restore_backup,
+            backup::commands::list_backups,
+            backup::commands::get_local_file_safety_summary,
             expenses::commands::list_expenses,
             expenses::commands::list_expenses_for_vehicle,
             expenses::commands::get_expense,

@@ -7,7 +7,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
-const DATABASE_FILE_NAME: &str = "tog5-vms.sqlite3";
+pub const DATABASE_FILE_NAME: &str = "tog5-vms.sqlite3";
 
 pub const MIGRATIONS: &[Migration] = &[
     Migration {

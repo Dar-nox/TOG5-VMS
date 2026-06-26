@@ -1,4 +1,5 @@
 import { AlertsModule } from "../../components/alerts/AlertsModule";
+import { BackupRestoreModule } from "../../components/backup/BackupRestoreModule";
 import { PlaceholderSection } from "../../components/common/PlaceholderSection";
 import { SummaryCard } from "../../components/common/SummaryCard";
 import { ExpensesModule } from "../../components/expenses/ExpensesModule";
@@ -99,17 +100,7 @@ export function AlertsPage() {
 }
 
 export function BackupPage() {
-  return (
-    <PlaceholderSection
-      title="Backup and restore will protect local data"
-      description="Future backup tools will include the SQLite database and uploaded local files such as photos, receipts, and documents."
-      items={[
-        "Manual backup will be available later.",
-        "Restore will warn before replacing current local data.",
-        "Backup reminders will appear both on the dashboard and alert list.",
-      ]}
-    />
-  );
+  return <BackupRestoreModule />;
 }
 
 export function SettingsPage() {
