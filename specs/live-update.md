@@ -2496,6 +2496,90 @@ Phase 8 prompts should treat Fuel Logs as implemented and should avoid changing 
 
 ---
 
+## Update 2026-06-26 13:13 +08:00 — Phase 7 UI Polish: Fuel Log Form Layout
+
+### Prompt / Task Given to Codex
+
+Implement the Fuel Log Form Layout Polish Plan. Restructure the Fuel Logs add/edit form so the date/time input no longer collides with the odometer input, while keeping the change UI-only with no backend, schema, validation, fuel calculation, receipt storage, or command changes.
+
+### Summary of What Changed
+
+- Replaced the top generic two-column fuel form grid with explicit form rows.
+- Made Date and time span its own full row so the browser datetime control has enough width.
+- Kept Odometer and Fuel type as a balanced two-column row.
+- Grouped Liters, Price per liter, and Total amount into a compact three-column row on wider screens.
+- Kept Station name and Receipt number in a two-column row.
+- Styled the Full tank checkbox as a cleaner inline control.
+- Added responsive CSS so fuel form rows collapse to one column on narrower windows.
+
+### Files Created
+
+- None.
+
+### Files Modified
+
+- `src/components/fuel/FuelLogsModule.tsx` — reorganized the Fuel Logs form markup into purpose-built rows without changing state, validation, or submit behavior.
+- `src/styles.css` — added scoped Fuel Logs row layout classes and responsive collapse behavior.
+- `specs/live-update.md` — recorded this Phase 7 UI polish and validation results.
+
+### Files Deleted
+
+- None.
+
+### Commands Run
+
+```bash
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+npm.cmd run tauri:dev
+```
+
+### Command Results
+
+- `npm.cmd run typecheck`: passed.
+- `npm.cmd run lint`: passed.
+- `npm.cmd run format:check`: passed.
+- `npm.cmd run build`: passed.
+- First `npm.cmd run tauri:dev`: failed because port `1420` was already in use.
+- Confirmed no process remained listening on port `1420` after cleanup.
+- Retried `npm.cmd run tauri:dev`: passed launch validation; Vite started and logs showed `Running target\debug\tog5-vms.exe`.
+
+### Whether Tauri Launched
+
+- Tauri native process launch: verified by logs showing `Running target\debug\tog5-vms.exe`.
+- Human visual confirmation is still needed because Codex cannot reliably inspect the visible desktop window.
+
+### Issues Encountered
+
+- Port `1420` was occupied on the first launch attempt and was clear before the retry.
+- No TypeScript, lint, formatting, or build errors remained.
+
+### Decisions Made
+
+- Kept this strictly UI-only.
+- Did not change Rust/Tauri commands, database schema, fuel validation, fuel calculation, receipt storage, alert behavior, or CRUD behavior.
+- Used structured form rows rather than just increasing grid spacing, because the browser datetime input needs a more reliable layout.
+
+### Manual Visual Checks Still Needed
+
+1. Open Fuel Logs.
+2. Confirm the Date and time input no longer touches or overlaps Odometer.
+3. Confirm the form looks balanced at the screenshot width.
+4. Confirm the add/edit fuel log flow still works.
+5. Resize to a narrow window and confirm fields stack cleanly without overlap.
+
+### Suggested Next Step
+
+Proceed to Phase 8: Maintenance Completion and Service History after the Fuel Log form layout is visually confirmed.
+
+### Notes for ChatGPT Prompt Optimization
+
+Future Fuel Logs UI polish should keep the purpose-built form row structure. Avoid returning the top fuel-entry fields to a generic two-column grid because `datetime-local` controls can render wider than expected.
+
+---
+
 # Current Blockers
 
 - No Phase 7 blocker remains.

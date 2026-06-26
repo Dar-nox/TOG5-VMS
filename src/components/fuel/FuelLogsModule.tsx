@@ -375,78 +375,84 @@ function FuelLogForm(props: {
         </p>
       </div>
 
-      <div className="fuel-form-grid">
-        <label className="form-field">
-          <span>Date and time</span>
-          <input
-            required
-            type="datetime-local"
-            value={props.form.fuelDate}
-            onChange={(event) => props.onFieldChange("fuelDate", event.target.value)}
-          />
-        </label>
+      <div className="fuel-form-stack">
+        <div className="fuel-form-row">
+          <label className="form-field fuel-form-field-wide">
+            <span>Date and time</span>
+            <input
+              required
+              type="datetime-local"
+              value={props.form.fuelDate}
+              onChange={(event) => props.onFieldChange("fuelDate", event.target.value)}
+            />
+          </label>
+        </div>
 
-        <label className="form-field">
-          <span>Odometer</span>
-          <input
-            required
-            min="0"
-            step="0.1"
-            type="number"
-            value={props.form.odometer}
-            onChange={(event) => props.onFieldChange("odometer", event.target.value)}
-          />
-        </label>
+        <div className="fuel-form-row">
+          <label className="form-field">
+            <span>Odometer</span>
+            <input
+              required
+              min="0"
+              step="0.1"
+              type="number"
+              value={props.form.odometer}
+              onChange={(event) => props.onFieldChange("odometer", event.target.value)}
+            />
+          </label>
 
-        <label className="form-field">
-          <span>Fuel type</span>
-          <select
-            value={props.form.fuelType}
-            onChange={(event) =>
-              props.onFieldChange("fuelType", event.target.value as FuelLogFuelType)
-            }
-          >
-            {fuelTypeOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
+          <label className="form-field">
+            <span>Fuel type</span>
+            <select
+              value={props.form.fuelType}
+              onChange={(event) =>
+                props.onFieldChange("fuelType", event.target.value as FuelLogFuelType)
+              }
+            >
+              {fuelTypeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
 
-        <label className="form-field">
-          <span>Liters</span>
-          <input
-            required
-            min="0.01"
-            step="0.01"
-            type="number"
-            value={props.form.liters}
-            onChange={(event) => props.onFieldChange("liters", event.target.value)}
-          />
-        </label>
+        <div className="fuel-form-row three">
+          <label className="form-field">
+            <span>Liters</span>
+            <input
+              required
+              min="0.01"
+              step="0.01"
+              type="number"
+              value={props.form.liters}
+              onChange={(event) => props.onFieldChange("liters", event.target.value)}
+            />
+          </label>
 
-        <label className="form-field">
-          <span>Price per liter</span>
-          <input
-            min="0"
-            step="0.01"
-            type="number"
-            value={props.form.pricePerLiter}
-            onChange={(event) => props.onFieldChange("pricePerLiter", event.target.value)}
-          />
-        </label>
+          <label className="form-field">
+            <span>Price per liter</span>
+            <input
+              min="0"
+              step="0.01"
+              type="number"
+              value={props.form.pricePerLiter}
+              onChange={(event) => props.onFieldChange("pricePerLiter", event.target.value)}
+            />
+          </label>
 
-        <label className="form-field">
-          <span>Total amount</span>
-          <input
-            min="0"
-            step="0.01"
-            type="number"
-            value={props.form.totalAmount}
-            onChange={(event) => props.onFieldChange("totalAmount", event.target.value)}
-          />
-        </label>
+          <label className="form-field">
+            <span>Total amount</span>
+            <input
+              min="0"
+              step="0.01"
+              type="number"
+              value={props.form.totalAmount}
+              onChange={(event) => props.onFieldChange("totalAmount", event.target.value)}
+            />
+          </label>
+        </div>
       </div>
 
       <label className="fuel-checkbox">
@@ -458,7 +464,7 @@ function FuelLogForm(props: {
         <span>Full tank</span>
       </label>
 
-      <div className="fuel-form-grid">
+      <div className="fuel-form-row">
         <label className="form-field">
           <span>Station name</span>
           <input
