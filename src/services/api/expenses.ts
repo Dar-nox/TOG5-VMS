@@ -17,7 +17,7 @@ export type RelatedRecordType = "fuel_log" | "maintenance_log" | "repair_record"
 
 export type ExpenseListFilter = {
   vehicleId?: string;
-  category?: ExpenseCategory;
+  category?: string;
   startDate?: string;
   endDate?: string;
 };
@@ -47,7 +47,7 @@ export type ExpenseRecord = {
 export type ExpenseMutationRequest = {
   vehicleId: string;
   expenseDate: string;
-  category: ExpenseCategory;
+  category: ExpenseCategory | string;
   description: string;
   amount: number;
   receiptDocumentId?: string;

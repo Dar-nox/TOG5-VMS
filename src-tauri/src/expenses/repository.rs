@@ -11,19 +11,6 @@ use super::models::{
 };
 
 const SOURCE_RECORD_TYPES: &[&str] = &["fuel_log", "maintenance_log", "repair_record"];
-const VALID_EXPENSE_CATEGORIES: &[&str] = &[
-    "fuel",
-    "preventive_maintenance",
-    "repairs",
-    "parts",
-    "labor",
-    "registration",
-    "insurance",
-    "cleaning",
-    "tires",
-    "emergency",
-    "other",
-];
 const VALID_RELATED_RECORD_TYPES: &[&str] =
     &["fuel_log", "maintenance_log", "repair_record", "other"];
 
@@ -732,11 +719,7 @@ fn normalize_expense_request(
 ) -> Result<NormalizedExpenseMutation, String> {
     let vehicle_id = required_trimmed(request.vehicle_id, "Choose a vehicle for the expense.")?;
     let expense_date = required_trimmed(request.expense_date, "Expense date is required.")?;
-    let category = normalize_choice(
-        request.category,
-        VALID_EXPENSE_CATEGORIES,
-        "expense category",
-    )?;
+    let category = normalize_expense_category(request.category)?;
     let description = required_trimmed(request.description, "Expense description is required.")?;
 
     if !request.amount.is_finite() {
@@ -788,11 +771,7 @@ fn normalize_expense_filter(
         end_date: None,
     });
     let category = match trim_optional(filter.category) {
-        Some(category) => Some(normalize_choice(
-            category,
-            VALID_EXPENSE_CATEGORIES,
-            "expense category",
-        )?),
+        Some(category) => Some(normalize_expense_category(category)?),
         None => None,
     };
 
@@ -1062,6 +1041,36 @@ fn normalize_choice(value: String, valid_values: &[&str], label: &str) -> Result
         .ok_or_else(|| format!("Choose a valid {label}."))
 }
 
+fn normalize_expense_category(value: String) -> Result<String, String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err("Expense category is required.".to_string());
+    }
+
+    let normalized = trimmed
+        .chars()
+        .fold(String::new(), |mut output, character| {
+            if character.is_ascii_alphanumeric() {
+                output.push(character.to_ascii_lowercase());
+            } else if !output.ends_with('_') {
+                output.push('_');
+            }
+            output
+        })
+        .trim_matches('_')
+        .to_string();
+
+    if normalized.is_empty() {
+        return Err("Expense category needs at least one letter or number.".to_string());
+    }
+
+    if normalized.len() > 60 {
+        return Err("Expense category is too long. Use 60 characters or fewer.".to_string());
+    }
+
+    Ok(normalized)
+}
+
 fn label_from_key(value: &str) -> String {
     value
         .split('_')
@@ -1186,6 +1195,38 @@ mod tests {
         let listed =
             list_expenses_for_vehicle(&connection, "vehicle-1").expect("expenses should list");
         assert!(listed.is_empty());
+    }
+
+    #[test]
+    fn accepts_custom_expense_category() {
+        let (_temp_dir, connection) = setup_database();
+        insert_vehicle(&connection, "vehicle-1", "Service Van");
+
+        let created = create_expense(
+            &connection,
+            ExpenseMutationRequest {
+                category: "Parking Fee".to_string(),
+                description: "Airport parking".to_string(),
+                ..expense_request("vehicle-1", 350.0)
+            },
+        )
+        .expect("custom category should save");
+
+        assert_eq!(created.category, "parking_fee");
+
+        let filtered = list_expenses(
+            &connection,
+            Some(ExpenseListFilter {
+                vehicle_id: Some("vehicle-1".to_string()),
+                category: Some("Parking Fee".to_string()),
+                start_date: None,
+                end_date: None,
+            }),
+        )
+        .expect("custom category should filter");
+
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].id, created.id);
     }
 
     #[test]

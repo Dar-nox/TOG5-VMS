@@ -17,7 +17,7 @@ export type Expense = {
   id: EntityId;
   vehicleId?: EntityId;
   expenseDate: ISODateString;
-  category: ExpenseCategory;
+  category: ExpenseCategory | string;
   description: string;
   amount: number;
   receiptDocumentId?: EntityId;

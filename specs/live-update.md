@@ -4372,3 +4372,458 @@ npm.cmd run tauri:dev
 ### Suggested Next Step
 
 Run a quick visual pass on the Dashboard and continue Phase 14 client polish if any other visual cleanup is noticed.
+
+---
+
+## Update 2026-07-01 03:40 +08:00 - Phase 14: Expenses Manual Entry Polish
+
+### Summary
+
+Removed confusing raw linked-record fields from the Add/Edit manual expense form and changed expense category entry into a typeable category field with built-in suggestions. Manual expenses are now clearer: use them for costs not already saved as fuel logs or completed maintenance/service records.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Files Modified
+
+- `src/components/expenses/ExpensesModule.tsx`
+- `src/services/api/expenses.ts`
+- `src/domain/expenses/types.ts`
+- `src-tauri/src/expenses/repository.rs`
+- `specs/live-update.md`
+
+### Backend Behavior
+
+- Expense categories now accept custom user-entered text.
+- Custom categories are normalized for storage, for example `Parking Fee` becomes `parking_fee`.
+- Built-in category filtering still works.
+- Existing linked/source expense rows keep their hidden link metadata when edited, but new manual expenses no longer expose or require raw linked record fields.
+
+### Frontend Behavior
+
+- Removed `Linked record type` and `Linked record ID` from the manual expense form.
+- Replaced the category dropdown with a text input using category suggestions.
+- Updated the helper copy so it explains manual expenses should be used for costs not already recorded elsewhere.
+- Existing linked/source rows now display as source costs without exposing raw record IDs in the expense card.
+
+### Tests Added / Updated
+
+- Added Rust coverage for saving and filtering a custom expense category.
+
+### Commands Run
+
+```bash
+npm.cmd run test
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+cargo fmt --manifest-path src-tauri\Cargo.toml --check
+cargo check --manifest-path src-tauri\Cargo.toml
+cargo test --manifest-path src-tauri\Cargo.toml
+```
+
+### Command Results
+
+- `npm.cmd run test`: passed, 1 Vitest file / 12 tests.
+- `npm.cmd run typecheck`: passed.
+- `npm.cmd run lint`: passed.
+- `npm.cmd run format:check`: passed.
+- `npm.cmd run build`: passed.
+- `cargo fmt --manifest-path src-tauri\Cargo.toml --check`: passed.
+- `cargo check --manifest-path src-tauri\Cargo.toml`: passed.
+- `cargo test --manifest-path src-tauri\Cargo.toml`: passed, 65 Rust tests.
+
+### Tauri Launch Notes
+
+- TOG 5 VMS was already running during validation, with `tog5-vms.exe` active and port `1420` listening.
+- Codex did not stop the already-running app process because it was not launched by this cleanup step.
+- Human visual confirmation is still needed for the updated Expenses form.
+
+### Issues Encountered
+
+- None.
+
+### Decisions Made
+
+- Kept the backend linked-record support because it is still useful for automatic/source cost records and double-count prevention.
+- Removed raw linked-record entry from the user-facing manual expense form because it is confusing and not needed for ordinary manual costs.
+- Did not change the database schema.
+
+### Manual Checks Still Needed
+
+1. Open Expenses.
+2. Confirm `Linked record type` and `Linked record ID` are gone from Add/Edit manual expense.
+3. Confirm Category can be selected from suggestions.
+4. Confirm a custom category such as `Parking Fee` can be typed and saved.
+5. Confirm the saved custom category appears cleanly in Expense History and Reports.
+
+### Suggested Next Step
+
+Run a quick visual check of the Expenses form and add one small test expense with a custom category.
+
+---
+
+## Update 2026-07-01 03:47 +08:00 - Phase 14: Expenses Category Dropdown Polish
+
+### Summary
+
+Polished the Expenses category control so it matches the app's other dropdown styling while still allowing custom typed categories. Removed the built-in `Other` suggestion because custom typing now covers that use case.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Files Modified
+
+- `src/components/expenses/ExpensesModule.tsx`
+- `src/styles.css`
+- `specs/live-update.md`
+
+### Behavior Changes
+
+- Removed `Other` from the suggested expense category list.
+- New manual expense forms now start with an empty category and show `Choose or type category`.
+- Category remains required.
+- The category field keeps custom typing but uses the same select-style visual affordance as other dropdown controls.
+- Shared form dropdown styling was tightened so select controls and the typeable expense category control read as one design family.
+
+### Commands Run
+
+```bash
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+cargo check --manifest-path src-tauri\Cargo.toml
+npm.cmd run tauri:dev
+```
+
+### Command Results
+
+- `npm.cmd run typecheck`: passed.
+- `npm.cmd run lint`: passed.
+- `npm.cmd run format:check`: passed.
+- `npm.cmd run build`: passed.
+- `cargo check --manifest-path src-tauri\Cargo.toml`: passed.
+- `npm.cmd run tauri:dev`: passed; app reached `Running target\debug\tog5-vms.exe`.
+
+### Tauri Launch Notes
+
+- TOG 5 VMS launched successfully.
+- Dev processes were stopped after validation.
+- Human visual confirmation is still needed for the exact dropdown appearance.
+
+### Issues Encountered
+
+- None.
+
+### Manual Checks Still Needed
+
+1. Open Expenses.
+2. Confirm the Category control visually matches the app's dropdown style.
+3. Confirm `Other` is no longer a suggested option.
+4. Confirm built-in suggestions still appear.
+5. Confirm a custom category can still be typed and saved.
+
+### Suggested Next Step
+
+Visually confirm the Expenses form at normal and narrow window widths.
+
+---
+
+## Update 2026-07-01 04:09 +08:00 - Phase 14: Expenses Category Combobox Consistency
+
+### Summary
+
+Replaced the Expenses category `datalist` control with a small app-rendered combobox so the open dropdown can match the visual language of the app's other dropdown controls while still allowing custom typed categories.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Files Modified
+
+- `src/components/expenses/ExpensesModule.tsx`
+- `src/styles.css`
+- `specs/live-update.md`
+
+### Behavior Changes
+
+- Removed the browser-native `datalist` popup from the manual expense category field.
+- Added an app-styled category combobox with built-in suggestions and custom typing.
+- Kept `Other` out of the suggested categories.
+- Preserved existing custom category behavior and backend normalization.
+- Added mouse and keyboard selection support for category suggestions.
+- Kept the Expenses category filter as a normal dropdown.
+
+### Commands Run
+
+```bash
+npm.cmd run test
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+npm.cmd run tauri:dev
+```
+
+### Command Results
+
+- `npm.cmd run test`: passed, 1 Vitest file / 12 tests.
+- `npm.cmd run typecheck`: passed.
+- `npm.cmd run lint`: passed.
+- `npm.cmd run format:check`: passed after formatting `src/components/expenses/ExpensesModule.tsx`.
+- `npm.cmd run build`: passed.
+- `npm.cmd run tauri:dev`: launched the app; the command timed out because the dev app kept running, then `tog5-vms.exe` and the port `1420` listener were confirmed and stopped.
+
+### Tauri Launch Notes
+
+- TOG 5 VMS launched in dev mode.
+- Codex cannot visually inspect the dropdown styling from the desktop window in this run.
+- Human visual confirmation is still needed for exact dropdown appearance.
+
+### Issues Encountered
+
+- The earlier `datalist` popup was controlled by WebView/browser styling and could not be made fully consistent with the app's native select controls.
+- No backend, database, or report behavior changes were needed.
+
+### Manual Checks Still Needed
+
+1. Open Expenses.
+2. Click the Category field.
+3. Confirm the dropdown is now white/app-styled instead of the dark browser suggestion popup.
+4. Confirm suggested categories can be selected.
+5. Confirm a custom category can still be typed and saved.
+
+### Suggested Next Step
+
+Visually confirm the updated Expenses category combobox at normal and narrow window widths.
+
+---
+
+## Update 2026-07-01 04:16 +08:00 - Phase 14: Expenses Category Hint Row
+
+### Summary
+
+Added a top hint row to the Expenses category combobox so the full `Choose or type category` text is visible when the dropdown is open.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Files Modified
+
+- `src/components/expenses/ExpensesModule.tsx`
+- `src/styles.css`
+- `specs/live-update.md`
+
+### Behavior Changes
+
+- The category combobox menu now starts with `Choose or type category`.
+- Selecting the hint row clears the category instead of saving it as a category.
+- Suggested categories and custom typed category behavior remain unchanged.
+- No backend, database, or report behavior changed.
+
+### Commands Run
+
+```bash
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+```
+
+### Command Results
+
+- `npm.cmd run typecheck`: passed.
+- `npm.cmd run lint`: passed.
+- `npm.cmd run format:check`: passed.
+- `npm.cmd run build`: passed.
+
+### Manual Checks Still Needed
+
+1. Open Expenses.
+2. Click the Category field.
+3. Confirm `Choose or type category` appears at the top of the dropdown.
+4. Confirm choosing a suggested category still works.
+5. Confirm custom typed categories still save correctly.
+
+### Suggested Next Step
+
+Visually confirm the category combobox at the form width shown in the screenshot.
+
+---
+
+## Update 2026-07-01 04:26 +08:00 - Phase 14: Expenses Category Native Dropdown
+
+### Summary
+
+Changed the Expenses category control to use the same native dropdown style as the rest of the app. Custom categories are now entered through a separate text field that appears only after choosing `Custom category...`.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Files Modified
+
+- `src/components/expenses/ExpensesModule.tsx`
+- `src/styles.css`
+- `specs/live-update.md`
+
+### Behavior Changes
+
+- Replaced the custom category combobox with a normal `<select>` so the Category dropdown matches Vehicle, Fuel, Transmission, and other app dropdowns.
+- Added `Custom category...` as the last dropdown option.
+- Selecting `Custom category...` reveals a separate `Custom category` text input.
+- Built-in category selection and custom category saving remain supported.
+- Removed the previous custom dropdown CSS because it is no longer needed.
+- No backend, database, report, or expense aggregation behavior changed.
+
+### Commands Run
+
+```bash
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+npm.cmd run test
+npm.cmd run tauri:dev
+```
+
+### Command Results
+
+- `npm.cmd run typecheck`: passed.
+- `npm.cmd run lint`: passed.
+- `npm.cmd run format:check`: passed.
+- `npm.cmd run build`: passed.
+- `npm.cmd run test`: passed, 1 Vitest file / 12 tests.
+- `npm.cmd run tauri:dev`: launched the app; the command timed out because the dev app kept running, then `tog5-vms.exe` and the port `1420` listener were confirmed and stopped.
+
+### Tauri Launch Notes
+
+- TOG 5 VMS launched in dev mode.
+- Human visual confirmation is still needed for the exact Expenses category dropdown appearance.
+
+### Manual Checks Still Needed
+
+1. Open Expenses.
+2. Confirm Category now opens like the app's other native dropdowns.
+3. Confirm `Custom category...` appears at the bottom.
+4. Confirm selecting `Custom category...` shows the separate custom category input.
+5. Confirm custom categories still save correctly.
+
+### Suggested Next Step
+
+Visually confirm the Expenses category dropdown now matches the other app dropdowns.
+
+---
+
+## Update 2026-07-01 04:37 +08:00 - Phase 14: Expenses Custom Category Layout Fix
+
+### Summary
+
+Fixed the Expenses form layout so selecting `Custom category...` no longer stretches or shifts the Amount field awkwardly.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Files Modified
+
+- `src/components/expenses/ExpensesModule.tsx`
+- `src/styles.css`
+- `specs/live-update.md`
+
+### Behavior Changes
+
+- Category remains a native dropdown for consistency with the rest of the app.
+- The custom category input now renders as its own full-width row below the Category / Amount row.
+- Amount stays stable and no longer gets stretched by the custom category field.
+- Existing custom category behavior is preserved.
+- No backend, database, report, or expense aggregation behavior changed.
+
+### Commands Run
+
+```bash
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+```
+
+### Command Results
+
+- `npm.cmd run typecheck`: passed.
+- `npm.cmd run lint`: passed.
+- `npm.cmd run format:check`: passed.
+- `npm.cmd run build`: passed.
+
+### Manual Checks Still Needed
+
+1. Open Expenses.
+2. Select a built-in category and confirm Amount stays aligned.
+3. Select `Custom category...` and confirm the custom input appears on its own row.
+4. Confirm Amount does not stretch or shift awkwardly.
+5. Confirm a custom category still saves correctly.
+
+### Suggested Next Step
+
+Visually confirm the Expenses form with both built-in and custom category selections.
+
+---
+
+## Update 2026-07-01 04:47 +08:00 - Phase 14: Expenses Custom Category Toggle Bugfix
+
+### Summary
+
+Fixed a bug where selecting `Custom category...` stopped working after switching from custom category back to a built-in category and then trying custom again.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Files Modified
+
+- `src/components/expenses/ExpensesModule.tsx`
+- `specs/live-update.md`
+
+### Root Cause
+
+- The category field had an auto-detection effect that forced custom mode off whenever the current category value matched a built-in category.
+- After selecting a built-in category, choosing `Custom category...` set custom mode on, but the effect immediately saw the old built-in category value and turned custom mode back off.
+
+### Fix
+
+- Removed the auto-detection effect from the category dropdown component.
+- Made the dropdown choice the source of truth for custom mode.
+- Selecting `Custom category...` now clears the previous built-in category value and keeps the custom input open.
+
+### Commands Run
+
+```bash
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+```
+
+### Command Results
+
+- `npm.cmd run typecheck`: passed.
+- `npm.cmd run lint`: passed.
+- `npm.cmd run format:check`: passed.
+- `npm.cmd run build`: passed.
+
+### Manual Checks Still Needed
+
+1. Open Expenses.
+2. Select `Custom category...`.
+3. Switch to a built-in category.
+4. Switch back to `Custom category...`.
+5. Confirm the custom input opens every time.
+
+### Suggested Next Step
+
+Visually confirm the custom category toggle loop no longer gets stuck.

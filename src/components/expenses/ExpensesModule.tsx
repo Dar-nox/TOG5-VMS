@@ -20,7 +20,8 @@ import { listVehicles, type VehicleRecord } from "../../services/api/vehicles";
 type ExpenseFormState = {
   vehicleId: string;
   expenseDate: string;
-  category: ExpenseCategory;
+  category: string;
+  useCustomCategory: boolean;
   description: string;
   amount: string;
   relatedRecordType: "" | RelatedRecordType;
@@ -39,16 +40,9 @@ const categoryOptions: Array<{ value: ExpenseCategory; label: string }> = [
   { value: "cleaning", label: "Cleaning" },
   { value: "tires", label: "Tires" },
   { value: "emergency", label: "Emergency" },
-  { value: "other", label: "Other" },
 ];
 
-const relatedRecordOptions: Array<{ value: "" | RelatedRecordType; label: string }> = [
-  { value: "", label: "No linked source record" },
-  { value: "fuel_log", label: "Fuel log" },
-  { value: "maintenance_log", label: "Service history record" },
-  { value: "repair_record", label: "Repair record" },
-  { value: "other", label: "Other record" },
-];
+const CUSTOM_CATEGORY_VALUE = "__custom__";
 
 export function ExpensesModule() {
   const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
@@ -177,7 +171,8 @@ export function ExpensesModule() {
     setForm({
       vehicleId: expense.vehicleId ?? "",
       expenseDate: expense.expenseDate.slice(0, 10),
-      category: expense.category as ExpenseCategory,
+      category: categoryLabel(expense.category),
+      useCustomCategory: isCustomCategory(expense.category),
       description: expense.description,
       amount: String(expense.amount),
       relatedRecordType: (expense.relatedRecordType as RelatedRecordType | null) ?? "",
@@ -423,22 +418,12 @@ function ExpenseForm(props: {
           />
         </label>
 
-        <label className="form-field">
-          <span>Category</span>
-          <select
-            required
-            value={props.form.category}
-            onChange={(event) =>
-              props.onFieldChange("category", event.target.value as ExpenseCategory)
-            }
-          >
-            {categoryOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <ExpenseCategoryField
+          value={props.form.category}
+          useCustomCategory={props.form.useCustomCategory}
+          onCategoryChange={(value) => props.onFieldChange("category", value)}
+          onCustomModeChange={(value) => props.onFieldChange("useCustomCategory", value)}
+        />
 
         <label className="form-field">
           <span>Amount</span>
@@ -452,6 +437,19 @@ function ExpenseForm(props: {
           />
         </label>
 
+        {props.form.useCustomCategory ? (
+          <label className="form-field expense-form-wide expense-custom-category-field">
+            <span>Custom category</span>
+            <input
+              required
+              placeholder="Type category"
+              type="text"
+              value={props.form.category}
+              onChange={(event) => props.onFieldChange("category", event.target.value)}
+            />
+          </label>
+        ) : null}
+
         <label className="form-field expense-form-wide">
           <span>Description</span>
           <input
@@ -459,34 +457,6 @@ function ExpenseForm(props: {
             type="text"
             value={props.form.description}
             onChange={(event) => props.onFieldChange("description", event.target.value)}
-          />
-        </label>
-
-        <label className="form-field">
-          <span>Linked record type</span>
-          <select
-            value={props.form.relatedRecordType}
-            onChange={(event) =>
-              props.onFieldChange(
-                "relatedRecordType",
-                event.target.value as ExpenseFormState["relatedRecordType"],
-              )
-            }
-          >
-            {relatedRecordOptions.map((option) => (
-              <option key={option.value || "none"} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="form-field">
-          <span>Linked record ID</span>
-          <input
-            type="text"
-            value={props.form.relatedRecordId}
-            onChange={(event) => props.onFieldChange("relatedRecordId", event.target.value)}
           />
         </label>
 
@@ -501,8 +471,8 @@ function ExpenseForm(props: {
       </div>
 
       <div className="maintenance-action-note">
-        Reports already include saved fuel logs and completed service costs. Linked expense copies
-        are shown here but excluded from combined report totals.
+        Use manual expenses for costs that are not already saved as fuel logs or completed service.
+        Reports already include those saved source costs.
       </div>
 
       {props.formIssues.length > 0 ? (
@@ -524,6 +494,46 @@ function ExpenseForm(props: {
         </button>
       </div>
     </form>
+  );
+}
+
+function ExpenseCategoryField(props: {
+  value: string;
+  useCustomCategory: boolean;
+  onCategoryChange: (value: string) => void;
+  onCustomModeChange: (value: boolean) => void;
+}) {
+  const selectedOption = findCategoryOption(props.value);
+  const selectValue = props.useCustomCategory
+    ? CUSTOM_CATEGORY_VALUE
+    : (selectedOption?.label ?? "");
+
+  return (
+    <label className="form-field">
+      <span>Category</span>
+      <select
+        required
+        value={selectValue}
+        onChange={(event) => {
+          if (event.target.value === CUSTOM_CATEGORY_VALUE) {
+            props.onCustomModeChange(true);
+            props.onCategoryChange("");
+            return;
+          }
+
+          props.onCustomModeChange(false);
+          props.onCategoryChange(event.target.value);
+        }}
+      >
+        <option value="">Choose category</option>
+        {categoryOptions.map((option) => (
+          <option key={option.value} value={option.label}>
+            {option.label}
+          </option>
+        ))}
+        <option value={CUSTOM_CATEGORY_VALUE}>Custom category...</option>
+      </select>
+    </label>
   );
 }
 
@@ -626,12 +636,8 @@ function prepareExpenseRequest(form: ExpenseFormState): {
     errors.push("Expense date is required.");
   }
 
-  if (form.relatedRecordType && !form.relatedRecordId.trim()) {
-    errors.push("Enter the linked record ID or choose no linked source record.");
-  }
-
-  if (!form.relatedRecordType && form.relatedRecordId.trim()) {
-    errors.push("Choose what kind of record this expense links to.");
+  if (!form.category.trim()) {
+    errors.push("Expense category is required.");
   }
 
   const validation = validateExpense({
@@ -647,6 +653,10 @@ function prepareExpenseRequest(form: ExpenseFormState): {
     return { errors: allErrors };
   }
 
+  const relatedRecordId = trimToUndefined(form.relatedRecordId);
+  const relatedRecordType =
+    form.relatedRecordType && relatedRecordId ? form.relatedRecordType : undefined;
+
   return {
     errors: [],
     request: {
@@ -655,8 +665,8 @@ function prepareExpenseRequest(form: ExpenseFormState): {
       category: form.category,
       description: form.description.trim(),
       amount,
-      relatedRecordType: form.relatedRecordType || undefined,
-      relatedRecordId: trimToUndefined(form.relatedRecordId),
+      relatedRecordType,
+      relatedRecordId: relatedRecordType ? relatedRecordId : undefined,
       notes: trimToUndefined(form.notes),
     },
   };
@@ -666,7 +676,8 @@ function emptyForm(vehicleId = ""): ExpenseFormState {
   return {
     vehicleId,
     expenseDate: currentDateInputValue(),
-    category: "other",
+    category: "",
+    useCustomCategory: false,
     description: "",
     amount: "",
     relatedRecordType: "",
@@ -711,12 +722,26 @@ function categoryLabel(value: string) {
   return categoryOptions.find((option) => option.value === value)?.label ?? labelFromKey(value);
 }
 
+function findCategoryOption(value: string) {
+  const normalizedValue = value.trim().toLowerCase();
+
+  return categoryOptions.find(
+    (option) =>
+      option.value.toLowerCase() === normalizedValue ||
+      option.label.toLowerCase() === normalizedValue,
+  );
+}
+
+function isCustomCategory(value: string) {
+  return Boolean(value.trim()) && !findCategoryOption(value);
+}
+
 function linkedRecordLabel(expense: ExpenseRecord) {
   if (!expense.relatedRecordType || !expense.relatedRecordId) {
     return "Manual expense";
   }
 
-  return `${labelFromKey(expense.relatedRecordType)}: ${expense.relatedRecordId}`;
+  return `${labelFromKey(expense.relatedRecordType)} source cost`;
 }
 
 function labelFromKey(value: string) {
