@@ -46,11 +46,11 @@ v1 local desktop MVP.
 
 ## Active Phase
 
-Phase 13 - Packaging and Release Preparation.
+Phase 14 - Client Testing and Fixes.
 
 ## Phase State
 
-Phase 13 completed. Windows release metadata and NSIS bundle configuration were validated, the optimized release executable and NSIS setup artifact were generated, release checklist/notes were added, and the release executable smoke-launched successfully.
+Phase 14 in progress / QA pass started. Client smoke-test documentation and bug triage log were created, automated validation passed, the release binary smoke test passed, and the installer artifact was checked non-destructively. Manual visual/client installer testing is still pending.
 
 ## Last Completed Phase
 
@@ -58,7 +58,7 @@ Phase 13 - Packaging and Release Preparation.
 
 ## Next Planned Phase
 
-Phase 14 - Client Testing and Fixes.
+Post-MVP stabilization / release handoff after Phase 14 manual QA.
 
 ---
 
@@ -80,7 +80,7 @@ Phase 14 - Client Testing and Fixes.
 | 11 | User Access and Settings | Completed | Local settings, owner/role scaffolding, alert toggles, startup preference, and data safety notes |
 | 12 | Dashboard Polish and UX Refinement | Completed | Real local Dashboard overview, quick actions, needs-attention list, recent activity, and aggregation tests |
 | 13 | Packaging and Release Preparation | Completed | Windows NSIS packaging configured, release exe/setup artifact generated, release checklist and notes added |
-| 14 | Client Testing and Fixes | Not started | Feedback and stabilization |
+| 14 | Client Testing and Fixes | In progress | QA docs created; automated validation and release binary smoke test passed; manual installer/client checks pending |
 
 ---
 
@@ -3835,9 +3835,190 @@ Phase 14 prompts should focus on structured client smoke testing, bug triage, in
 
 ---
 
+## Update 2026-06-30 21:24 - Phase 14: Client Testing and Fixes
+
+### Prompt / Task Given to Codex
+
+Start Phase 14 client testing and fixes: create structured client smoke-test documentation, create a bug triage log, run full automated validation, run a safe release binary smoke test, check the installer artifact non-destructively, fix only confirmed blocking/high-impact defects, and update this tracker. Do not add new features or run installer install/uninstall without explicit approval.
+
+### Summary of What Changed
+
+- Created a structured Phase 14 client smoke-test plan.
+- Created an empty Phase 14 bug triage log for confirmed issues.
+- Added `.gitignore` guardrails for accidental local app-data, backup, photo, and receipt artifacts copied into the repository.
+- Ran full automated validation.
+- Smoke-launched the packaged release executable.
+- Checked the NSIS installer artifact without installing it.
+- No confirmed product defects were found during automated/safe smoke testing.
+
+### Testing Docs Created
+
+- `docs/testing/phase-14-client-smoke-test-plan.md` - client/release QA plan, module smoke checklist, installer checks, data safety checks, severity definitions, and bug report template.
+- `docs/testing/phase-14-bug-triage-log.md` - empty triage table for confirmed Phase 14 bugs only.
+
+### Automated Validation Results
+
+- TypeScript tests: passed, 1 Vitest file / 12 tests.
+- Typecheck: passed.
+- Lint: passed.
+- Prettier format check: passed.
+- Frontend production build: passed.
+- Rust format: passed.
+- Rust format check: passed.
+- Rust check: passed.
+- Rust tests: passed, 62 tests.
+
+### Release Binary Smoke Test Result
+
+- Release executable path: `src-tauri/target/release/tog5-vms.exe`.
+- Result: passed.
+- The release executable launched successfully and stayed running for the 10-second check.
+- Port `1420` was not listening in release mode.
+- App-data database path exists: `C:\Users\Darnocs\AppData\Roaming\com.tog5.vms\tog5-vms.sqlite3`.
+- The release process was stopped and no leftover `tog5-vms.exe` process remained.
+
+### Installer Artifact Check Result
+
+- Installer artifact path: `src-tauri/target/release/bundle/nsis/TOG 5 VMS_0.1.0_x64-setup.exe`.
+- Result: checked non-destructively only.
+- File exists.
+- File size: 3,126,293 bytes.
+- Artifact is under ignored `src-tauri/target/`.
+- Authenticode status: `NotSigned`, which matches the known unsigned MVP installer caveat.
+- Installer was not run, installed, or uninstalled by Codex.
+
+### Bugs Found
+
+- None found during automated validation and safe release smoke testing.
+- The bug triage log remains empty until a confirmed bug is reproduced.
+
+### Fixes Made
+
+- Added `.gitignore` patterns to prevent accidentally committed local SQLite databases, `.tog5backup` packages, app-managed photo/receipt folders, and logs.
+- No source-code behavior fixes were needed.
+
+### Files Created
+
+- `docs/testing/phase-14-client-smoke-test-plan.md` - structured client/release smoke test plan.
+- `docs/testing/phase-14-bug-triage-log.md` - empty confirmed-bug triage log.
+
+### Files Modified
+
+- `.gitignore` - added local app-data/backup/file-artifact guardrails.
+- `specs/live-update.md` - updated Phase 14 status and appended this QA pass entry.
+
+### Files Deleted
+
+- None.
+
+### Commands Run
+
+```bash
+Resolve-Path "C:\Development Projects\TOG5-VMS"
+git status --short
+Test-Path "src-tauri\target\release\tog5-vms.exe"
+Test-Path "src-tauri\target\release\bundle\nsis\TOG 5 VMS_0.1.0_x64-setup.exe"
+git check-ignore -v dist src-tauri/target src-tauri/target/release/bundle/nsis/TOG 5 VMS_0.1.0_x64-setup.exe tog5-vms.sqlite3 sample.tog5backup vehicle-photos/photo.png fuel-receipts/receipt.pdf maintenance-receipts/receipt.pdf maintenance-photos/photo.png debug.log
+npm.cmd run test
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+cargo fmt --manifest-path src-tauri/Cargo.toml
+cargo fmt --manifest-path src-tauri/Cargo.toml --check
+cargo check --manifest-path src-tauri/Cargo.toml
+cargo test --manifest-path src-tauri/Cargo.toml
+Start-Process src-tauri\target\release\tog5-vms.exe
+Get-NetTCPConnection -LocalPort 1420
+Get-Process -Name "tog5-vms"
+Get-Item "src-tauri\target\release\bundle\nsis\TOG 5 VMS_0.1.0_x64-setup.exe"
+Get-AuthenticodeSignature "src-tauri\target\release\bundle\nsis\TOG 5 VMS_0.1.0_x64-setup.exe"
+```
+
+### Command Results
+
+- Project root confirmed as `C:\Development Projects\TOG5-VMS`.
+- Phase 13 changes were already committed before Phase 14 started; initial working tree was clean.
+- Release executable and installer artifact were present.
+- Ignore checks confirmed generated output and accidental local-data artifacts are ignored.
+- All automated validation commands passed.
+- Release binary smoke launch passed.
+- Installer artifact exists and is unsigned.
+- No leftover release process remained.
+
+### Whether Production Release Binary Launched
+
+Yes. `src-tauri/target/release/tog5-vms.exe` launched successfully and was stopped after validation.
+
+### Whether Installer Was Installed/Tested
+
+No. Codex only checked the installer artifact non-destructively. It did not run, install, uninstall, or mutate installed apps.
+
+### Whether Human Visual Confirmation Is Needed
+
+Yes. Human/client QA still needs to visually confirm the release app window, module workflows, local attachment display, installer behavior, and uninstall behavior.
+
+### Issues / Blockers Encountered
+
+- The Codex session was interrupted after release smoke testing, but the resumed audit found no running `tog5-vms.exe` process and no half-finished validation command.
+- No automated or safe smoke-test blocker was found.
+- Manual installer/client testing remains the main Phase 14 blocker.
+
+### Decisions Made
+
+- Marked Phase 14 as in progress / QA pass started rather than completed because manual client and installer checks are still required.
+- Kept bug triage empty because no confirmed bug was reproduced.
+- Added ignore patterns as a release-safety guardrail, not a business feature.
+- Did not run the installer because the task explicitly required user approval before install/uninstall testing.
+
+### Known Issues / Release Caveats
+
+- Installer is unsigned and may trigger Windows SmartScreen warnings.
+- Database encryption is not enabled.
+- Startup-on-boot remains a stored preference only.
+- Backup packages remain local folder-style `.tog5backup` packages.
+- No auto-updater, cloud sync, OCR, report export, or native OS notification system is included.
+
+### Manual Checks Completed by Codex
+
+- Confirmed project root.
+- Confirmed release artifacts exist.
+- Confirmed generated release artifacts are ignored by Git.
+- Confirmed accidental local DB/backup/photo/receipt folders are ignored.
+- Confirmed full automated validation passes.
+- Confirmed release executable launches without dev server port `1420`.
+- Confirmed expected app-data database path exists.
+- Confirmed installer artifact exists and is unsigned.
+
+### Manual Checks Still Needed by User
+
+1. Launch the release app visibly and confirm Dashboard opens.
+2. Confirm quick actions navigate correctly.
+3. Confirm Vehicles opens, add/edit/archive works, and photos display after restart.
+4. Confirm Maintenance opens, schedule sync works, and completion creates Service History.
+5. Confirm Alerts opens and dismissal works.
+6. Confirm Fuel Logs opens, partial/full-tank behavior works, and receipt attachment works.
+7. Confirm Expenses opens and add/edit/archive works.
+8. Confirm Reports opens and costs align with source records.
+9. Confirm Backup & Restore opens, create/validate backup works, and restore is confirmation-gated.
+10. Confirm Settings opens, update/reset works, and currency display remains consistent.
+11. Run the NSIS installer on a safe test machine.
+12. Confirm install, Start Menu/shortcut launch, local app-data behavior, local photo/receipt display, and uninstall behavior.
+13. Record any confirmed issues in `docs/testing/phase-14-bug-triage-log.md`.
+
+### Suggested Next Step
+
+Run the manual/client smoke checklist in `docs/testing/phase-14-client-smoke-test-plan.md`, then use Phase 14 follow-up prompts to fix only confirmed bugs from the triage log.
+
+### Notes for ChatGPT Prompt Optimization
+
+Future Phase 14 prompts should include exact bug reports from the triage log, screenshots when relevant, environment details, and expected vs actual results. Keep fixes narrow and retest the affected workflow plus the standard validation commands.
+
+---
+
 # Current Blockers
 
-- No Phase 13 packaging blocker remains after allowing the NSIS packaging download.
+- Phase 14 manual client/installer smoke testing is still pending.
 - Direct `npm` in PowerShell is still blocked by execution policy; use `npm.cmd` for now.
 - Release binary process launch is verified, but visible desktop-window and installer install/uninstall confirmation should be checked manually.
 
