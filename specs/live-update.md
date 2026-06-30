@@ -50,7 +50,7 @@ Phase 14 - Client Testing and Fixes.
 
 ## Phase State
 
-Phase 14 in progress / QA pass started. Client smoke-test documentation and bug triage log were created, automated validation passed, the release binary smoke test passed, and the installer artifact was checked non-destructively. Manual visual/client installer testing is still pending.
+Phase 14 in progress / QA pass started. Client smoke-test documentation and bug triage log were created, automated validation passed, the release binary smoke test passed, the installer artifact was checked non-destructively, and a client-feedback Maintenance simplification refactor was completed. Manual visual/client installer testing is still pending.
 
 ## Last Completed Phase
 
@@ -80,7 +80,7 @@ Post-MVP stabilization / release handoff after Phase 14 manual QA.
 | 11 | User Access and Settings | Completed | Local settings, owner/role scaffolding, alert toggles, startup preference, and data safety notes |
 | 12 | Dashboard Polish and UX Refinement | Completed | Real local Dashboard overview, quick actions, needs-attention list, recent activity, and aggregation tests |
 | 13 | Packaging and Release Preparation | Completed | Windows NSIS packaging configured, release exe/setup artifact generated, release checklist and notes added |
-| 14 | Client Testing and Fixes | In progress | QA docs created; automated validation and release binary smoke test passed; manual installer/client checks pending |
+| 14 | Client Testing and Fixes | In progress | QA docs created; automated validation and release binary smoke test passed; Maintenance was simplified after client feedback; manual installer/client checks pending |
 
 ---
 
@@ -4051,3 +4051,324 @@ ChatGPT should use this file to produce a focused Codex prompt with:
 4. Guardrails.
 5. Tests/checks to run.
 6. Required `live-update.md` update instructions.
+## Update 2026-06-30 23:33 +08:00 - Phase 14: Maintenance Simplification Client-Feedback Fix
+
+### Prompt / Task Given to Codex
+
+Implement the approved Maintenance Simplification Refactor Plan. Make Maintenance easier to understand by replacing the visible template/schedule/applicability workspace with a vehicle-centered flow for logging completed maintenance and setting per-vehicle reminders. Preserve existing schedules/history/files/reports and hide the smart template engine from normal users.
+
+### Summary of What Changed
+
+- Replaced the user-facing Maintenance tabs (`Schedules`, `Applicability`, `Template Library`) with a simpler page focused on:
+  - Vehicle selector.
+  - `Log maintenance done`.
+  - `Needs attention`.
+  - `Reminders for this vehicle`.
+- Added direct maintenance logging so users can save service history without first creating or completing a schedule.
+- Added per-vehicle reminder settings using the existing `vehicle_maintenance_settings` table.
+- Changed schedule generation so schedules are created from active per-vehicle reminders, not from every auto-applicable template.
+- Preserved existing live schedules by backfilling/linking them to vehicle reminder settings when maintenance data is loaded.
+- Kept maintenance templates as an internal catalog for maintenance item choices and future compatibility warnings.
+- Updated user-facing copy in Alerts, Service History, Settings, Dashboard, and navigation to remove the old "sync schedules / smart template planning" mental model.
+
+### Maintenance Simplification Approach
+
+- Maintenance now starts from normal user intent: log work that was done.
+- A future due date/odometer is calculated only when the selected vehicle has an active reminder for that maintenance item.
+- If no reminder exists, the service history record is still saved, but no next due target is invented.
+- Removing a reminder disables/archives linked reminder schedules and resolves related active maintenance alerts while keeping service history.
+
+### Backend Commands Added
+
+- `list_vehicle_maintenance_settings`
+- `upsert_vehicle_maintenance_setting`
+- `archive_vehicle_maintenance_setting`
+- `log_maintenance`
+
+### Data / Migration Notes
+
+- No migration was added.
+- The existing `vehicle_maintenance_settings` table already supports per-vehicle custom day/km intervals, due-soon thresholds, status, and notes.
+- Existing `maintenance_schedules`, `maintenance_logs`, `vehicle_documents`, `vehicle_photos`, and `alerts` behavior was preserved.
+
+### Files Created
+
+- `docs/planning/maintenance-simplification-audit.md` - audit of Maintenance touchpoints, old UI behavior retired, data safety notes, and connected modules.
+
+### Files Modified
+
+- `src/components/maintenance/MaintenanceTemplateModule.tsx` - replaced the tabbed Maintenance workspace with the simplified log/reminder workflow.
+- `src/services/api/maintenance.ts` - added typed API wrappers and request/response types for reminders and direct maintenance logging.
+- `src-tauri/src/maintenance/models.rs` - added reminder-setting and direct log-maintenance models.
+- `src-tauri/src/maintenance/commands.rs` - added Tauri commands for reminders and direct maintenance logging.
+- `src-tauri/src/maintenance/scheduling.rs` - changed sync/alert flow to use active vehicle reminder settings and backfill existing schedules into reminders.
+- `src-tauri/src/maintenance/service_history.rs` - added direct maintenance logging and changed completion next-due calculation to use reminder intervals.
+- `src-tauri/src/lib.rs` - registered new maintenance commands.
+- `src-tauri/src/dashboard/repository.rs` - updated setup hint copy from schedule sync to reminder setup.
+- `src/components/alerts/AlertsModule.tsx` - updated empty-state copy.
+- `src/components/dashboard/DashboardModule.tsx` - updated Maintenance quick-action copy.
+- `src/components/serviceHistory/ServiceHistoryModule.tsx` - updated empty-state copy.
+- `src/components/settings/SettingsModule.tsx` - updated due-soon defaults copy.
+- `src/types/navigation.ts` - updated Maintenance navigation description.
+- `src/styles.css` - added simple Maintenance log/reminder layout styles.
+- `specs/live-update.md` - recorded this Phase 14 client-feedback fix.
+
+### Files Deleted
+
+- None.
+
+### Tests Added / Updated
+
+- Updated Rust scheduling tests to verify reminder-driven schedule creation.
+- Added Rust service-history tests for:
+  - Logging maintenance without a reminder creates history without a next due schedule.
+  - Logging maintenance with a reminder updates next due values.
+- Existing applicability tests remain in place because templates still act as internal rules/catalog.
+
+### Commands Run
+
+```bash
+cargo fmt --manifest-path src-tauri/Cargo.toml
+cargo check --manifest-path src-tauri/Cargo.toml
+npm.cmd run typecheck
+cargo test --manifest-path src-tauri/Cargo.toml
+npm.cmd run test
+npm.cmd run lint
+npm.cmd run format:check
+npx.cmd prettier --write src\components\maintenance\MaintenanceTemplateModule.tsx src\services\api\maintenance.ts
+npm.cmd run build
+cargo fmt --manifest-path src-tauri/Cargo.toml --check
+npm.cmd run tauri:dev
+```
+
+### Command Results
+
+- `npm.cmd run test`: passed, 1 Vitest file / 12 tests.
+- `npm.cmd run typecheck`: passed.
+- `npm.cmd run lint`: passed.
+- `npm.cmd run format:check`: initially failed on two changed TypeScript files; passed after targeted Prettier formatting.
+- `npm.cmd run build`: passed.
+- `cargo fmt --manifest-path src-tauri/Cargo.toml`: completed.
+- `cargo fmt --manifest-path src-tauri/Cargo.toml --check`: passed.
+- `cargo check --manifest-path src-tauri/Cargo.toml`: passed.
+- `cargo test --manifest-path src-tauri/Cargo.toml`: passed, 64 Rust tests.
+- `npm.cmd run tauri:dev`: passed after clearing a leftover dev process; app reached `Running target\debug\tog5-vms.exe`.
+
+### Issues Encountered
+
+- First Tauri dev attempt failed under sandboxed app-data access with `Could not configure SQLite connection: unable to open database file`.
+- A retry found port `1420` occupied by a leftover dev process.
+- Another retry failed because `src-tauri\target\debug\tog5-vms.exe` was locked by a leftover app process.
+- The user exited the leftover app process; the final retry launched successfully.
+- Codex cannot visually confirm the desktop window, so human visual confirmation is still needed.
+
+### Decisions Made
+
+- Kept templates seeded internally instead of deleting the template engine.
+- Used `vehicle_maintenance_settings` as the source of user-visible maintenance reminders.
+- Did not add a migration because the current schema supports the simplification.
+- Preserved existing schedules as reminders instead of hiding or archiving them.
+- Kept Service History as a read-only history page; Maintenance is now the primary place to log completed work.
+
+### Known Issues / Technical Debt
+
+- Applicability/template APIs still exist for internal rules and possible future advanced UI, but they are no longer exposed on the normal Maintenance page.
+- Some legacy CSS selectors for removed Maintenance template tabs remain harmlessly in `src/styles.css`; they can be cleaned in a later pure-CSS cleanup if desired.
+- Human visual testing is needed for the new Maintenance layout and reminder workflow.
+
+### Manual Checks Still Needed
+
+1. Open Maintenance.
+2. Confirm the page shows the simplified log/reminder workflow, not tabs.
+3. Log maintenance without setting a reminder and confirm it appears in Service History without creating a due target.
+4. Add a reminder for a vehicle and maintenance item.
+5. Log that maintenance again and confirm next due date/odometer updates.
+6. Confirm due/overdue reminders still appear in Alerts.
+7. Confirm Dashboard, Reports, Expenses, and Service History still show maintenance/service data correctly.
+
+### Suggested Next Step
+
+Run a focused client QA pass on the simplified Maintenance page. If the workflow feels right, continue Phase 14 stabilization and manual installer/client checks.
+
+### Notes for ChatGPT Prompt Optimization
+
+Future prompts should describe Maintenance as "log maintenance and set per-vehicle reminders." Avoid asking Codex to expose the template library or applicability preview unless the user explicitly asks for an advanced maintenance setup screen.
+
+---
+
+## Update 2026-07-01 00:18 +08:00 - Product/App-Data Cleanup
+
+### Summary
+
+Cleaned previous TOG 5 VMS test data from local app-data folders after the user confirmed the app functionality and UI were acceptable. This was a data/artifact cleanup only; no product code, database schema, or feature behavior was changed.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Cleanup Approach
+
+- Created a reversible safety copy before removing local app-data/cache folders.
+- Removed active and legacy TOG 5 VMS app-data folders that contained test databases, uploaded test vehicle photos, WebView cache data, and old updater/installer cache.
+- Launched the app once after cleanup so Tauri recreated a fresh `com.tog5.vms` app-data folder and clean `tog5-vms.sqlite3` database.
+
+### Safety Backup Created
+
+`C:\tmp\TOG5-VMS-data-cleanup-backup-20260701-001606`
+
+### App-Data Paths Cleaned
+
+- `C:\Users\Darnocs\AppData\Roaming\com.tog5.vms`
+- `C:\Users\Darnocs\AppData\Roaming\tog5-vms`
+- `C:\Users\Darnocs\AppData\Local\com.tog5.vms`
+- `C:\Users\Darnocs\AppData\Local\tog5-vms-updater`
+
+### Resulting Active App-Data State
+
+- `C:\Users\Darnocs\AppData\Roaming\com.tog5.vms` was recreated by the app.
+- Fresh database exists at `C:\Users\Darnocs\AppData\Roaming\com.tog5.vms\tog5-vms.sqlite3`.
+- No old active managed file folders were present after relaunch.
+- Legacy `Roaming\tog5-vms` and `Local\tog5-vms-updater` folders remained removed.
+
+### Files Created
+
+- None in the repository.
+- Safety backup folder created outside the repository under `C:\tmp`.
+
+### Files Modified
+
+- `specs/live-update.md`
+
+### Files Deleted
+
+- No repository files deleted.
+- Local app-data/cache folders listed above were removed after safety backup.
+
+### Commands Run
+
+```bash
+Get-Location
+git status --short
+Get-Content -Path src-tauri\src\db\mod.rs
+Get-Content -Path src-tauri\tauri.conf.json
+Get-ChildItem -Path $env:APPDATA -Directory
+Get-ChildItem -Path $env:LOCALAPPDATA -Directory
+Get-ChildItem -Path "$env:APPDATA\com.tog5.vms" -Recurse
+Get-ChildItem -Path "$env:APPDATA\tog5-vms" -Recurse
+Get-ChildItem -Path "$env:LOCALAPPDATA\com.tog5.vms" -Recurse
+Get-ChildItem -Path "$env:LOCALAPPDATA\tog5-vms-updater" -Recurse
+sqlite3 --version
+npm.cmd run tauri:dev
+Get-NetTCPConnection -LocalPort 1420
+Get-Process
+```
+
+### Command Results
+
+- Confirmed project root was correct.
+- Confirmed no SQLite databases were present inside the repository.
+- `sqlite3` CLI was not installed.
+- Python launcher was unavailable in this shell session, so SQLite inspection by Python was skipped.
+- Safety backup/copy completed successfully.
+- Local app-data/cache cleanup completed successfully.
+- `npm.cmd run tauri:dev` launched successfully and reached `Running target\debug\tog5-vms.exe`.
+- The Tauri app recreated a fresh app-data database.
+- TOG 5 VMS dev processes were stopped after validation.
+- Port `1420` had no listener after cleanup validation.
+
+### Issues Encountered
+
+- The shell did not have `sqlite3`.
+- Python/py launchers failed in this session with a Windows logon-session error, so no direct table-row inspection was performed.
+- Codex cannot visually inspect the desktop window, so human visual confirmation is still needed.
+
+### Decisions Made
+
+- Cleaned app-data folders instead of editing tables in place because the request was to remove previous test stuff and a fresh local database was safer and simpler.
+- Preserved a full out-of-band safety backup in `C:\tmp` before deleting any app-data folder.
+- Did not remove repository build artifacts such as `dist/` or `src-tauri/target/` because they are ignored build outputs, not app user/test data.
+
+### Manual Checks Still Needed
+
+1. Open TOG 5 VMS.
+2. Confirm Dashboard opens with empty/clean data states.
+3. Confirm Vehicles has no old test vehicles/photos.
+4. Confirm Fuel Logs, Maintenance, Service History, Expenses, Reports, Alerts, Backup & Restore, and Settings open normally.
+5. Add one fresh real vehicle only when ready to start actual use.
+
+### Suggested Next Step
+
+Run one quick clean-start smoke test. If everything looks clean, the app is ready for real data entry.
+
+---
+
+## Update 2026-07-01 02:41 +08:00 - Phase 14: Dashboard Cleanup Polish
+
+### Summary
+
+Removed duplicate Dashboard quick-action cards and removed the top-header "Offline-first draft" badge. The sidebar remains the primary place for navigation, while contextual Dashboard attention/activity rows remain clickable where they point to relevant records.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Files Modified
+
+- `src/components/dashboard/DashboardModule.tsx`
+- `src/components/common/AppLayout.tsx`
+- `src/styles.css`
+- `docs/testing/phase-14-client-smoke-test-plan.md`
+- `specs/live-update.md`
+
+### Files Created / Deleted
+
+- None.
+
+### Commands Run
+
+```bash
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+npm.cmd run tauri:dev
+```
+
+### Command Results
+
+- `npm.cmd run typecheck`: passed.
+- `npm.cmd run lint`: passed.
+- `npm.cmd run format:check`: passed.
+- `npm.cmd run build`: passed.
+- `npm.cmd run tauri:dev`: passed on the second longer launch check; app reached `Running target\debug\tog5-vms.exe`.
+
+### Tauri Launch Notes
+
+- First launch check reached Vite startup and Rust compilation but did not reach the app process before the wait window ended.
+- Second launch check reached the Tauri desktop process successfully.
+- TOG 5 VMS dev processes were stopped after validation.
+- Human visual confirmation is still needed for the exact Dashboard appearance.
+
+### Issues Encountered
+
+- The first Tauri launch wait window was too short for a fresh Rust compile after recent changes.
+
+### Decisions Made
+
+- Removed the Dashboard quick-action panel entirely because those actions duplicate sidebar navigation.
+- Removed the header status pill because "Offline-first draft" is no longer appropriate for the current local MVP.
+- Kept contextual Dashboard rows clickable because they are tied to real attention/activity items rather than duplicate page shortcuts.
+- Updated the Phase 14 smoke-test plan so it no longer asks testers to verify removed Dashboard quick actions.
+
+### Manual Checks Still Needed
+
+1. Open Dashboard.
+2. Confirm the Quick actions panel is gone.
+3. Confirm the "Offline-first draft" badge is gone.
+4. Confirm sidebar navigation still works.
+5. Confirm Dashboard attention/recent activity rows still navigate when present.
+6. Confirm normal and narrow window layouts still look clean.
+
+### Suggested Next Step
+
+Run a quick visual pass on the Dashboard and continue Phase 14 client polish if any other visual cleanup is noticed.

@@ -14,39 +14,6 @@ type DashboardModuleProps = {
   onNavigate?: (page: PageId) => void;
 };
 
-const quickActions: Array<{ label: string; detail: string; targetPage: PageId }> = [
-  {
-    label: "Add or view vehicle",
-    detail: "Manage vehicle records, photos, and setup details.",
-    targetPage: "vehicles",
-  },
-  {
-    label: "Open Maintenance",
-    detail: "Review schedules and complete service tasks.",
-    targetPage: "maintenance",
-  },
-  {
-    label: "Add Fuel Log",
-    detail: "Record fuel, receipts, and full-tank efficiency.",
-    targetPage: "fuel",
-  },
-  {
-    label: "Open Expenses",
-    detail: "Track manual costs and review local spending.",
-    targetPage: "expenses",
-  },
-  {
-    label: "Create Backup",
-    detail: "Save a local .tog5backup package.",
-    targetPage: "backup",
-  },
-  {
-    label: "Open Settings",
-    detail: "Adjust local preferences and data safety notes.",
-    targetPage: "settings",
-  },
-];
-
 export function DashboardModule({ onNavigate }: DashboardModuleProps) {
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
   const [loading, setLoading] = useState(true);
@@ -304,28 +271,6 @@ export function DashboardModule({ onNavigate }: DashboardModuleProps) {
               currency={overview.preferredCurrency}
             />
           </div>
-        </div>
-      </section>
-
-      <section className="dashboard-panel">
-        <div className="dashboard-panel-header">
-          <div>
-            <h2>Quick actions</h2>
-            <p>Jump into the existing local workflows.</p>
-          </div>
-        </div>
-        <div className="dashboard-action-grid">
-          {quickActions.map((action) => (
-            <button
-              className="dashboard-action-card"
-              key={action.targetPage}
-              type="button"
-              onClick={() => navigate(action.targetPage)}
-            >
-              <strong>{action.label}</strong>
-              <span>{action.detail}</span>
-            </button>
-          ))}
         </div>
       </section>
     </div>

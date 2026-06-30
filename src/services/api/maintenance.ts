@@ -15,8 +15,12 @@ const maintenanceCommands = {
   seedTemplates: "seed_maintenance_templates",
   listSchedulesForVehicle: "list_maintenance_schedules_for_vehicle",
   syncSchedulesForVehicle: "sync_maintenance_schedules_for_vehicle",
+  listVehicleMaintenanceSettings: "list_vehicle_maintenance_settings",
+  upsertVehicleMaintenanceSetting: "upsert_vehicle_maintenance_setting",
+  archiveVehicleMaintenanceSetting: "archive_vehicle_maintenance_setting",
   refreshAlertsForVehicle: "refresh_maintenance_alerts_for_vehicle",
   completeSchedule: "complete_maintenance_schedule",
+  logMaintenance: "log_maintenance",
   listServiceHistoryForVehicle: "list_service_history_for_vehicle",
   getMaintenanceLog: "get_maintenance_log",
   storeReceipt: "store_maintenance_receipt",
@@ -86,6 +90,36 @@ export type MaintenanceScheduleRecord = {
   updatedAt: string;
 };
 
+export type VehicleMaintenanceSettingRecord = {
+  id: string;
+  vehicleId: string;
+  templateId: string;
+  templateKey?: string | null;
+  templateName: string;
+  category: MaintenanceCategory | string;
+  status: "active" | "manually_added" | "disabled" | "not_applicable" | string;
+  customTimeIntervalDays?: number | null;
+  customOdometerIntervalKm?: number | null;
+  customDueSoonDays?: number | null;
+  customDueSoonKm?: number | null;
+  effectiveDueSoonDays: number;
+  effectiveDueSoonKm: number;
+  priority: MaintenancePriority;
+  notes?: string | null;
+  updatedAt: string;
+};
+
+export type UpsertVehicleMaintenanceSettingRequest = {
+  vehicleId: string;
+  templateId: string;
+  status?: string;
+  customTimeIntervalDays?: number;
+  customOdometerIntervalKm?: number;
+  customDueSoonDays?: number;
+  customDueSoonKm?: number;
+  notes?: string;
+};
+
 export type SyncMaintenanceSchedulesResult = {
   vehicleId: string;
   createdCount: number;
@@ -139,6 +173,24 @@ export type CompleteMaintenanceScheduleRequest = {
   notes?: string;
 };
 
+export type LogMaintenanceRequest = {
+  vehicleId: string;
+  templateId: string;
+  completedDate: string;
+  odometer?: number;
+  workPerformed: string;
+  partsReplaced?: string;
+  laborCost?: number;
+  partsCost?: number;
+  totalCost?: number;
+  mechanicShop?: string;
+  receiptDocumentId?: string;
+  beforePhotoId?: string;
+  afterPhotoId?: string;
+  warrantyExpiration?: string;
+  notes?: string;
+};
+
 export type MaintenanceLogRecord = {
   id: string;
   vehicleId: string;
@@ -174,6 +226,13 @@ export type CompleteMaintenanceScheduleResult = {
   log: MaintenanceLogRecord;
   schedule: MaintenanceScheduleRecord;
   resolvedAlertCount: number;
+};
+
+export type LogMaintenanceResult = {
+  log: MaintenanceLogRecord;
+  schedule?: MaintenanceScheduleRecord | null;
+  resolvedAlertCount: number;
+  reminderUsed: boolean;
 };
 
 export type MaintenanceAttachmentRecord = {
@@ -218,6 +277,28 @@ export async function syncMaintenanceSchedulesForVehicle(
   });
 }
 
+export async function listVehicleMaintenanceSettings(
+  vehicleId: string,
+): Promise<VehicleMaintenanceSettingRecord[]> {
+  return invoke<VehicleMaintenanceSettingRecord[]>(
+    maintenanceCommands.listVehicleMaintenanceSettings,
+    { vehicleId },
+  );
+}
+
+export async function upsertVehicleMaintenanceSetting(
+  request: UpsertVehicleMaintenanceSettingRequest,
+): Promise<VehicleMaintenanceSettingRecord> {
+  return invoke<VehicleMaintenanceSettingRecord>(
+    maintenanceCommands.upsertVehicleMaintenanceSetting,
+    { request },
+  );
+}
+
+export async function archiveVehicleMaintenanceSetting(settingId: string): Promise<void> {
+  return invoke<void>(maintenanceCommands.archiveVehicleMaintenanceSetting, { settingId });
+}
+
 export async function refreshMaintenanceAlertsForVehicle(
   vehicleId: string,
 ): Promise<RefreshMaintenanceAlertsResult> {
@@ -232,6 +313,12 @@ export async function completeMaintenanceSchedule(
   return invoke<CompleteMaintenanceScheduleResult>(maintenanceCommands.completeSchedule, {
     request,
   });
+}
+
+export async function logMaintenance(
+  request: LogMaintenanceRequest,
+): Promise<LogMaintenanceResult> {
+  return invoke<LogMaintenanceResult>(maintenanceCommands.logMaintenance, { request });
 }
 
 export async function listServiceHistoryForVehicle(

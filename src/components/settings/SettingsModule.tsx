@@ -410,8 +410,8 @@ function MaintenanceAlertsSection(props: {
       <div>
         <h3>Maintenance & Alerts</h3>
         <p>
-          Due-soon defaults apply to newly synced schedules. Existing schedules keep their stored
-          thresholds unless edited later.
+          Due-soon defaults apply to new vehicle reminders. Existing reminders keep their stored
+          thresholds unless you edit them.
         </p>
       </div>
 

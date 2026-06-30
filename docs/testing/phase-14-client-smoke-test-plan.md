@@ -49,7 +49,7 @@ This plan guides client/release smoke testing for the local-only Windows MVP. It
 ### Dashboard
 
 - Dashboard opens and overview cards load.
-- Quick actions navigate to the expected pages.
+- Dashboard does not show duplicate quick actions; use the sidebar for primary navigation.
 - Empty states are friendly when data is missing.
 - Monthly costs and alerts roughly match Reports and Alerts.
 
@@ -65,12 +65,11 @@ This plan guides client/release smoke testing for the local-only Windows MVP. It
 
 ### Maintenance
 
-- Maintenance opens with Schedules as the default tab.
+- Maintenance opens with the simplified log-and-reminder workflow.
 - Select an existing vehicle.
-- Create/sync schedules.
-- Confirm inapplicable/feature-required templates are not scheduled automatically.
-- Complete a maintenance schedule.
-- Confirm schedule next due date/odometer updates when applicable.
+- Log maintenance without a reminder and confirm it appears in Service History.
+- Add or update a vehicle reminder.
+- Log maintenance with a reminder and confirm next due date/odometer updates when applicable.
 
 ### Service History
 
@@ -146,29 +145,29 @@ This plan guides client/release smoke testing for the local-only Windows MVP. It
 
 - Vehicles still open.
 - Fuel Logs still open.
-- Maintenance tabs still switch correctly.
+- Maintenance log/reminder workflow still opens.
 - Service History still opens.
 - Expenses still open.
 - Reports still open.
 - Backup & Restore still opens.
 - Alerts still open.
 - Settings still open.
-- Dashboard quick actions still navigate correctly.
+- Dashboard remains clean without duplicate quick-action cards.
 
 ## Pass/Fail Checklist
 
 | ID | Check | Pass/Fail | Notes |
 |---:|---|---|---|
 | 1 | Dashboard opens and overview cards load |  |  |
-| 2 | Quick actions navigate correctly |  |  |
+| 2 | Dashboard has no duplicate quick actions |  |  |
 | 3 | Vehicles list opens |  |  |
 | 4 | Add vehicle with required photo |  |  |
 | 5 | Vehicle photo displays after restart |  |  |
 | 6 | Edit vehicle |  |  |
 | 7 | Archive vehicle |  |  |
 | 8 | Maintenance opens |  |  |
-| 9 | Create/sync schedules |  |  |
-| 10 | Complete a maintenance schedule |  |  |
+| 9 | Add/update a maintenance reminder |  |  |
+| 10 | Log maintenance and update next due values when applicable |  |  |
 | 11 | Service History shows completed service |  |  |
 | 12 | Alerts page opens and active alerts/dismissal work |  |  |
 | 13 | Fuel Logs opens |  |  |

@@ -28,11 +28,6 @@ export function AppLayout({
             <h1>{activeItem.label}</h1>
             <p>{activeItem.description}</p>
           </div>
-
-          <div className="header-status" aria-label="Application status">
-            <span className="status-dot" aria-hidden="true" />
-            Offline-first draft
-          </div>
         </header>
 
         <main className="content-area" tabIndex={-1}>

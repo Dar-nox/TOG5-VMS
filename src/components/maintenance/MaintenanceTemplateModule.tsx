@@ -1,22 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  completeMaintenanceSchedule,
-  getApplicableMaintenanceTemplatesForVehicle,
+  archiveVehicleMaintenanceSetting,
   listMaintenanceSchedulesForVehicle,
   listMaintenanceTemplates,
+  listVehicleMaintenanceSettings,
+  logMaintenance,
   refreshMaintenanceAlertsForVehicle,
   storeMaintenancePhoto,
   storeMaintenanceReceipt,
-  syncMaintenanceSchedulesForVehicle,
-  type ApplicableMaintenanceTemplate,
-  type CompleteMaintenanceScheduleRequest,
+  upsertVehicleMaintenanceSetting,
+  type LogMaintenanceRequest,
   type MaintenanceScheduleRecord,
   type MaintenanceTemplateRecord,
+  type UpsertVehicleMaintenanceSettingRequest,
+  type VehicleMaintenanceSettingRecord,
 } from "../../services/api/maintenance";
 import { listVehicles, type VehicleRecord } from "../../services/api/vehicles";
 
-type MaintenanceTab = "schedules" | "applicability" | "library";
-type CompletionFormState = {
+type MaintenanceLogFormState = {
+  templateId: string;
   completedDate: string;
   odometer: string;
   workPerformed: string;
@@ -29,37 +31,35 @@ type CompletionFormState = {
   notes: string;
 };
 
-type ApplicabilitySummary = Record<ApplicableMaintenanceTemplate["applicabilityStatus"], number>;
+type ReminderFormState = {
+  settingId: string;
+  templateId: string;
+  intervalDays: string;
+  intervalKm: string;
+  dueSoonDays: string;
+  dueSoonKm: string;
+  notes: string;
+};
 
-const maintenanceTabs: Array<{ id: MaintenanceTab; label: string }> = [
-  { id: "schedules", label: "Schedules" },
-  { id: "applicability", label: "Applicability" },
-  { id: "library", label: "Template Library" },
-];
+const attentionStatuses = new Set(["overdue", "due_today", "due_soon", "needs_setup"]);
 
 export function MaintenanceTemplateModule() {
   const [templates, setTemplates] = useState<MaintenanceTemplateRecord[]>([]);
   const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
-  const [selectedVehicleId, setSelectedVehicleId] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<MaintenanceTab>("schedules");
-  const [applicability, setApplicability] = useState<ApplicableMaintenanceTemplate[]>([]);
+  const [selectedVehicleId, setSelectedVehicleId] = useState("");
+  const [reminders, setReminders] = useState<VehicleMaintenanceSettingRecord[]>([]);
   const [schedules, setSchedules] = useState<MaintenanceScheduleRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [applicabilityLoading, setApplicabilityLoading] = useState(false);
-  const [scheduleLoading, setScheduleLoading] = useState(false);
-  const [scheduleActionLoading, setScheduleActionLoading] = useState(false);
-  const [scheduleActionMessage, setScheduleActionMessage] = useState<string | null>(null);
-  const [completionSchedule, setCompletionSchedule] = useState<MaintenanceScheduleRecord | null>(
-    null,
-  );
-  const [completionForm, setCompletionForm] = useState<CompletionFormState>(() =>
-    emptyCompletionForm(),
-  );
-  const [completionReceiptFile, setCompletionReceiptFile] = useState<File | null>(null);
+  const [vehicleDataLoading, setVehicleDataLoading] = useState(false);
+  const [logLoading, setLogLoading] = useState(false);
+  const [reminderLoading, setReminderLoading] = useState(false);
+  const [logForm, setLogForm] = useState<MaintenanceLogFormState>(() => emptyLogForm());
+  const [reminderForm, setReminderForm] = useState<ReminderFormState>(() => emptyReminderForm());
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [beforePhotoFile, setBeforePhotoFile] = useState<File | null>(null);
   const [afterPhotoFile, setAfterPhotoFile] = useState<File | null>(null);
-  const [completionIssues, setCompletionIssues] = useState<string[]>([]);
-  const [completionLoading, setCompletionLoading] = useState(false);
+  const [issues, setIssues] = useState<string[]>([]);
+  const [message, setMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const selectedVehicle = useMemo(
@@ -67,32 +67,51 @@ export function MaintenanceTemplateModule() {
     [selectedVehicleId, vehicles],
   );
 
-  const applicabilitySummary = useMemo<ApplicabilitySummary>(
-    () =>
-      applicability.reduce<ApplicabilitySummary>(
-        (summary, result) => ({
-          ...summary,
-          [result.applicabilityStatus]: summary[result.applicabilityStatus] + 1,
-        }),
-        { applicable: 0, excluded: 0, requires_feature: 0, not_applicable: 0 },
-      ),
-    [applicability],
+  const schedulesByTemplateId = useMemo(() => {
+    const map = new Map<string, MaintenanceScheduleRecord>();
+    for (const schedule of schedules) {
+      map.set(schedule.templateId, schedule);
+    }
+    return map;
+  }, [schedules]);
+
+  const attentionSchedules = useMemo(
+    () => schedules.filter((schedule) => attentionStatuses.has(schedule.dueStatus)),
+    [schedules],
   );
 
-  const templatesByCategory = useMemo(() => {
-    const groups = new Map<string, MaintenanceTemplateRecord[]>();
+  const reminderTemplateIds = useMemo(
+    () => new Set(reminders.map((reminder) => reminder.templateId)),
+    [reminders],
+  );
 
-    for (const template of templates) {
-      const categoryTemplates = groups.get(template.category) ?? [];
-      categoryTemplates.push(template);
-      groups.set(template.category, categoryTemplates);
+  const templatesSorted = useMemo(
+    () =>
+      [...templates].sort((left, right) =>
+        `${left.category} ${left.name}`.localeCompare(`${right.category} ${right.name}`),
+      ),
+    [templates],
+  );
+
+  const loadVehicleMaintenance = useCallback(async (vehicleId: string) => {
+    setVehicleDataLoading(true);
+    setErrorMessage(null);
+
+    try {
+      const [reminderRecords, scheduleRecords] = await Promise.all([
+        listVehicleMaintenanceSettings(vehicleId),
+        listMaintenanceSchedulesForVehicle(vehicleId),
+      ]);
+      setReminders(reminderRecords);
+      setSchedules(scheduleRecords);
+    } catch (error) {
+      setErrorMessage(messageFromError(error));
+      setReminders([]);
+      setSchedules([]);
+    } finally {
+      setVehicleDataLoading(false);
     }
-
-    return Array.from(groups, ([category, categoryTemplates]) => ({
-      category,
-      templates: categoryTemplates,
-    }));
-  }, [templates]);
+  }, []);
 
   const loadPageData = useCallback(async () => {
     setLoading(true);
@@ -103,14 +122,12 @@ export function MaintenanceTemplateModule() {
         listMaintenanceTemplates(),
         listVehicles(),
       ]);
-
       setTemplates(templateRecords);
       setVehicles(vehicleRecords);
       setSelectedVehicleId((currentId) => {
         if (currentId && vehicleRecords.some((vehicle) => vehicle.id === currentId)) {
           return currentId;
         }
-
         return vehicleRecords[0]?.id ?? "";
       });
     } catch (error) {
@@ -126,134 +143,63 @@ export function MaintenanceTemplateModule() {
 
   useEffect(() => {
     if (!selectedVehicleId) {
-      setApplicability([]);
+      setReminders([]);
       setSchedules([]);
       return;
     }
 
-    let cancelled = false;
-    setApplicabilityLoading(true);
-    setScheduleLoading(true);
-    setScheduleActionMessage(null);
-    setErrorMessage(null);
+    void loadVehicleMaintenance(selectedVehicleId);
+  }, [loadVehicleMaintenance, selectedVehicleId]);
 
-    void Promise.all([
-      getApplicableMaintenanceTemplatesForVehicle(selectedVehicleId),
-      listMaintenanceSchedulesForVehicle(selectedVehicleId),
-    ])
-      .then(([results, scheduleRecords]) => {
-        if (!cancelled) {
-          setApplicability(results);
-          setSchedules(scheduleRecords);
-        }
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          setErrorMessage(messageFromError(error));
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setApplicabilityLoading(false);
-          setScheduleLoading(false);
-        }
-      });
+  useEffect(() => {
+    setLogForm((currentForm) => ({
+      ...currentForm,
+      odometer: selectedVehicle ? String(selectedVehicle.currentOdometer) : "",
+    }));
+  }, [selectedVehicle]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedVehicleId]);
-
-  const handleSyncSchedules = useCallback(async () => {
-    if (!selectedVehicleId) {
-      return;
-    }
-
-    setScheduleActionLoading(true);
-    setScheduleActionMessage(null);
-    setErrorMessage(null);
-
-    try {
-      const syncResult = await syncMaintenanceSchedulesForVehicle(selectedVehicleId);
-      const alertResult = await refreshMaintenanceAlertsForVehicle(selectedVehicleId);
-      setSchedules(syncResult.schedules);
-      setScheduleActionMessage(
-        `${syncResult.createdCount} schedules created, ${syncResult.updatedCount} statuses refreshed, and ${alertResult.createdCount} alerts created.`,
-      );
-    } catch (error) {
-      setErrorMessage(messageFromError(error));
-    } finally {
-      setScheduleActionLoading(false);
-    }
-  }, [selectedVehicleId]);
-
-  const handleRefreshAlerts = useCallback(async () => {
-    if (!selectedVehicleId) {
-      return;
-    }
-
-    setScheduleActionLoading(true);
-    setScheduleActionMessage(null);
-    setErrorMessage(null);
-
-    try {
-      const alertResult = await refreshMaintenanceAlertsForVehicle(selectedVehicleId);
-      const scheduleRecords = await listMaintenanceSchedulesForVehicle(selectedVehicleId);
-      setSchedules(scheduleRecords);
-      setScheduleActionMessage(
-        `${alertResult.createdCount} alerts created, ${alertResult.updatedCount} alerts updated, and ${alertResult.resolvedCount} old alerts resolved.`,
-      );
-    } catch (error) {
-      setErrorMessage(messageFromError(error));
-    } finally {
-      setScheduleActionLoading(false);
-    }
-  }, [selectedVehicleId]);
-
-  const handleOpenCompletion = useCallback(
-    (schedule: MaintenanceScheduleRecord) => {
-      setCompletionSchedule(schedule);
-      setCompletionForm(emptyCompletionForm(selectedVehicle));
-      setCompletionReceiptFile(null);
-      setBeforePhotoFile(null);
-      setAfterPhotoFile(null);
-      setCompletionIssues([]);
-      setScheduleActionMessage(null);
-    },
-    [selectedVehicle],
-  );
-
-  const handleCompletionFieldChange = useCallback(
-    <Field extends keyof CompletionFormState>(field: Field, value: CompletionFormState[Field]) => {
-      setCompletionForm((currentForm) => ({ ...currentForm, [field]: value }));
-      setCompletionIssues([]);
+  const handleLogFieldChange = useCallback(
+    <Field extends keyof MaintenanceLogFormState>(
+      field: Field,
+      value: MaintenanceLogFormState[Field],
+    ) => {
+      setLogForm((currentForm) => ({ ...currentForm, [field]: value }));
+      setIssues([]);
     },
     [],
   );
 
-  const handleCompleteSchedule = useCallback(async () => {
-    if (!selectedVehicleId || !completionSchedule) {
+  const handleReminderFieldChange = useCallback(
+    <Field extends keyof ReminderFormState>(field: Field, value: ReminderFormState[Field]) => {
+      setReminderForm((currentForm) => ({ ...currentForm, [field]: value }));
+      setIssues([]);
+    },
+    [],
+  );
+
+  const handleLogMaintenance = useCallback(async () => {
+    if (!selectedVehicleId) {
       return;
     }
 
-    const prepared = prepareCompletionRequest(completionSchedule.id, completionForm);
-    setCompletionIssues(prepared.errors);
+    const prepared = prepareLogRequest(selectedVehicleId, logForm);
+    setIssues(prepared.errors);
 
     if (!prepared.request) {
       return;
     }
 
-    setCompletionLoading(true);
+    setLogLoading(true);
     setErrorMessage(null);
-    setScheduleActionMessage(null);
+    setMessage(null);
 
     try {
       let receiptDocumentId = prepared.request.receiptDocumentId;
       let beforePhotoId = prepared.request.beforePhotoId;
       let afterPhotoId = prepared.request.afterPhotoId;
 
-      if (completionReceiptFile) {
-        const receipt = await storeMaintenanceReceipt(selectedVehicleId, completionReceiptFile);
+      if (receiptFile) {
+        const receipt = await storeMaintenanceReceipt(selectedVehicleId, receiptFile);
         receiptDocumentId = receipt.id;
       }
 
@@ -267,39 +213,116 @@ export function MaintenanceTemplateModule() {
         afterPhotoId = afterPhoto.id;
       }
 
-      const result = await completeMaintenanceSchedule({
+      const result = await logMaintenance({
         ...prepared.request,
         receiptDocumentId,
         beforePhotoId,
         afterPhotoId,
       });
-      const [scheduleRecords, alertResult] = await Promise.all([
-        listMaintenanceSchedulesForVehicle(selectedVehicleId),
-        refreshMaintenanceAlertsForVehicle(selectedVehicleId),
-      ]);
+      const alertResult = await refreshMaintenanceAlertsForVehicle(selectedVehicleId);
+      await loadVehicleMaintenance(selectedVehicleId);
 
-      setSchedules(scheduleRecords);
-      setCompletionSchedule(null);
-      setCompletionReceiptFile(null);
+      setLogForm(emptyLogForm(selectedVehicle));
+      setReceiptFile(null);
       setBeforePhotoFile(null);
       setAfterPhotoFile(null);
-      setCompletionIssues([]);
-      setScheduleActionMessage(
-        `${result.log.templateName ?? "Maintenance"} completed. ${result.resolvedAlertCount} alerts resolved and ${alertResult.createdCount} current alerts created.`,
+      setIssues([]);
+      setMessage(
+        result.reminderUsed
+          ? `${result.log.templateName ?? "Maintenance"} was logged and the next reminder was updated. ${result.resolvedAlertCount} old alerts resolved; ${alertResult.createdCount} current alerts created.`
+          : `${result.log.templateName ?? "Maintenance"} was logged. Set a reminder for this item if you want future due dates.`,
       );
     } catch (error) {
       setErrorMessage(messageFromError(error));
     } finally {
-      setCompletionLoading(false);
+      setLogLoading(false);
     }
   }, [
     afterPhotoFile,
     beforePhotoFile,
-    completionForm,
-    completionReceiptFile,
-    completionSchedule,
+    loadVehicleMaintenance,
+    logForm,
+    receiptFile,
+    selectedVehicle,
     selectedVehicleId,
   ]);
+
+  const handleSaveReminder = useCallback(async () => {
+    if (!selectedVehicleId) {
+      return;
+    }
+
+    const prepared = prepareReminderRequest(selectedVehicleId, reminderForm);
+    setIssues(prepared.errors);
+
+    if (!prepared.request) {
+      return;
+    }
+
+    setReminderLoading(true);
+    setErrorMessage(null);
+    setMessage(null);
+
+    try {
+      const reminder = await upsertVehicleMaintenanceSetting(prepared.request);
+      await refreshMaintenanceAlertsForVehicle(selectedVehicleId);
+      await loadVehicleMaintenance(selectedVehicleId);
+      setReminderForm(emptyReminderForm());
+      setIssues([]);
+      setMessage(`${reminder.templateName} reminder saved for this vehicle.`);
+    } catch (error) {
+      setErrorMessage(messageFromError(error));
+    } finally {
+      setReminderLoading(false);
+    }
+  }, [loadVehicleMaintenance, reminderForm, selectedVehicleId]);
+
+  const handleEditReminder = useCallback((reminder: VehicleMaintenanceSettingRecord) => {
+    setReminderForm({
+      settingId: reminder.id,
+      templateId: reminder.templateId,
+      intervalDays: optionalNumberString(reminder.customTimeIntervalDays),
+      intervalKm: optionalNumberString(reminder.customOdometerIntervalKm),
+      dueSoonDays: optionalNumberString(reminder.customDueSoonDays),
+      dueSoonKm: optionalNumberString(reminder.customDueSoonKm),
+      notes: reminder.notes ?? "",
+    });
+    setIssues([]);
+    setMessage(null);
+  }, []);
+
+  const handleArchiveReminder = useCallback(
+    async (settingId: string) => {
+      if (!selectedVehicleId) {
+        return;
+      }
+
+      setReminderLoading(true);
+      setErrorMessage(null);
+      setMessage(null);
+
+      try {
+        await archiveVehicleMaintenanceSetting(settingId);
+        await loadVehicleMaintenance(selectedVehicleId);
+        setReminderForm(emptyReminderForm());
+        setMessage("Reminder removed. Existing service history was kept.");
+      } catch (error) {
+        setErrorMessage(messageFromError(error));
+      } finally {
+        setReminderLoading(false);
+      }
+    },
+    [loadVehicleMaintenance, selectedVehicleId],
+  );
+
+  const handleUseScheduleInLog = useCallback((schedule: MaintenanceScheduleRecord) => {
+    setLogForm((currentForm) => ({
+      ...currentForm,
+      templateId: schedule.templateId,
+      workPerformed: currentForm.workPerformed || schedule.templateName,
+    }));
+    setMessage("Maintenance item selected in the log form.");
+  }, []);
 
   return (
     <div className="maintenance-module">
@@ -308,8 +331,8 @@ export function MaintenanceTemplateModule() {
           <div>
             <h2>Maintenance</h2>
             <p>
-              Work from vehicle schedules first, then review applicability and the default template
-              library when you need reference details.
+              Log work when it is done. Add reminders only for the maintenance items you want this
+              vehicle to track.
             </p>
           </div>
 
@@ -318,7 +341,11 @@ export function MaintenanceTemplateModule() {
               <span>Vehicle</span>
               <select
                 value={selectedVehicleId}
-                onChange={(event) => setSelectedVehicleId(event.target.value)}
+                onChange={(event) => {
+                  setSelectedVehicleId(event.target.value);
+                  setMessage(null);
+                  setIssues([]);
+                }}
               >
                 {vehicles.map((vehicle) => (
                   <option key={vehicle.id} value={vehicle.id}>
@@ -327,376 +354,118 @@ export function MaintenanceTemplateModule() {
                 ))}
               </select>
             </label>
-          ) : (
-            <div className="maintenance-empty-note">
-              Add a vehicle first to create schedules and preview template applicability.
-            </div>
-          )}
+          ) : null}
         </div>
 
         {selectedVehicle ? (
-          <div className="vehicle-rule-summary" aria-label="Selected vehicle maintenance inputs">
-            <span>{labelValue("Vehicle type", selectedVehicle.vehicleType)}</span>
+          <div className="vehicle-rule-summary" aria-label="Selected vehicle maintenance context">
+            <span>{selectedVehicle.vehicleName}</span>
+            <span>Odometer: {formatOdometer(selectedVehicle.currentOdometer)} km</span>
             <span>{labelValue("Fuel", selectedVehicle.fuelType)}</span>
             <span>{labelValue("Transmission", selectedVehicle.transmissionType)}</span>
-            <span>{labelValue("Drivetrain", selectedVehicle.drivetrain)}</span>
           </div>
         ) : null}
 
-        <div className="maintenance-command-bar">
-          <div>
-            <strong>{selectedVehicle ? selectedVehicle.vehicleName : "No vehicle selected"}</strong>
-            <span>
-              Schedules are created only from templates that auto-apply to the selected vehicle.
-            </span>
-          </div>
+        {loading ? (
+          <div className="maintenance-empty-note">Loading maintenance setup...</div>
+        ) : null}
 
-          <div className="maintenance-action-row">
-            <button
-              className="primary-button"
-              disabled={!selectedVehicleId || scheduleActionLoading}
-              type="button"
-              onClick={handleSyncSchedules}
-            >
-              {scheduleActionLoading ? "Working..." : "Create / sync schedules"}
-            </button>
-            <button
-              className="secondary-button"
-              disabled={!selectedVehicleId || scheduleActionLoading}
-              type="button"
-              onClick={handleRefreshAlerts}
-            >
-              Refresh alerts
-            </button>
+        {!loading && vehicles.length === 0 ? (
+          <div className="maintenance-empty-note">
+            Add a vehicle first. Then you can log maintenance and set reminders for that vehicle.
           </div>
-        </div>
-
-        {scheduleActionMessage ? (
-          <div className="maintenance-action-note">{scheduleActionMessage}</div>
         ) : null}
 
         {errorMessage ? <div className="inline-error">{errorMessage}</div> : null}
+        {message ? <div className="maintenance-action-note">{message}</div> : null}
 
-        <div className="maintenance-tabs" role="tablist" aria-label="Maintenance sections">
-          {maintenanceTabs.map((tab) => (
-            <button
-              key={tab.id}
-              aria-selected={activeTab === tab.id}
-              className={activeTab === tab.id ? "active" : ""}
-              role="tab"
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="maintenance-tab-panel" role="tabpanel">
-          {activeTab === "schedules" ? (
-            <SchedulesPanel
-              completionLoading={completionLoading}
-              completionSchedule={completionSchedule}
-              completionForm={completionForm}
-              completionIssues={completionIssues}
-              scheduleLoading={scheduleLoading}
-              schedules={schedules}
-              selectedVehicleId={selectedVehicleId}
+        {selectedVehicle ? (
+          <div className="maintenance-simple-layout">
+            <MaintenanceLogPanel
+              form={logForm}
+              issues={issues}
+              loading={logLoading}
+              templates={templatesSorted}
               onAfterPhotoChange={setAfterPhotoFile}
               onBeforePhotoChange={setBeforePhotoFile}
-              onCancelCompletion={() => setCompletionSchedule(null)}
-              onCompleteSchedule={() => void handleCompleteSchedule()}
-              onCompletionFieldChange={handleCompletionFieldChange}
-              onOpenCompletion={handleOpenCompletion}
-              onReceiptChange={setCompletionReceiptFile}
+              onFieldChange={handleLogFieldChange}
+              onReceiptChange={setReceiptFile}
+              onSubmit={() => void handleLogMaintenance()}
             />
-          ) : null}
 
-          {activeTab === "applicability" ? (
-            <ApplicabilityPanel
-              applicability={applicability}
-              applicabilityLoading={applicabilityLoading}
-              selectedVehicleId={selectedVehicleId}
-              summary={applicabilitySummary}
-            />
-          ) : null}
+            <section className="maintenance-side-stack">
+              <AttentionPanel
+                loading={vehicleDataLoading}
+                schedules={attentionSchedules}
+                onUseSchedule={handleUseScheduleInLog}
+              />
 
-          {activeTab === "library" ? (
-            <TemplateLibraryPanel
-              loading={loading}
-              templateGroups={templatesByCategory}
-              templates={templates}
-            />
-          ) : null}
-        </div>
+              <ReminderSettingsPanel
+                form={reminderForm}
+                loading={vehicleDataLoading || reminderLoading}
+                reminderTemplateIds={reminderTemplateIds}
+                reminders={reminders}
+                schedulesByTemplateId={schedulesByTemplateId}
+                templates={templatesSorted}
+                onArchiveReminder={(settingId) => void handleArchiveReminder(settingId)}
+                onEditReminder={handleEditReminder}
+                onFieldChange={handleReminderFieldChange}
+                onResetForm={() => {
+                  setReminderForm(emptyReminderForm());
+                  setIssues([]);
+                }}
+                onSubmit={() => void handleSaveReminder()}
+              />
+            </section>
+          </div>
+        ) : null}
       </section>
     </div>
   );
 }
 
-function SchedulesPanel(props: {
-  completionLoading: boolean;
-  completionSchedule: MaintenanceScheduleRecord | null;
-  completionForm: CompletionFormState;
-  completionIssues: string[];
-  scheduleLoading: boolean;
-  schedules: MaintenanceScheduleRecord[];
-  selectedVehicleId: string;
-  onAfterPhotoChange: (file: File | null) => void;
-  onBeforePhotoChange: (file: File | null) => void;
-  onCancelCompletion: () => void;
-  onCompleteSchedule: () => void;
-  onCompletionFieldChange: <Field extends keyof CompletionFormState>(
-    field: Field,
-    value: CompletionFormState[Field],
-  ) => void;
-  onOpenCompletion: (schedule: MaintenanceScheduleRecord) => void;
-  onReceiptChange: (file: File | null) => void;
-}) {
-  if (props.scheduleLoading) {
-    return <div className="maintenance-empty-note">Loading vehicle schedules...</div>;
-  }
-
-  if (!props.selectedVehicleId) {
-    return (
-      <div className="maintenance-empty-note">
-        Add or select a vehicle before creating schedules.
-      </div>
-    );
-  }
-
-  if (props.schedules.length === 0) {
-    return (
-      <div className="maintenance-empty-note">
-        No schedules yet. Use Create / sync schedules to generate them from applicable templates.
-      </div>
-    );
-  }
-
-  return (
-    <div className="maintenance-panel-stack">
-      {props.completionSchedule ? (
-        <MaintenanceCompletionPanel
-          completionLoading={props.completionLoading}
-          form={props.completionForm}
-          issues={props.completionIssues}
-          schedule={props.completionSchedule}
-          onAfterPhotoChange={props.onAfterPhotoChange}
-          onBeforePhotoChange={props.onBeforePhotoChange}
-          onCancel={props.onCancelCompletion}
-          onFieldChange={props.onCompletionFieldChange}
-          onReceiptChange={props.onReceiptChange}
-          onSubmit={props.onCompleteSchedule}
-        />
-      ) : null}
-
-      <div className="maintenance-schedule-list" aria-label="Vehicle maintenance schedules">
-        {props.schedules.map((schedule) => (
-          <MaintenanceScheduleCard
-            key={schedule.id}
-            schedule={schedule}
-            onComplete={props.onOpenCompletion}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ApplicabilityPanel(props: {
-  applicability: ApplicableMaintenanceTemplate[];
-  applicabilityLoading: boolean;
-  selectedVehicleId: string;
-  summary: ApplicabilitySummary;
-}) {
-  if (props.applicabilityLoading) {
-    return <div className="maintenance-empty-note">Checking template applicability...</div>;
-  }
-
-  if (!props.selectedVehicleId) {
-    return (
-      <div className="maintenance-empty-note">
-        Add or select a vehicle to preview template applicability.
-      </div>
-    );
-  }
-
-  return (
-    <div className="maintenance-panel-stack">
-      <div className="applicability-summary" aria-label="Applicability summary">
-        <span>Auto-applies: {props.summary.applicable}</span>
-        <span>Excluded: {props.summary.excluded}</span>
-        <span>Needs feature: {props.summary.requires_feature}</span>
-        <span>Not applicable: {props.summary.not_applicable}</span>
-      </div>
-
-      <div className="maintenance-template-list" aria-label="Applicable maintenance templates">
-        {props.applicability.map((result) => (
-          <MaintenanceTemplateCard
-            key={result.template.id}
-            compact
-            result={result}
-            showApplicability
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function TemplateLibraryPanel(props: {
-  loading: boolean;
-  templateGroups: Array<{ category: string; templates: MaintenanceTemplateRecord[] }>;
-  templates: MaintenanceTemplateRecord[];
-}) {
-  if (props.loading) {
-    return <div className="maintenance-empty-note">Loading templates...</div>;
-  }
-
-  if (props.templates.length === 0) {
-    return (
-      <div className="maintenance-empty-note">No maintenance templates are available yet.</div>
-    );
-  }
-
-  return (
-    <div className="template-library-groups" aria-label="Default maintenance template library">
-      {props.templateGroups.map((group) => (
-        <section key={group.category} className="template-library-group">
-          <h3>{labelValue("", group.category)}</h3>
-          <div className="template-library-list">
-            {group.templates.map((template) => (
-              <MaintenanceTemplateCard key={template.id} template={template} compact />
-            ))}
-          </div>
-        </section>
-      ))}
-    </div>
-  );
-}
-
-function MaintenanceTemplateCard(props: {
-  result?: ApplicableMaintenanceTemplate;
-  showApplicability?: boolean;
-  compact?: boolean;
-  template?: MaintenanceTemplateRecord;
-}) {
-  const template = props.result?.template ?? props.template;
-
-  if (!template) {
-    return null;
-  }
-
-  return (
-    <article
-      className={`maintenance-template-card ${props.compact ? "compact" : ""} ${
-        props.showApplicability ? "with-applicability" : ""
-      }`}
-    >
-      <div className="maintenance-template-main">
-        <div className="maintenance-card-heading">
-          <span className="maintenance-category">{labelValue("", template.category)}</span>
-          <span className={`priority-pill ${template.priority}`}>
-            {labelValue("", template.priority)}
-          </span>
-        </div>
-
-        <h3>{template.name}</h3>
-        {template.description ? <p>{template.description}</p> : null}
-
-        <div className="maintenance-intervals">
-          <span>{intervalDays(template.defaultTimeIntervalDays)}</span>
-          <span>{intervalKm(template.defaultOdometerIntervalKm)}</span>
-        </div>
-      </div>
-
-      {props.showApplicability && props.result ? (
-        <div className={`applicability-note ${props.result.applicabilityStatus}`}>
-          <strong>{statusLabel(props.result.applicabilityStatus)}</strong>
-          <span>{props.result.reason}</span>
-          {props.result.warnings.map((warning) => (
-            <span key={warning}>{warning}</span>
-          ))}
-        </div>
-      ) : null}
-    </article>
-  );
-}
-
-function MaintenanceScheduleCard({
-  schedule,
-  onComplete,
-}: {
-  schedule: MaintenanceScheduleRecord;
-  onComplete: (schedule: MaintenanceScheduleRecord) => void;
-}) {
-  return (
-    <article className="maintenance-schedule-card">
-      <div className="maintenance-schedule-main">
-        <div className="maintenance-card-heading">
-          <span className="maintenance-category">{labelValue("", schedule.category)}</span>
-          <span className={`schedule-status-pill ${schedule.dueStatus}`}>
-            {scheduleStatusLabel(schedule.dueStatus)}
-          </span>
-        </div>
-
-        <h3>{schedule.templateName}</h3>
-        <p>{schedule.dueReason}</p>
-      </div>
-
-      <div className="maintenance-schedule-meta">
-        <span>
-          {schedule.nextDueDate ? `Date: ${formatDate(schedule.nextDueDate)}` : "No due date"}
-        </span>
-        <span>
-          {schedule.nextDueOdometer
-            ? `Odometer: ${formatOdometer(schedule.nextDueOdometer)} km`
-            : "No odometer target"}
-        </span>
-        <span>
-          Due soon: {schedule.dueSoonDays} days / {schedule.dueSoonKm.toLocaleString()} km
-        </span>
-      </div>
-
-      {schedule.notes ? <div className="maintenance-action-note">{schedule.notes}</div> : null}
-
-      <div className="maintenance-card-actions">
-        <button className="primary-button" type="button" onClick={() => onComplete(schedule)}>
-          Complete
-        </button>
-      </div>
-    </article>
-  );
-}
-
-function MaintenanceCompletionPanel(props: {
-  completionLoading: boolean;
-  form: CompletionFormState;
+function MaintenanceLogPanel(props: {
+  form: MaintenanceLogFormState;
   issues: string[];
-  schedule: MaintenanceScheduleRecord;
+  loading: boolean;
+  templates: MaintenanceTemplateRecord[];
   onAfterPhotoChange: (file: File | null) => void;
   onBeforePhotoChange: (file: File | null) => void;
-  onCancel: () => void;
-  onFieldChange: <Field extends keyof CompletionFormState>(
+  onFieldChange: <Field extends keyof MaintenanceLogFormState>(
     field: Field,
-    value: CompletionFormState[Field],
+    value: MaintenanceLogFormState[Field],
   ) => void;
   onReceiptChange: (file: File | null) => void;
   onSubmit: () => void;
 }) {
   return (
-    <section className="maintenance-completion-panel" aria-label="Complete maintenance schedule">
+    <section className="maintenance-log-panel">
       <div>
-        <h3>Complete {props.schedule.templateName}</h3>
+        <h3>Log maintenance done</h3>
         <p>
-          Save the service details, update the next due target, and resolve related maintenance
-          alerts.
+          Save the service details now. If this item has a reminder for the selected vehicle, the
+          next due date or odometer will update automatically.
         </p>
       </div>
 
       <div className="maintenance-completion-grid">
+        <label className="form-field maintenance-form-wide">
+          <span>Maintenance item</span>
+          <select
+            value={props.form.templateId}
+            onChange={(event) => props.onFieldChange("templateId", event.target.value)}
+          >
+            <option value="">Choose maintenance item</option>
+            {props.templates.map((template) => (
+              <option key={template.id} value={template.id}>
+                {template.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
         <label className="form-field">
-          <span>Completion date</span>
+          <span>Completed date</span>
           <input
             required
             type="date"
@@ -706,7 +475,7 @@ function MaintenanceCompletionPanel(props: {
         </label>
 
         <label className="form-field">
-          <span>Completion odometer</span>
+          <span>Odometer</span>
           <input
             min="0"
             step="0.1"
@@ -833,41 +602,280 @@ function MaintenanceCompletionPanel(props: {
       ) : null}
 
       <div className="maintenance-completion-actions">
-        <button className="secondary-button" type="button" onClick={props.onCancel}>
-          Cancel
-        </button>
         <button
           className="primary-button"
-          disabled={props.completionLoading}
+          disabled={props.loading}
           type="button"
           onClick={props.onSubmit}
         >
-          {props.completionLoading ? "Saving..." : "Save completion"}
+          {props.loading ? "Saving..." : "Save maintenance log"}
         </button>
       </div>
     </section>
   );
 }
 
-function intervalDays(days?: number | null) {
-  if (!days) {
-    return "No time interval";
-  }
+function AttentionPanel(props: {
+  loading: boolean;
+  schedules: MaintenanceScheduleRecord[];
+  onUseSchedule: (schedule: MaintenanceScheduleRecord) => void;
+}) {
+  return (
+    <section className="maintenance-reminder-panel">
+      <div>
+        <h3>Needs attention</h3>
+        <p>Only reminders you set for this vehicle can appear here.</p>
+      </div>
 
-  if (days % 30 === 0) {
-    const months = days / 30;
-    return `${months} ${months === 1 ? "month" : "months"}`;
-  }
+      {props.loading ? <div className="maintenance-empty-note">Loading reminders...</div> : null}
 
-  return `${days} days`;
+      {!props.loading && props.schedules.length === 0 ? (
+        <div className="maintenance-empty-note">
+          Nothing is due right now. Set reminders below if you want the app to track future due
+          dates or odometer targets.
+        </div>
+      ) : null}
+
+      <div className="maintenance-schedule-list">
+        {props.schedules.map((schedule) => (
+          <article key={schedule.id} className="maintenance-schedule-card compact">
+            <div className="maintenance-schedule-main">
+              <div className="maintenance-card-heading">
+                <span className="maintenance-category">{labelValue("", schedule.category)}</span>
+                <span className={`schedule-status-pill ${schedule.dueStatus}`}>
+                  {scheduleStatusLabel(schedule.dueStatus)}
+                </span>
+              </div>
+              <h3>{schedule.templateName}</h3>
+              <p>{schedule.dueReason}</p>
+            </div>
+            <div className="maintenance-schedule-meta">
+              <span>
+                {schedule.nextDueDate ? `Date: ${formatDate(schedule.nextDueDate)}` : "No date"}
+              </span>
+              <span>
+                {schedule.nextDueOdometer
+                  ? `Odometer: ${formatOdometer(schedule.nextDueOdometer)} km`
+                  : "No odometer target"}
+              </span>
+            </div>
+            <div className="maintenance-card-actions">
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => props.onUseSchedule(schedule)}
+              >
+                Log this maintenance
+              </button>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
 }
 
-function intervalKm(kilometers?: number | null) {
-  return kilometers ? `${kilometers.toLocaleString()} km` : "No odometer interval";
+function ReminderSettingsPanel(props: {
+  form: ReminderFormState;
+  loading: boolean;
+  reminderTemplateIds: Set<string>;
+  reminders: VehicleMaintenanceSettingRecord[];
+  schedulesByTemplateId: Map<string, MaintenanceScheduleRecord>;
+  templates: MaintenanceTemplateRecord[];
+  onArchiveReminder: (settingId: string) => void;
+  onEditReminder: (reminder: VehicleMaintenanceSettingRecord) => void;
+  onFieldChange: <Field extends keyof ReminderFormState>(
+    field: Field,
+    value: ReminderFormState[Field],
+  ) => void;
+  onResetForm: () => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <section className="maintenance-reminder-panel">
+      <div>
+        <h3>Reminders for this vehicle</h3>
+        <p>
+          Set a repeat interval only for items you want the app to calculate next due dates for.
+        </p>
+      </div>
+
+      <div className="maintenance-reminder-form">
+        <label className="form-field maintenance-form-wide">
+          <span>Maintenance item</span>
+          <select
+            value={props.form.templateId}
+            onChange={(event) => props.onFieldChange("templateId", event.target.value)}
+          >
+            <option value="">Choose item</option>
+            {props.templates.map((template) => (
+              <option key={template.id} value={template.id}>
+                {template.name}
+                {props.reminderTemplateIds.has(template.id) && template.id !== props.form.templateId
+                  ? " (already set)"
+                  : ""}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="form-field">
+          <span>Every how many days?</span>
+          <input
+            min="0"
+            step="1"
+            type="number"
+            value={props.form.intervalDays}
+            onChange={(event) => props.onFieldChange("intervalDays", event.target.value)}
+          />
+        </label>
+
+        <label className="form-field">
+          <span>Every how many km?</span>
+          <input
+            min="0"
+            step="1"
+            type="number"
+            value={props.form.intervalKm}
+            onChange={(event) => props.onFieldChange("intervalKm", event.target.value)}
+          />
+        </label>
+
+        <label className="form-field">
+          <span>Warn days before</span>
+          <input
+            min="0"
+            step="1"
+            type="number"
+            value={props.form.dueSoonDays}
+            onChange={(event) => props.onFieldChange("dueSoonDays", event.target.value)}
+          />
+        </label>
+
+        <label className="form-field">
+          <span>Warn km before</span>
+          <input
+            min="0"
+            step="1"
+            type="number"
+            value={props.form.dueSoonKm}
+            onChange={(event) => props.onFieldChange("dueSoonKm", event.target.value)}
+          />
+        </label>
+
+        <label className="form-field maintenance-form-wide">
+          <span>Notes</span>
+          <textarea
+            rows={2}
+            value={props.form.notes}
+            onChange={(event) => props.onFieldChange("notes", event.target.value)}
+          />
+        </label>
+      </div>
+
+      <div className="maintenance-completion-actions">
+        {props.form.settingId ? (
+          <button className="secondary-button" type="button" onClick={props.onResetForm}>
+            Cancel edit
+          </button>
+        ) : null}
+        <button
+          className="primary-button"
+          disabled={props.loading}
+          type="button"
+          onClick={props.onSubmit}
+        >
+          {props.loading ? "Saving..." : props.form.settingId ? "Save reminder" : "Add reminder"}
+        </button>
+      </div>
+
+      {props.loading ? (
+        <div className="maintenance-empty-note">Loading reminder settings...</div>
+      ) : null}
+
+      {!props.loading && props.reminders.length === 0 ? (
+        <div className="maintenance-empty-note">
+          No reminders set for this vehicle yet. You can still log maintenance without reminders.
+        </div>
+      ) : null}
+
+      <div className="maintenance-reminder-list">
+        {props.reminders.map((reminder) => (
+          <ReminderCard
+            key={reminder.id}
+            reminder={reminder}
+            schedule={props.schedulesByTemplateId.get(reminder.templateId)}
+            onArchive={() => props.onArchiveReminder(reminder.id)}
+            onEdit={() => props.onEditReminder(reminder)}
+          />
+        ))}
+      </div>
+    </section>
+  );
 }
 
-function emptyCompletionForm(vehicle?: VehicleRecord | null): CompletionFormState {
+function ReminderCard(props: {
+  reminder: VehicleMaintenanceSettingRecord;
+  schedule?: MaintenanceScheduleRecord;
+  onArchive: () => void;
+  onEdit: () => void;
+}) {
+  return (
+    <article className="maintenance-reminder-card">
+      <div className="maintenance-card-heading">
+        <span className="maintenance-category">{labelValue("", props.reminder.category)}</span>
+        <span className={`priority-pill ${props.reminder.priority}`}>
+          {labelValue("", props.reminder.priority)}
+        </span>
+      </div>
+
+      <h3>{props.reminder.templateName}</h3>
+      <div className="maintenance-intervals">
+        <span>{intervalDays(props.reminder.customTimeIntervalDays)}</span>
+        <span>{intervalKm(props.reminder.customOdometerIntervalKm)}</span>
+        <span>
+          Warn: {props.reminder.effectiveDueSoonDays} days /{" "}
+          {props.reminder.effectiveDueSoonKm.toLocaleString()} km
+        </span>
+      </div>
+
+      {props.schedule ? (
+        <div className="maintenance-schedule-meta">
+          <span>
+            {props.schedule.nextDueDate
+              ? `Next date: ${formatDate(props.schedule.nextDueDate)}`
+              : "No next date"}
+          </span>
+          <span>
+            {props.schedule.nextDueOdometer
+              ? `Next odometer: ${formatOdometer(props.schedule.nextDueOdometer)} km`
+              : "No next odometer"}
+          </span>
+          <span className={`schedule-status-pill ${props.schedule.dueStatus}`}>
+            {scheduleStatusLabel(props.schedule.dueStatus)}
+          </span>
+        </div>
+      ) : null}
+
+      {props.reminder.notes ? (
+        <div className="maintenance-action-note">{props.reminder.notes}</div>
+      ) : null}
+
+      <div className="maintenance-card-actions">
+        <button className="secondary-button" type="button" onClick={props.onEdit}>
+          Edit
+        </button>
+        <button className="secondary-button danger-text" type="button" onClick={props.onArchive}>
+          Remove reminder
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function emptyLogForm(vehicle?: VehicleRecord | null): MaintenanceLogFormState {
   return {
+    templateId: "",
     completedDate: new Date().toISOString().slice(0, 10),
     odometer: vehicle ? String(vehicle.currentOdometer) : "",
     workPerformed: "",
@@ -881,20 +889,37 @@ function emptyCompletionForm(vehicle?: VehicleRecord | null): CompletionFormStat
   };
 }
 
-function prepareCompletionRequest(
-  scheduleId: string,
-  form: CompletionFormState,
-): { errors: string[]; request?: CompleteMaintenanceScheduleRequest } {
+function emptyReminderForm(): ReminderFormState {
+  return {
+    settingId: "",
+    templateId: "",
+    intervalDays: "",
+    intervalKm: "",
+    dueSoonDays: "",
+    dueSoonKm: "",
+    notes: "",
+  };
+}
+
+function prepareLogRequest(
+  vehicleId: string,
+  form: MaintenanceLogFormState,
+): { errors: string[]; request?: LogMaintenanceRequest } {
   const errors: string[] = [];
+  const templateId = form.templateId.trim();
   const completedDate = form.completedDate.trim();
   const workPerformed = form.workPerformed.trim();
-  const odometer = optionalNonNegativeNumber(form.odometer, "Completion odometer", errors);
+  const odometer = optionalNonNegativeNumber(form.odometer, "Odometer", errors);
   const laborCost = optionalNonNegativeNumber(form.laborCost, "Labor cost", errors);
   const partsCost = optionalNonNegativeNumber(form.partsCost, "Parts cost", errors);
   const totalCost = optionalNonNegativeNumber(form.totalCost, "Total cost", errors);
 
+  if (!templateId) {
+    errors.push("Choose a maintenance item.");
+  }
+
   if (!completedDate) {
-    errors.push("Completion date is required.");
+    errors.push("Completed date is required.");
   }
 
   if (!workPerformed) {
@@ -908,7 +933,8 @@ function prepareCompletionRequest(
   return {
     errors: [],
     request: {
-      scheduleId,
+      vehicleId,
+      templateId,
       completedDate,
       odometer,
       workPerformed,
@@ -918,6 +944,52 @@ function prepareCompletionRequest(
       totalCost,
       mechanicShop: trimToUndefined(form.mechanicShop),
       warrantyExpiration: trimToUndefined(form.warrantyExpiration),
+      notes: trimToUndefined(form.notes),
+    },
+  };
+}
+
+function prepareReminderRequest(
+  vehicleId: string,
+  form: ReminderFormState,
+): { errors: string[]; request?: UpsertVehicleMaintenanceSettingRequest } {
+  const errors: string[] = [];
+  const templateId = form.templateId.trim();
+  const customTimeIntervalDays = optionalPositiveInteger(
+    form.intervalDays,
+    "Days interval",
+    errors,
+  );
+  const customOdometerIntervalKm = optionalPositiveInteger(form.intervalKm, "Km interval", errors);
+  const customDueSoonDays = optionalNonNegativeInteger(
+    form.dueSoonDays,
+    "Warn days before",
+    errors,
+  );
+  const customDueSoonKm = optionalNonNegativeInteger(form.dueSoonKm, "Warn km before", errors);
+
+  if (!templateId) {
+    errors.push("Choose a maintenance item for this reminder.");
+  }
+
+  if (!customTimeIntervalDays && !customOdometerIntervalKm) {
+    errors.push("Set at least one reminder interval, such as every 90 days or every 5,000 km.");
+  }
+
+  if (errors.length > 0) {
+    return { errors };
+  }
+
+  return {
+    errors: [],
+    request: {
+      vehicleId,
+      templateId,
+      status: "active",
+      customTimeIntervalDays,
+      customOdometerIntervalKm,
+      customDueSoonDays,
+      customDueSoonKm,
       notes: trimToUndefined(form.notes),
     },
   };
@@ -947,24 +1019,69 @@ function optionalNonNegativeNumber(
   return parsed;
 }
 
+function optionalPositiveInteger(
+  value: string,
+  label: string,
+  errors: string[],
+): number | undefined {
+  const parsed = optionalNonNegativeInteger(value, label, errors);
+
+  if (parsed === 0) {
+    errors.push(`${label} must be greater than zero when entered.`);
+    return undefined;
+  }
+
+  return parsed;
+}
+
+function optionalNonNegativeInteger(
+  value: string,
+  label: string,
+  errors: string[],
+): number | undefined {
+  if (!value.trim()) {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+
+  if (!Number.isInteger(parsed)) {
+    errors.push(`${label} must be a whole number.`);
+    return undefined;
+  }
+
+  if (parsed < 0) {
+    errors.push(`${label} cannot be negative.`);
+    return undefined;
+  }
+
+  return parsed;
+}
+
+function optionalNumberString(value?: number | null) {
+  return value === null || value === undefined ? "" : String(value);
+}
+
 function trimToUndefined(value: string) {
   const trimmed = value.trim();
   return trimmed ? trimmed : undefined;
 }
 
-function statusLabel(status: ApplicableMaintenanceTemplate["applicabilityStatus"]) {
-  switch (status) {
-    case "applicable":
-      return "Auto-applies";
-    case "excluded":
-      return "Excluded";
-    case "requires_feature":
-      return "Needs feature";
-    case "not_applicable":
-      return "Not applicable";
-    default:
-      return status;
+function intervalDays(days?: number | null) {
+  if (!days) {
+    return "No day interval";
   }
+
+  if (days % 30 === 0) {
+    const months = days / 30;
+    return `Every ${months} ${months === 1 ? "month" : "months"}`;
+  }
+
+  return `Every ${days} days`;
+}
+
+function intervalKm(kilometers?: number | null) {
+  return kilometers ? `Every ${kilometers.toLocaleString()} km` : "No km interval";
 }
 
 function scheduleStatusLabel(status: MaintenanceScheduleRecord["dueStatus"]) {

@@ -5,10 +5,14 @@ use crate::vehicles::photo_storage::generate_local_id;
 use super::{
     models::{
         CompleteMaintenanceScheduleRequest, CompleteMaintenanceScheduleResult,
-        MaintenanceAttachmentRecord, MaintenanceLogRecord, MaintenanceScheduleRecord,
-        NewMaintenancePhoto, NewMaintenanceReceipt,
+        LogMaintenanceRequest, LogMaintenanceResult, MaintenanceAttachmentRecord,
+        MaintenanceLogRecord, MaintenanceScheduleRecord, NewMaintenancePhoto,
+        NewMaintenanceReceipt,
     },
-    scheduling::{evaluate_due_status, resolve_active_alerts_for_schedule},
+    scheduling::{
+        evaluate_due_status, get_setting_intervals_for_schedule,
+        resolve_active_alerts_for_schedule, schedule_id_for_active_setting,
+    },
 };
 
 pub fn insert_maintenance_receipt(
@@ -120,7 +124,8 @@ pub fn complete_maintenance_schedule(
         }
     }
 
-    let next_due_date = match context.default_time_interval_days {
+    let intervals = get_setting_intervals_for_schedule(connection, &completion.schedule_id)?;
+    let next_due_date = match intervals.time_interval_days {
         Some(days) => Some(date_plus_days(
             connection,
             &completion.completed_date,
@@ -128,8 +133,8 @@ pub fn complete_maintenance_schedule(
         )?),
         None => None,
     };
-    let next_due_odometer = context
-        .default_odometer_interval_km
+    let next_due_odometer = intervals
+        .odometer_interval_km
         .map(|interval| completion_odometer + interval as f64);
     let notes = completion.notes.clone();
     let log_id = generate_local_id("maintenance_log");
@@ -261,6 +266,170 @@ pub fn complete_maintenance_schedule(
         schedule,
         resolved_alert_count,
     })
+}
+
+pub fn log_maintenance(
+    connection: &mut Connection,
+    request: LogMaintenanceRequest,
+) -> Result<LogMaintenanceResult, String> {
+    let request = normalize_log_request(request)?;
+    ensure_vehicle_exists(connection, &request.vehicle_id)?;
+    ensure_template_exists(connection, &request.template_id)?;
+    ensure_attachment_belongs_to_vehicle(
+        connection,
+        request.receipt_document_id.as_deref(),
+        &request.vehicle_id,
+        "vehicle_documents",
+        "maintenance receipt",
+    )?;
+    ensure_attachment_belongs_to_vehicle(
+        connection,
+        request.before_photo_id.as_deref(),
+        &request.vehicle_id,
+        "vehicle_photos",
+        "before photo",
+    )?;
+    ensure_attachment_belongs_to_vehicle(
+        connection,
+        request.after_photo_id.as_deref(),
+        &request.vehicle_id,
+        "vehicle_photos",
+        "after photo",
+    )?;
+
+    let current_odometer = current_vehicle_odometer(connection, &request.vehicle_id)?;
+    let completion_odometer = request.odometer.unwrap_or(current_odometer);
+    validate_log_odometer_progression(
+        connection,
+        &request.vehicle_id,
+        &request.template_id,
+        completion_odometer,
+    )?;
+
+    let today = current_date(connection)?;
+    let schedule_id = schedule_id_for_active_setting(
+        connection,
+        &request.vehicle_id,
+        &request.template_id,
+        &today,
+    )?;
+
+    match schedule_id {
+        Some(schedule_id) => {
+            let result = complete_maintenance_schedule(
+                connection,
+                CompleteMaintenanceScheduleRequest {
+                    schedule_id,
+                    completed_date: request.completed_date,
+                    odometer: Some(completion_odometer),
+                    work_performed: request.work_performed,
+                    parts_replaced: request.parts_replaced,
+                    labor_cost: Some(request.labor_cost),
+                    parts_cost: Some(request.parts_cost),
+                    total_cost: Some(request.total_cost),
+                    mechanic_shop: request.mechanic_shop,
+                    receipt_document_id: request.receipt_document_id,
+                    before_photo_id: request.before_photo_id,
+                    after_photo_id: request.after_photo_id,
+                    warranty_expiration: request.warranty_expiration,
+                    notes: request.notes,
+                },
+            )?;
+
+            Ok(LogMaintenanceResult {
+                log: result.log,
+                schedule: Some(result.schedule),
+                resolved_alert_count: result.resolved_alert_count,
+                reminder_used: true,
+            })
+        }
+        None => {
+            let log_id = generate_local_id("maintenance_log");
+            let transaction = connection
+                .transaction()
+                .map_err(|_| "Could not start saving maintenance.".to_string())?;
+
+            transaction
+                .execute(
+                    "
+                    INSERT INTO maintenance_logs (
+                      id,
+                      vehicle_id,
+                      template_id,
+                      completed_date,
+                      odometer,
+                      work_performed,
+                      parts_replaced,
+                      labor_cost,
+                      parts_cost,
+                      total_cost,
+                      mechanic_shop,
+                      receipt_document_id,
+                      before_photo_id,
+                      after_photo_id,
+                      warranty_expiration,
+                      notes
+                    )
+                    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
+                    ",
+                    params![
+                        log_id,
+                        request.vehicle_id,
+                        request.template_id,
+                        request.completed_date,
+                        completion_odometer,
+                        request.work_performed,
+                        request.parts_replaced,
+                        request.labor_cost,
+                        request.parts_cost,
+                        request.total_cost,
+                        request.mechanic_shop,
+                        request.receipt_document_id,
+                        request.before_photo_id,
+                        request.after_photo_id,
+                        request.warranty_expiration,
+                        request.notes,
+                    ],
+                )
+                .map_err(|_| "Could not create the service history record.".to_string())?;
+
+            transaction
+                .execute(
+                    "
+                    UPDATE vehicles
+                    SET
+                      current_odometer = ?1,
+                      updated_at = datetime('now')
+                    WHERE id = ?2
+                      AND current_odometer < ?1
+                      AND deleted_at IS NULL
+                    ",
+                    params![completion_odometer, request.vehicle_id],
+                )
+                .map_err(|_| "Could not update the vehicle odometer.".to_string())?;
+
+            mark_receipt_linked(
+                &transaction,
+                request.receipt_document_id.as_deref(),
+                &request.vehicle_id,
+                &log_id,
+            )?;
+
+            transaction
+                .commit()
+                .map_err(|_| "Could not finish saving maintenance.".to_string())?;
+
+            let log = get_maintenance_log(connection, &log_id)?
+                .ok_or_else(|| "Could not read the service history record.".to_string())?;
+
+            Ok(LogMaintenanceResult {
+                log,
+                schedule: None,
+                resolved_alert_count: 0,
+                reminder_used: false,
+            })
+        }
+    }
 }
 
 pub fn list_service_history_for_vehicle(
@@ -401,8 +570,6 @@ fn schedule_completion_context(
               maintenance_schedules.due_soon_days,
               maintenance_schedules.due_soon_km,
               maintenance_schedules.status,
-              maintenance_templates.default_time_interval_days,
-              maintenance_templates.default_odometer_interval_km,
               vehicles.current_odometer
             FROM maintenance_schedules
             JOIN maintenance_templates
@@ -422,9 +589,7 @@ fn schedule_completion_context(
                     due_soon_days: row.get(3)?,
                     due_soon_km: row.get(4)?,
                     status: row.get(5)?,
-                    default_time_interval_days: row.get(6)?,
-                    default_odometer_interval_km: row.get(7)?,
-                    current_odometer: row.get(8)?,
+                    current_odometer: row.get(6)?,
                 })
             },
         )
@@ -449,6 +614,38 @@ fn normalize_completion_request(
 
     Ok(NormalizedCompletionRequest {
         schedule_id,
+        completed_date,
+        odometer,
+        work_performed,
+        parts_replaced: trim_optional(request.parts_replaced),
+        labor_cost,
+        parts_cost,
+        total_cost,
+        mechanic_shop: trim_optional(request.mechanic_shop),
+        receipt_document_id: trim_optional(request.receipt_document_id),
+        before_photo_id: trim_optional(request.before_photo_id),
+        after_photo_id: trim_optional(request.after_photo_id),
+        warranty_expiration: trim_optional(request.warranty_expiration),
+        notes: trim_optional(request.notes),
+    })
+}
+
+fn normalize_log_request(request: LogMaintenanceRequest) -> Result<NormalizedLogRequest, String> {
+    let vehicle_id = required_trimmed(request.vehicle_id, "Choose a vehicle.")?;
+    let template_id = required_trimmed(request.template_id, "Choose a maintenance item.")?;
+    let completed_date = required_trimmed(request.completed_date, "Completion date is required.")?;
+    let work_performed = required_trimmed(request.work_performed, "Work performed is required.")?;
+    let odometer = normalize_optional_non_negative_number(request.odometer, "Completion odometer")?;
+    let labor_cost = normalize_optional_non_negative_number(request.labor_cost, "Labor cost")?
+        .unwrap_or_default();
+    let parts_cost = normalize_optional_non_negative_number(request.parts_cost, "Parts cost")?
+        .unwrap_or_default();
+    let total_cost = normalize_optional_non_negative_number(request.total_cost, "Total cost")?
+        .unwrap_or(labor_cost + parts_cost);
+
+    Ok(NormalizedLogRequest {
+        vehicle_id,
+        template_id,
         completed_date,
         odometer,
         work_performed,
@@ -490,6 +687,77 @@ fn ensure_vehicle_exists(connection: &Connection, id: &str) -> Result<(), String
     exists
         .then_some(())
         .ok_or_else(|| "Vehicle was not found.".to_string())
+}
+
+fn ensure_template_exists(connection: &Connection, id: &str) -> Result<(), String> {
+    let exists = connection
+        .query_row(
+            "
+            SELECT 1
+            FROM maintenance_templates
+            WHERE id = ?1
+              AND is_active = 1
+              AND deleted_at IS NULL
+            ",
+            params![id],
+            |_| Ok(()),
+        )
+        .optional()
+        .map_err(|_| "Could not check the selected maintenance item.".to_string())?
+        .is_some();
+
+    exists
+        .then_some(())
+        .ok_or_else(|| "Maintenance item was not found.".to_string())
+}
+
+fn current_vehicle_odometer(connection: &Connection, vehicle_id: &str) -> Result<f64, String> {
+    connection
+        .query_row(
+            "
+            SELECT current_odometer
+            FROM vehicles
+            WHERE id = ?1
+              AND deleted_at IS NULL
+            ",
+            params![vehicle_id],
+            |row| row.get(0),
+        )
+        .map_err(|_| "Could not read the vehicle odometer.".to_string())
+}
+
+fn validate_log_odometer_progression(
+    connection: &Connection,
+    vehicle_id: &str,
+    template_id: &str,
+    odometer: f64,
+) -> Result<(), String> {
+    let previous_odometer = connection
+        .query_row(
+            "
+            SELECT odometer
+            FROM maintenance_logs
+            WHERE vehicle_id = ?1
+              AND template_id = ?2
+              AND deleted_at IS NULL
+            ORDER BY completed_date DESC, created_at DESC
+            LIMIT 1
+            ",
+            params![vehicle_id, template_id],
+            |row| row.get::<_, f64>(0),
+        )
+        .optional()
+        .map_err(|_| "Could not check previous maintenance odometer.".to_string())?;
+
+    if let Some(previous_odometer) = previous_odometer {
+        if odometer < previous_odometer {
+            return Err(format!(
+                "Completion odometer cannot be lower than the previous completed odometer ({previous_odometer:.0} km)."
+            ));
+        }
+    }
+
+    Ok(())
 }
 
 fn ensure_attachment_belongs_to_vehicle(
@@ -788,6 +1056,25 @@ struct NormalizedCompletionRequest {
 }
 
 #[derive(Debug)]
+struct NormalizedLogRequest {
+    vehicle_id: String,
+    template_id: String,
+    completed_date: String,
+    odometer: Option<f64>,
+    work_performed: String,
+    parts_replaced: Option<String>,
+    labor_cost: f64,
+    parts_cost: f64,
+    total_cost: f64,
+    mechanic_shop: Option<String>,
+    receipt_document_id: Option<String>,
+    before_photo_id: Option<String>,
+    after_photo_id: Option<String>,
+    warranty_expiration: Option<String>,
+    notes: Option<String>,
+}
+
+#[derive(Debug)]
 struct ScheduleCompletionContext {
     vehicle_id: String,
     template_id: String,
@@ -795,8 +1082,6 @@ struct ScheduleCompletionContext {
     due_soon_days: i64,
     due_soon_km: i64,
     status: String,
-    default_time_interval_days: Option<i64>,
-    default_odometer_interval_km: Option<i64>,
     current_odometer: f64,
 }
 
@@ -843,6 +1128,20 @@ mod tests {
     }
 
     fn oil_schedule(connection: &Connection) -> MaintenanceScheduleRecord {
+        scheduling::upsert_vehicle_maintenance_setting(
+            connection,
+            crate::maintenance::models::UpsertVehicleMaintenanceSettingRequest {
+                vehicle_id: "vehicle-1".to_string(),
+                template_id: template_id(connection, "engine_oil_change"),
+                status: Some("active".to_string()),
+                custom_time_interval_days: Some(180),
+                custom_odometer_interval_km: Some(5_000),
+                custom_due_soon_days: None,
+                custom_due_soon_km: None,
+                notes: None,
+            },
+        )
+        .expect("oil reminder should save");
         scheduling::sync_schedules_for_vehicle_on(connection, "vehicle-1", "2026-01-01")
             .expect("sync should work")
             .schedules
@@ -851,9 +1150,39 @@ mod tests {
             .expect("oil schedule should exist")
     }
 
+    fn template_id(connection: &Connection, key: &str) -> String {
+        connection
+            .query_row(
+                "SELECT id FROM maintenance_templates WHERE template_key = ?1",
+                params![key],
+                |row| row.get(0),
+            )
+            .unwrap_or_else(|_| panic!("template {key} should exist"))
+    }
+
     fn completion_request(schedule_id: &str) -> CompleteMaintenanceScheduleRequest {
         CompleteMaintenanceScheduleRequest {
             schedule_id: schedule_id.to_string(),
+            completed_date: "2026-02-01".to_string(),
+            odometer: Some(1_500.0),
+            work_performed: "Changed engine oil".to_string(),
+            parts_replaced: Some("Oil and filter".to_string()),
+            labor_cost: Some(500.0),
+            parts_cost: Some(1200.0),
+            total_cost: None,
+            mechanic_shop: Some("Local shop".to_string()),
+            receipt_document_id: None,
+            before_photo_id: None,
+            after_photo_id: None,
+            warranty_expiration: Some("2026-08-01".to_string()),
+            notes: Some("Routine service".to_string()),
+        }
+    }
+
+    fn log_request(template_id: String) -> LogMaintenanceRequest {
+        LogMaintenanceRequest {
+            vehicle_id: "vehicle-1".to_string(),
+            template_id,
             completed_date: "2026-02-01".to_string(),
             odometer: Some(1_500.0),
             work_performed: "Changed engine oil".to_string(),
@@ -894,6 +1223,51 @@ mod tests {
             .expect("service history should list");
         assert_eq!(logs.len(), 1);
         assert_eq!(logs[0].template_name.as_deref(), Some("Engine Oil Change"));
+    }
+
+    #[test]
+    fn logging_without_reminder_creates_history_without_next_due_schedule() {
+        let (_temp_dir, mut connection) = setup_database();
+        insert_vehicle(&connection);
+        let oil_template_id = template_id(&connection, "engine_oil_change");
+
+        let result = log_maintenance(&mut connection, log_request(oil_template_id))
+            .expect("maintenance log should save");
+
+        assert!(!result.reminder_used);
+        assert!(result.schedule.is_none());
+        assert_eq!(result.log.schedule_id, None);
+        assert_eq!(result.log.next_recommended_date, None);
+        assert_eq!(result.log.next_recommended_odometer, None);
+
+        let schedule_count: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM maintenance_schedules WHERE vehicle_id = 'vehicle-1'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("schedule count should read");
+        assert_eq!(schedule_count, 0);
+    }
+
+    #[test]
+    fn logging_with_reminder_updates_next_due_values() {
+        let (_temp_dir, mut connection) = setup_database();
+        insert_vehicle(&connection);
+        oil_schedule(&connection);
+        let oil_template_id = template_id(&connection, "engine_oil_change");
+
+        let result = log_maintenance(&mut connection, log_request(oil_template_id))
+            .expect("maintenance log should save");
+
+        let schedule = result.schedule.expect("reminder schedule should update");
+        assert!(result.reminder_used);
+        assert_eq!(schedule.next_due_date.as_deref(), Some("2026-07-31"));
+        assert_eq!(schedule.next_due_odometer, Some(6_500.0));
+        assert_eq!(
+            result.log.schedule_id.as_deref(),
+            Some(schedule.id.as_str())
+        );
     }
 
     #[test]

@@ -40,7 +40,7 @@ export const navigationItems: NavigationItem[] = [
     id: "maintenance",
     label: "Maintenance",
     shortLabel: "Maint.",
-    description: "Due tasks and smart template planning",
+    description: "Log maintenance and set vehicle reminders",
   },
   {
     id: "service-history",

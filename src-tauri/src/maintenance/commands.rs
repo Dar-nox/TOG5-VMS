@@ -9,10 +9,12 @@ use super::{
     },
     models::{
         AlertRecord, ApplicableMaintenanceTemplate, CompleteMaintenanceScheduleRequest,
-        CompleteMaintenanceScheduleResult, MaintenanceAttachmentRecord, MaintenanceLogRecord,
-        MaintenanceScheduleRecord, MaintenanceTemplateRecord, RefreshMaintenanceAlertsResult,
-        SeedMaintenanceTemplatesResult, StoreMaintenancePhotoRequest,
-        StoreMaintenanceReceiptRequest, SyncMaintenanceSchedulesResult,
+        CompleteMaintenanceScheduleResult, LogMaintenanceRequest, LogMaintenanceResult,
+        MaintenanceAttachmentRecord, MaintenanceLogRecord, MaintenanceScheduleRecord,
+        MaintenanceTemplateRecord, RefreshMaintenanceAlertsResult, SeedMaintenanceTemplatesResult,
+        StoreMaintenancePhotoRequest, StoreMaintenanceReceiptRequest,
+        SyncMaintenanceSchedulesResult, UpsertVehicleMaintenanceSettingRequest,
+        VehicleMaintenanceSettingRecord,
     },
     repository, scheduling, service_history,
 };
@@ -61,6 +63,33 @@ pub fn sync_maintenance_schedules_for_vehicle(
 }
 
 #[tauri::command]
+pub fn list_vehicle_maintenance_settings(
+    app: AppHandle,
+    vehicle_id: String,
+) -> Result<Vec<VehicleMaintenanceSettingRecord>, String> {
+    let connection = db::open_app_connection(&app)?;
+    scheduling::list_vehicle_maintenance_settings(&connection, &vehicle_id)
+}
+
+#[tauri::command]
+pub fn upsert_vehicle_maintenance_setting(
+    app: AppHandle,
+    request: UpsertVehicleMaintenanceSettingRequest,
+) -> Result<VehicleMaintenanceSettingRecord, String> {
+    let connection = db::open_app_connection(&app)?;
+    scheduling::upsert_vehicle_maintenance_setting(&connection, request)
+}
+
+#[tauri::command]
+pub fn archive_vehicle_maintenance_setting(
+    app: AppHandle,
+    setting_id: String,
+) -> Result<(), String> {
+    let connection = db::open_app_connection(&app)?;
+    scheduling::archive_vehicle_maintenance_setting(&connection, &setting_id)
+}
+
+#[tauri::command]
 pub fn refresh_maintenance_alerts_for_vehicle(
     app: AppHandle,
     vehicle_id: String,
@@ -88,6 +117,15 @@ pub fn complete_maintenance_schedule(
 ) -> Result<CompleteMaintenanceScheduleResult, String> {
     let mut connection = db::open_app_connection(&app)?;
     service_history::complete_maintenance_schedule(&mut connection, request)
+}
+
+#[tauri::command]
+pub fn log_maintenance(
+    app: AppHandle,
+    request: LogMaintenanceRequest,
+) -> Result<LogMaintenanceResult, String> {
+    let mut connection = db::open_app_connection(&app)?;
+    service_history::log_maintenance(&mut connection, request)
 }
 
 #[tauri::command]

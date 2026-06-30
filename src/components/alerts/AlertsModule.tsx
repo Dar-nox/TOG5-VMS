@@ -61,8 +61,8 @@ export function AlertsModule() {
 
         {!loading && alerts.length === 0 ? (
           <div className="maintenance-empty-note">
-            No active maintenance alerts yet. Create schedules from the Maintenance page, then
-            refresh alerts for a selected vehicle.
+            No active maintenance alerts yet. Set maintenance reminders for a vehicle, then alerts
+            will appear when an item is due soon or overdue.
           </div>
         ) : null}
 

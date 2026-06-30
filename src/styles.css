@@ -202,28 +202,6 @@ h1 {
   line-height: 1.5;
 }
 
-.header-status {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid #c9d6d2;
-  border-radius: 999px;
-  background: #ffffff;
-  color: #31515b;
-  padding: 9px 12px;
-  font-size: 0.9rem;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.status-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: #2f8f5b;
-}
-
 .content-area {
   min-width: 0;
   padding: 28px 34px 36px;
@@ -302,8 +280,7 @@ h1 {
 .dashboard-panel,
 .dashboard-latest-vehicle,
 .dashboard-attention-row,
-.dashboard-activity-row,
-.dashboard-action-card {
+.dashboard-activity-row {
   border: 1px solid #d8e0dd;
   border-radius: 8px;
   background: #ffffff;
@@ -326,9 +303,7 @@ h1 {
 .dashboard-latest-vehicle span,
 .dashboard-attention-row h3,
 .dashboard-attention-row p,
-.dashboard-activity-row p,
-.dashboard-action-card strong,
-.dashboard-action-card span {
+.dashboard-activity-row p {
   margin: 0;
 }
 
@@ -341,8 +316,7 @@ h1 {
 .dashboard-hero p:not(.eyebrow),
 .dashboard-panel-header p,
 .dashboard-attention-row p,
-.dashboard-activity-row p,
-.dashboard-action-card span {
+.dashboard-activity-row p {
   color: #52636a;
   line-height: 1.52;
 }
@@ -441,15 +415,13 @@ h1 {
 
 .dashboard-attention-list,
 .dashboard-activity-list,
-.dashboard-cost-list,
-.dashboard-action-grid {
+.dashboard-cost-list {
   display: grid;
   gap: 10px;
 }
 
 .dashboard-attention-row,
-.dashboard-activity-row,
-.dashboard-action-card {
+.dashboard-activity-row {
   width: 100%;
   min-width: 0;
   border-color: #dce4e1;
@@ -469,9 +441,7 @@ h1 {
 .dashboard-attention-row:hover,
 .dashboard-attention-row:focus-visible,
 .dashboard-activity-row:hover,
-.dashboard-activity-row:focus-visible,
-.dashboard-action-card:hover,
-.dashboard-action-card:focus-visible {
+.dashboard-activity-row:focus-visible {
   border-color: #9fb5bd;
   outline: 3px solid rgba(59, 120, 160, 0.12);
 }
@@ -559,21 +529,6 @@ h1 {
   height: 100%;
   border-radius: inherit;
   background: #3b78a0;
-}
-
-.dashboard-action-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.dashboard-action-card {
-  display: grid;
-  gap: 8px;
-  padding: 16px;
-}
-
-.dashboard-action-card strong {
-  color: #173844;
-  font-size: 1rem;
 }
 
 .placeholder-section {
@@ -1106,9 +1061,12 @@ h1 {
 .maintenance-preview-panel,
 .maintenance-library-panel,
 .maintenance-schedule-panel,
+.maintenance-log-panel,
+.maintenance-reminder-panel,
 .maintenance-completion-panel,
 .maintenance-template-card,
 .maintenance-schedule-card,
+.maintenance-reminder-card,
 .alerts-toolbar,
 .real-alert-card,
 .service-history-workspace,
@@ -1124,6 +1082,8 @@ h1 {
 .maintenance-preview-panel,
 .maintenance-library-panel,
 .maintenance-schedule-panel,
+.maintenance-log-panel,
+.maintenance-reminder-panel,
 .maintenance-completion-panel,
 .alerts-toolbar,
 .service-history-workspace {
@@ -1136,6 +1096,10 @@ h1 {
 .maintenance-toolbar p,
 .maintenance-selector h3,
 .maintenance-selector p,
+.maintenance-log-panel h3,
+.maintenance-log-panel p,
+.maintenance-reminder-panel h3,
+.maintenance-reminder-panel p,
 .alerts-toolbar h2,
 .alerts-toolbar p,
 .service-history-header h2,
@@ -1156,6 +1120,8 @@ h1 {
 .maintenance-workspace-header p,
 .maintenance-toolbar p,
 .maintenance-selector p,
+.maintenance-log-panel p,
+.maintenance-reminder-panel p,
 .alerts-toolbar p,
 .service-history-header p,
 .maintenance-completion-panel p {
@@ -1169,6 +1135,8 @@ h1 {
 .maintenance-preview-panel,
 .maintenance-library-panel,
 .maintenance-schedule-panel,
+.maintenance-log-panel,
+.maintenance-reminder-panel,
 .maintenance-completion-panel,
 .alerts-module,
 .service-history-module,
@@ -1192,7 +1160,9 @@ h1 {
   gap: 18px;
 }
 
-.maintenance-selector h3 {
+.maintenance-selector h3,
+.maintenance-log-panel h3,
+.maintenance-reminder-panel h3 {
   color: #173844;
   font-size: 1.08rem;
 }
@@ -1242,6 +1212,32 @@ h1 {
 .maintenance-command-bar span {
   color: #52636a;
   font-size: 0.92rem;
+}
+
+.maintenance-simple-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 0.82fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.maintenance-side-stack,
+.maintenance-log-panel,
+.maintenance-reminder-panel,
+.maintenance-reminder-list {
+  display: grid;
+  gap: 14px;
+}
+
+.maintenance-log-panel,
+.maintenance-reminder-panel {
+  box-shadow: none;
+}
+
+.maintenance-reminder-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .vehicle-rule-summary {
@@ -1328,6 +1324,7 @@ h1 {
 
 .maintenance-template-card,
 .maintenance-schedule-card,
+.maintenance-reminder-card,
 .real-alert-card {
   display: grid;
   align-content: start;
@@ -1387,6 +1384,7 @@ h1 {
 
 .maintenance-template-card h3,
 .maintenance-schedule-card h3,
+.maintenance-reminder-card h3,
 .real-alert-card h3 {
   margin: 0;
   color: #173844;
@@ -1395,6 +1393,7 @@ h1 {
 
 .maintenance-template-card p,
 .maintenance-schedule-card p,
+.maintenance-reminder-card p,
 .real-alert-card p {
   margin: 0;
   color: #52636a;
@@ -1499,6 +1498,10 @@ h1 {
   min-height: 0;
 }
 
+.maintenance-schedule-card.compact {
+  box-shadow: none;
+}
+
 .maintenance-schedule-list {
   display: grid;
   gap: 10px;
@@ -1533,6 +1536,7 @@ h1 {
   display: flex;
   grid-column: 1 / -1;
   justify-content: flex-end;
+  gap: 10px;
 }
 
 .maintenance-completion-panel {
@@ -1617,6 +1621,10 @@ h1 {
 .schedule-status-pill.disabled {
   background: #eef3f1;
   color: #52636a;
+}
+
+.danger-text {
+  color: #9a332b;
 }
 
 .schedule-thresholds,
@@ -2672,17 +2680,18 @@ h1 {
   }
 
   .dashboard-hero,
-  .dashboard-split-grid,
-  .dashboard-action-grid {
+  .dashboard-split-grid {
     grid-template-columns: 1fr;
   }
 
   .vehicle-workspace,
   .vehicle-detail-grid,
+  .maintenance-simple-layout,
   .maintenance-template-grid,
   .maintenance-schedule-grid,
   .maintenance-template-card.with-applicability,
   .maintenance-schedule-card,
+  .maintenance-reminder-form,
   .maintenance-completion-grid,
   .maintenance-attachment-row,
   .service-history-header,
@@ -2763,17 +2772,12 @@ h1 {
     padding: 22px;
   }
 
-  .header-status {
-    white-space: normal;
-  }
-
   .content-area {
     padding: 18px;
   }
 
   .summary-grid,
-  .alert-grid,
-  .dashboard-action-grid {
+  .alert-grid {
     grid-template-columns: 1fr;
   }
 
@@ -2803,9 +2807,11 @@ h1 {
   .vehicle-toolbar,
   .vehicle-profile-hero,
   .vehicle-photo-picker,
+  .maintenance-simple-layout,
   .maintenance-workspace-header,
   .maintenance-selector,
   .maintenance-section-actions,
+  .maintenance-reminder-form,
   .alerts-toolbar,
   .service-history-header,
   .maintenance-completion-grid,

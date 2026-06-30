@@ -2,12 +2,10 @@ use rusqlite::{params, Connection, OptionalExtension, Row};
 
 use crate::{settings, vehicles::photo_storage::generate_local_id};
 
-use super::{
-    models::{
-        AlertRecord, DueStatusEvaluation, MaintenanceScheduleRecord,
-        RefreshMaintenanceAlertsResult, SyncMaintenanceSchedulesResult,
-    },
-    repository,
+use super::models::{
+    AlertRecord, DueStatusEvaluation, MaintenanceScheduleRecord, RefreshMaintenanceAlertsResult,
+    SyncMaintenanceSchedulesResult, UpsertVehicleMaintenanceSettingRequest,
+    VehicleMaintenanceSettingRecord,
 };
 
 const MAINTENANCE_ALERT_TYPES: &[&str] = &[
@@ -46,6 +44,31 @@ struct ScheduleRow {
     updated_at: String,
 }
 
+#[derive(Debug, Clone)]
+struct SettingScheduleSource {
+    id: String,
+    vehicle_id: String,
+    template_id: String,
+    status: String,
+    custom_time_interval_days: Option<i64>,
+    custom_odometer_interval_km: Option<i64>,
+    due_soon_days: i64,
+    due_soon_km: i64,
+    priority: String,
+}
+
+#[derive(Debug)]
+struct NormalizedSettingRequest {
+    vehicle_id: String,
+    template_id: String,
+    status: String,
+    custom_time_interval_days: Option<i64>,
+    custom_odometer_interval_km: Option<i64>,
+    custom_due_soon_days: Option<i64>,
+    custom_due_soon_km: Option<i64>,
+    notes: Option<String>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AlertWriteResult {
     Created,
@@ -59,6 +82,7 @@ pub fn list_schedules_for_vehicle(
 ) -> Result<Vec<MaintenanceScheduleRecord>, String> {
     let vehicle = vehicle_profile(connection, vehicle_id)?;
     let today = current_date(connection)?;
+    backfill_settings_from_existing_schedules(connection, vehicle_id)?;
     refresh_schedule_statuses_for_vehicle_on(connection, vehicle_id, &today)?;
     load_schedule_records(connection, &vehicle, &today)
 }
@@ -82,51 +106,34 @@ pub fn sync_schedules_for_vehicle_on(
         return Err("Archived vehicles do not receive new maintenance schedules.".to_string());
     }
 
-    let applicable_templates =
-        repository::applicable_templates_for_vehicle(connection, vehicle_id)?;
-    let (default_due_soon_days, default_due_soon_km) =
-        settings::repository::schedule_default_thresholds(connection)?;
+    backfill_settings_from_existing_schedules(connection, vehicle_id)?;
+    let setting_sources = active_setting_sources(connection, vehicle_id)?;
     let mut created_count = 0;
     let mut skipped_count = 0;
 
-    for result in applicable_templates {
-        if !result.is_auto_applicable || result.applicability_status != "applicable" {
+    for setting in setting_sources {
+        if schedule_exists(connection, vehicle_id, &setting.template_id)? {
+            link_existing_schedule_to_setting(connection, &setting)?;
             skipped_count += 1;
             continue;
         }
 
-        if schedule_exists(connection, vehicle_id, &result.template.id)? {
-            skipped_count += 1;
-            continue;
-        }
-
-        let legal_document = result.template.category == "legal_documents";
-        let next_due_date = if legal_document {
-            None
-        } else {
-            match result.template.default_time_interval_days {
-                Some(days) => Some(date_plus_days(connection, today, days)?),
-                None => None,
-            }
+        let next_due_date = match setting.custom_time_interval_days {
+            Some(days) => Some(date_plus_days(connection, today, days)?),
+            None => None,
         };
-        let next_due_odometer = if legal_document {
-            None
-        } else {
-            result
-                .template
-                .default_odometer_interval_km
-                .map(|interval| vehicle.current_odometer + interval as f64)
-        };
-        let notes =
-            schedule_setup_note(legal_document, next_due_date.as_deref(), next_due_odometer);
+        let next_due_odometer = setting
+            .custom_odometer_interval_km
+            .map(|interval| vehicle.current_odometer + interval as f64);
+        let notes = schedule_setup_note(next_due_date.as_deref(), next_due_odometer);
         let evaluation = evaluate_due_status(
             today,
             vehicle.current_odometer,
             next_due_date.as_deref(),
             next_due_odometer,
-            default_due_soon_days,
-            default_due_soon_km,
-            false,
+            setting.due_soon_days,
+            setting.due_soon_km,
+            setting.status == "disabled",
         );
 
         connection
@@ -136,6 +143,7 @@ pub fn sync_schedules_for_vehicle_on(
                   id,
                   vehicle_id,
                   template_id,
+                  vehicle_maintenance_setting_id,
                   next_due_date,
                   next_due_odometer,
                   due_soon_days,
@@ -144,18 +152,19 @@ pub fn sync_schedules_for_vehicle_on(
                   priority,
                   notes
                 )
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
                 ",
                 params![
                     generate_local_id("maintenance_schedule"),
                     vehicle_id,
-                    result.template.id,
+                    setting.template_id,
+                    setting.id,
                     next_due_date,
                     next_due_odometer,
-                    default_due_soon_days,
-                    default_due_soon_km,
+                    setting.due_soon_days,
+                    setting.due_soon_km,
                     evaluation.status,
-                    result.template.priority,
+                    setting.priority,
                     notes,
                 ],
             )
@@ -176,6 +185,267 @@ pub fn sync_schedules_for_vehicle_on(
     })
 }
 
+pub fn list_vehicle_maintenance_settings(
+    connection: &Connection,
+    vehicle_id: &str,
+) -> Result<Vec<VehicleMaintenanceSettingRecord>, String> {
+    vehicle_profile(connection, vehicle_id)?;
+    backfill_settings_from_existing_schedules(connection, vehicle_id)?;
+    load_setting_records(connection, vehicle_id)
+}
+
+pub fn upsert_vehicle_maintenance_setting(
+    connection: &Connection,
+    request: UpsertVehicleMaintenanceSettingRequest,
+) -> Result<VehicleMaintenanceSettingRecord, String> {
+    let mut setting = normalize_setting_request(request)?;
+    let vehicle = vehicle_profile(connection, &setting.vehicle_id)?;
+
+    if vehicle_is_archived(&vehicle) {
+        return Err("Archived vehicles cannot receive new maintenance reminders.".to_string());
+    }
+
+    ensure_template_exists(connection, &setting.template_id)?;
+    let (default_due_soon_days, default_due_soon_km) =
+        settings::repository::schedule_default_thresholds(connection)?;
+    setting.custom_due_soon_days = setting.custom_due_soon_days.or(Some(default_due_soon_days));
+    setting.custom_due_soon_km = setting.custom_due_soon_km.or(Some(default_due_soon_km));
+
+    let setting_id = connection
+        .query_row(
+            "
+            SELECT id
+            FROM vehicle_maintenance_settings
+            WHERE vehicle_id = ?1
+              AND template_id = ?2
+            LIMIT 1
+            ",
+            params![setting.vehicle_id, setting.template_id],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(|_| "Could not check existing maintenance reminder.".to_string())?
+        .unwrap_or_else(|| generate_local_id("vehicle_maintenance_setting"));
+
+    let changed_rows = connection
+        .execute(
+            "
+            UPDATE vehicle_maintenance_settings
+            SET
+              status = ?1,
+              custom_time_interval_days = ?2,
+              custom_odometer_interval_km = ?3,
+              custom_due_soon_days = ?4,
+              custom_due_soon_km = ?5,
+              notes = ?6,
+              deleted_at = NULL,
+              updated_at = datetime('now')
+            WHERE id = ?7
+            ",
+            params![
+                setting.status,
+                setting.custom_time_interval_days,
+                setting.custom_odometer_interval_km,
+                setting.custom_due_soon_days,
+                setting.custom_due_soon_km,
+                setting.notes,
+                setting_id,
+            ],
+        )
+        .map_err(|_| "Could not update the maintenance reminder.".to_string())?;
+
+    if changed_rows == 0 {
+        connection
+            .execute(
+                "
+                INSERT INTO vehicle_maintenance_settings (
+                  id,
+                  vehicle_id,
+                  template_id,
+                  status,
+                  custom_time_interval_days,
+                  custom_odometer_interval_km,
+                  custom_due_soon_days,
+                  custom_due_soon_km,
+                  notes
+                )
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+                ",
+                params![
+                    setting_id,
+                    setting.vehicle_id,
+                    setting.template_id,
+                    setting.status,
+                    setting.custom_time_interval_days,
+                    setting.custom_odometer_interval_km,
+                    setting.custom_due_soon_days,
+                    setting.custom_due_soon_km,
+                    setting.notes,
+                ],
+            )
+            .map_err(|_| "Could not create the maintenance reminder.".to_string())?;
+    }
+
+    recalculate_schedule_for_setting(connection, &setting_id, None, None, None)?;
+
+    get_vehicle_maintenance_setting(connection, &setting_id)?
+        .ok_or_else(|| "Could not read the saved maintenance reminder.".to_string())
+}
+
+pub fn archive_vehicle_maintenance_setting(
+    connection: &Connection,
+    setting_id: &str,
+) -> Result<(), String> {
+    let setting = setting_source_by_id(connection, setting_id)?
+        .ok_or_else(|| "Maintenance reminder was not found.".to_string())?;
+
+    connection
+        .execute(
+            "
+            UPDATE vehicle_maintenance_settings
+            SET
+              status = 'disabled',
+              deleted_at = datetime('now'),
+              updated_at = datetime('now')
+            WHERE id = ?1
+            ",
+            params![setting.id],
+        )
+        .map_err(|_| "Could not remove the maintenance reminder.".to_string())?;
+
+    let schedule_ids = schedule_ids_for_setting(connection, &setting.id)?;
+    connection
+        .execute(
+            "
+            UPDATE maintenance_schedules
+            SET
+              status = 'disabled',
+              archived_at = datetime('now'),
+              updated_at = datetime('now')
+            WHERE vehicle_maintenance_setting_id = ?1
+              AND deleted_at IS NULL
+            ",
+            params![setting.id],
+        )
+        .map_err(|_| "Could not disable reminder schedules.".to_string())?;
+
+    for schedule_id in schedule_ids {
+        resolve_active_alerts_for_schedule(connection, &schedule_id, None)?;
+    }
+
+    Ok(())
+}
+
+pub(crate) fn schedule_id_for_active_setting(
+    connection: &Connection,
+    vehicle_id: &str,
+    template_id: &str,
+    today: &str,
+) -> Result<Option<String>, String> {
+    backfill_settings_from_existing_schedules(connection, vehicle_id)?;
+    let Some(setting) = active_setting_source_for_template(connection, vehicle_id, template_id)?
+    else {
+        return Ok(None);
+    };
+
+    if let Some(schedule_id) = schedule_id_by_vehicle_template(connection, vehicle_id, template_id)?
+    {
+        link_existing_schedule_to_setting(connection, &setting)?;
+        return Ok(Some(schedule_id));
+    }
+
+    let vehicle = vehicle_profile(connection, vehicle_id)?;
+    let next_due_date = match setting.custom_time_interval_days {
+        Some(days) => Some(date_plus_days(connection, today, days)?),
+        None => None,
+    };
+    let next_due_odometer = setting
+        .custom_odometer_interval_km
+        .map(|interval| vehicle.current_odometer + interval as f64);
+    let evaluation = evaluate_due_status(
+        today,
+        vehicle.current_odometer,
+        next_due_date.as_deref(),
+        next_due_odometer,
+        setting.due_soon_days,
+        setting.due_soon_km,
+        false,
+    );
+    let schedule_id = generate_local_id("maintenance_schedule");
+
+    connection
+        .execute(
+            "
+            INSERT INTO maintenance_schedules (
+              id,
+              vehicle_id,
+              template_id,
+              vehicle_maintenance_setting_id,
+              next_due_date,
+              next_due_odometer,
+              due_soon_days,
+              due_soon_km,
+              status,
+              priority,
+              notes
+            )
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+            ",
+            params![
+                schedule_id,
+                vehicle_id,
+                template_id,
+                setting.id,
+                next_due_date,
+                next_due_odometer,
+                setting.due_soon_days,
+                setting.due_soon_km,
+                evaluation.status,
+                setting.priority,
+                schedule_setup_note(next_due_date.as_deref(), next_due_odometer),
+            ],
+        )
+        .map_err(|_| "Could not create the maintenance reminder schedule.".to_string())?;
+
+    Ok(Some(schedule_id))
+}
+
+pub(crate) fn get_setting_intervals_for_schedule(
+    connection: &Connection,
+    schedule_id: &str,
+) -> Result<ScheduleReminderIntervals, String> {
+    connection
+        .query_row(
+            "
+            SELECT
+              vehicle_maintenance_settings.custom_time_interval_days,
+              vehicle_maintenance_settings.custom_odometer_interval_km
+            FROM maintenance_schedules
+            LEFT JOIN vehicle_maintenance_settings
+              ON vehicle_maintenance_settings.id = maintenance_schedules.vehicle_maintenance_setting_id
+             AND vehicle_maintenance_settings.deleted_at IS NULL
+             AND vehicle_maintenance_settings.status IN ('active', 'manually_added')
+            WHERE maintenance_schedules.id = ?1
+              AND maintenance_schedules.deleted_at IS NULL
+            ",
+            params![schedule_id],
+            |row| {
+                Ok(ScheduleReminderIntervals {
+                    time_interval_days: row.get(0)?,
+                    odometer_interval_km: row.get(1)?,
+                })
+            },
+        )
+        .optional()
+        .map_err(|_| "Could not read maintenance reminder intervals.".to_string())?
+        .ok_or_else(|| "Maintenance schedule was not found.".to_string())
+}
+
+pub(crate) struct ScheduleReminderIntervals {
+    pub time_interval_days: Option<i64>,
+    pub odometer_interval_km: Option<i64>,
+}
+
 pub fn refresh_maintenance_alerts_for_vehicle(
     connection: &Connection,
     vehicle_id: &str,
@@ -194,6 +464,7 @@ pub fn refresh_maintenance_alerts_for_vehicle_on(
     let mut updated_count = 0;
     let mut resolved_count = 0;
 
+    backfill_settings_from_existing_schedules(connection, vehicle_id)?;
     refresh_schedule_statuses_for_vehicle_on(connection, vehicle_id, today)?;
     let schedules = load_schedule_records(connection, &vehicle, today)?;
 
@@ -418,6 +689,7 @@ fn load_schedule_rows(
             {SCHEDULE_SELECT}
             WHERE maintenance_schedules.vehicle_id = ?1
               AND maintenance_schedules.deleted_at IS NULL
+              AND maintenance_schedules.archived_at IS NULL
             ORDER BY
               CASE maintenance_schedules.status
                 WHEN 'overdue' THEN 0
@@ -490,6 +762,7 @@ fn schedule_exists(
             WHERE vehicle_id = ?1
               AND template_id = ?2
               AND deleted_at IS NULL
+              AND archived_at IS NULL
             LIMIT 1
             ",
             params![vehicle_id, template_id],
@@ -498,6 +771,697 @@ fn schedule_exists(
         .optional()
         .map(|value| value.is_some())
         .map_err(|_| "Could not check existing maintenance schedules.".to_string())
+}
+
+fn schedule_id_by_vehicle_template(
+    connection: &Connection,
+    vehicle_id: &str,
+    template_id: &str,
+) -> Result<Option<String>, String> {
+    connection
+        .query_row(
+            "
+            SELECT id
+            FROM maintenance_schedules
+            WHERE vehicle_id = ?1
+              AND template_id = ?2
+              AND deleted_at IS NULL
+              AND archived_at IS NULL
+            LIMIT 1
+            ",
+            params![vehicle_id, template_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|_| "Could not read the maintenance reminder schedule.".to_string())
+}
+
+fn schedule_ids_for_setting(
+    connection: &Connection,
+    setting_id: &str,
+) -> Result<Vec<String>, String> {
+    let mut statement = connection
+        .prepare(
+            "
+            SELECT id
+            FROM maintenance_schedules
+            WHERE vehicle_maintenance_setting_id = ?1
+              AND deleted_at IS NULL
+              AND archived_at IS NULL
+            ",
+        )
+        .map_err(|_| "Could not prepare reminder schedules.".to_string())?;
+
+    let rows = statement
+        .query_map(params![setting_id], |row| row.get::<_, String>(0))
+        .map_err(|_| "Could not read reminder schedules.".to_string())?;
+
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|_| "Could not parse reminder schedules.".to_string())
+}
+
+fn backfill_settings_from_existing_schedules(
+    connection: &Connection,
+    vehicle_id: &str,
+) -> Result<usize, String> {
+    let mut statement = connection
+        .prepare(
+            "
+            SELECT
+              maintenance_schedules.id,
+              maintenance_schedules.template_id,
+              maintenance_schedules.due_soon_days,
+              maintenance_schedules.due_soon_km,
+              maintenance_schedules.notes,
+              maintenance_templates.default_time_interval_days,
+              maintenance_templates.default_odometer_interval_km
+            FROM maintenance_schedules
+            INNER JOIN maintenance_templates
+              ON maintenance_templates.id = maintenance_schedules.template_id
+             AND maintenance_templates.deleted_at IS NULL
+            LEFT JOIN vehicle_maintenance_settings
+              ON vehicle_maintenance_settings.id = maintenance_schedules.vehicle_maintenance_setting_id
+             AND vehicle_maintenance_settings.deleted_at IS NULL
+            WHERE maintenance_schedules.vehicle_id = ?1
+              AND maintenance_schedules.deleted_at IS NULL
+              AND maintenance_schedules.archived_at IS NULL
+              AND vehicle_maintenance_settings.id IS NULL
+            ",
+        )
+        .map_err(|_| "Could not prepare existing maintenance reminders.".to_string())?;
+
+    let rows = statement
+        .query_map(params![vehicle_id], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, i64>(2)?,
+                row.get::<_, i64>(3)?,
+                row.get::<_, Option<String>>(4)?,
+                row.get::<_, Option<i64>>(5)?,
+                row.get::<_, Option<i64>>(6)?,
+            ))
+        })
+        .map_err(|_| "Could not read existing maintenance reminders.".to_string())?;
+
+    let schedule_rows = rows
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| "Could not parse existing maintenance reminders.".to_string())?;
+    let mut backfilled_count = 0;
+
+    for (
+        schedule_id,
+        template_id,
+        due_soon_days,
+        due_soon_km,
+        notes,
+        default_time_interval_days,
+        default_odometer_interval_km,
+    ) in schedule_rows
+    {
+        let setting_id = connection
+            .query_row(
+                "
+                SELECT id
+                FROM vehicle_maintenance_settings
+                WHERE vehicle_id = ?1
+                  AND template_id = ?2
+                LIMIT 1
+                ",
+                params![vehicle_id, template_id],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(|_| "Could not check existing reminder settings.".to_string())?
+            .unwrap_or_else(|| generate_local_id("vehicle_maintenance_setting"));
+
+        let changed_rows = connection
+            .execute(
+                "
+                UPDATE vehicle_maintenance_settings
+                SET
+                  status = 'active',
+                  custom_time_interval_days = COALESCE(custom_time_interval_days, ?1),
+                  custom_odometer_interval_km = COALESCE(custom_odometer_interval_km, ?2),
+                  custom_due_soon_days = COALESCE(custom_due_soon_days, ?3),
+                  custom_due_soon_km = COALESCE(custom_due_soon_km, ?4),
+                  notes = COALESCE(notes, ?5),
+                  deleted_at = NULL,
+                  updated_at = datetime('now')
+                WHERE id = ?6
+                ",
+                params![
+                    default_time_interval_days,
+                    default_odometer_interval_km,
+                    due_soon_days,
+                    due_soon_km,
+                    notes.clone().or_else(|| {
+                        Some("Preserved from earlier maintenance schedule setup.".to_string())
+                    }),
+                    setting_id,
+                ],
+            )
+            .map_err(|_| "Could not update preserved reminder settings.".to_string())?;
+
+        if changed_rows == 0 {
+            connection
+                .execute(
+                    "
+                    INSERT INTO vehicle_maintenance_settings (
+                      id,
+                      vehicle_id,
+                      template_id,
+                      status,
+                      custom_time_interval_days,
+                      custom_odometer_interval_km,
+                      custom_due_soon_days,
+                      custom_due_soon_km,
+                      notes
+                    )
+                    VALUES (?1, ?2, ?3, 'active', ?4, ?5, ?6, ?7, ?8)
+                    ",
+                    params![
+                        setting_id,
+                        vehicle_id,
+                        template_id,
+                        default_time_interval_days,
+                        default_odometer_interval_km,
+                        due_soon_days,
+                        due_soon_km,
+                        notes.unwrap_or_else(|| {
+                            "Preserved from earlier maintenance schedule setup.".to_string()
+                        }),
+                    ],
+                )
+                .map_err(|_| "Could not preserve existing maintenance schedule.".to_string())?;
+        }
+
+        connection
+            .execute(
+                "
+                UPDATE maintenance_schedules
+                SET
+                  vehicle_maintenance_setting_id = ?1,
+                  updated_at = datetime('now')
+                WHERE id = ?2
+                ",
+                params![setting_id, schedule_id],
+            )
+            .map_err(|_| "Could not link preserved schedule to reminder.".to_string())?;
+        backfilled_count += 1;
+    }
+
+    Ok(backfilled_count)
+}
+
+fn active_setting_sources(
+    connection: &Connection,
+    vehicle_id: &str,
+) -> Result<Vec<SettingScheduleSource>, String> {
+    let mut statement = connection
+        .prepare(
+            "
+            SELECT
+              vehicle_maintenance_settings.id,
+              vehicle_maintenance_settings.vehicle_id,
+              vehicle_maintenance_settings.template_id,
+              vehicle_maintenance_settings.status,
+              vehicle_maintenance_settings.custom_time_interval_days,
+              vehicle_maintenance_settings.custom_odometer_interval_km,
+              COALESCE(
+                vehicle_maintenance_settings.custom_due_soon_days,
+                maintenance_templates.default_due_soon_days
+              ),
+              COALESCE(
+                vehicle_maintenance_settings.custom_due_soon_km,
+                maintenance_templates.default_due_soon_km
+              ),
+              maintenance_templates.priority
+            FROM vehicle_maintenance_settings
+            INNER JOIN maintenance_templates
+              ON maintenance_templates.id = vehicle_maintenance_settings.template_id
+             AND maintenance_templates.deleted_at IS NULL
+             AND maintenance_templates.is_active = 1
+            WHERE vehicle_maintenance_settings.vehicle_id = ?1
+              AND vehicle_maintenance_settings.deleted_at IS NULL
+              AND vehicle_maintenance_settings.status IN ('active', 'manually_added')
+            ORDER BY maintenance_templates.category, maintenance_templates.name
+            ",
+        )
+        .map_err(|_| "Could not prepare maintenance reminder settings.".to_string())?;
+
+    let rows = statement
+        .query_map(params![vehicle_id], setting_source_from_row)
+        .map_err(|_| "Could not read maintenance reminder settings.".to_string())?;
+
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|_| "Could not parse maintenance reminder settings.".to_string())
+}
+
+fn active_setting_source_for_template(
+    connection: &Connection,
+    vehicle_id: &str,
+    template_id: &str,
+) -> Result<Option<SettingScheduleSource>, String> {
+    connection
+        .query_row(
+            "
+            SELECT
+              vehicle_maintenance_settings.id,
+              vehicle_maintenance_settings.vehicle_id,
+              vehicle_maintenance_settings.template_id,
+              vehicle_maintenance_settings.status,
+              vehicle_maintenance_settings.custom_time_interval_days,
+              vehicle_maintenance_settings.custom_odometer_interval_km,
+              COALESCE(
+                vehicle_maintenance_settings.custom_due_soon_days,
+                maintenance_templates.default_due_soon_days
+              ),
+              COALESCE(
+                vehicle_maintenance_settings.custom_due_soon_km,
+                maintenance_templates.default_due_soon_km
+              ),
+              maintenance_templates.priority
+            FROM vehicle_maintenance_settings
+            INNER JOIN maintenance_templates
+              ON maintenance_templates.id = vehicle_maintenance_settings.template_id
+             AND maintenance_templates.deleted_at IS NULL
+             AND maintenance_templates.is_active = 1
+            WHERE vehicle_maintenance_settings.vehicle_id = ?1
+              AND vehicle_maintenance_settings.template_id = ?2
+              AND vehicle_maintenance_settings.deleted_at IS NULL
+              AND vehicle_maintenance_settings.status IN ('active', 'manually_added')
+            LIMIT 1
+            ",
+            params![vehicle_id, template_id],
+            setting_source_from_row,
+        )
+        .optional()
+        .map_err(|_| "Could not read the maintenance reminder.".to_string())
+}
+
+fn setting_source_by_id(
+    connection: &Connection,
+    setting_id: &str,
+) -> Result<Option<SettingScheduleSource>, String> {
+    connection
+        .query_row(
+            "
+            SELECT
+              vehicle_maintenance_settings.id,
+              vehicle_maintenance_settings.vehicle_id,
+              vehicle_maintenance_settings.template_id,
+              vehicle_maintenance_settings.status,
+              vehicle_maintenance_settings.custom_time_interval_days,
+              vehicle_maintenance_settings.custom_odometer_interval_km,
+              COALESCE(
+                vehicle_maintenance_settings.custom_due_soon_days,
+                maintenance_templates.default_due_soon_days
+              ),
+              COALESCE(
+                vehicle_maintenance_settings.custom_due_soon_km,
+                maintenance_templates.default_due_soon_km
+              ),
+              maintenance_templates.priority
+            FROM vehicle_maintenance_settings
+            INNER JOIN maintenance_templates
+              ON maintenance_templates.id = vehicle_maintenance_settings.template_id
+             AND maintenance_templates.deleted_at IS NULL
+            WHERE vehicle_maintenance_settings.id = ?1
+              AND vehicle_maintenance_settings.deleted_at IS NULL
+            LIMIT 1
+            ",
+            params![setting_id],
+            setting_source_from_row,
+        )
+        .optional()
+        .map_err(|_| "Could not read the maintenance reminder.".to_string())
+}
+
+fn setting_source_from_row(row: &Row<'_>) -> rusqlite::Result<SettingScheduleSource> {
+    Ok(SettingScheduleSource {
+        id: row.get(0)?,
+        vehicle_id: row.get(1)?,
+        template_id: row.get(2)?,
+        status: row.get(3)?,
+        custom_time_interval_days: row.get(4)?,
+        custom_odometer_interval_km: row.get(5)?,
+        due_soon_days: row.get(6)?,
+        due_soon_km: row.get(7)?,
+        priority: row.get(8)?,
+    })
+}
+
+fn load_setting_records(
+    connection: &Connection,
+    vehicle_id: &str,
+) -> Result<Vec<VehicleMaintenanceSettingRecord>, String> {
+    let mut statement = connection
+        .prepare(
+            "
+            SELECT
+              vehicle_maintenance_settings.id,
+              vehicle_maintenance_settings.vehicle_id,
+              vehicle_maintenance_settings.template_id,
+              maintenance_templates.template_key,
+              maintenance_templates.name,
+              maintenance_templates.category,
+              vehicle_maintenance_settings.status,
+              vehicle_maintenance_settings.custom_time_interval_days,
+              vehicle_maintenance_settings.custom_odometer_interval_km,
+              vehicle_maintenance_settings.custom_due_soon_days,
+              vehicle_maintenance_settings.custom_due_soon_km,
+              COALESCE(
+                vehicle_maintenance_settings.custom_due_soon_days,
+                maintenance_templates.default_due_soon_days
+              ),
+              COALESCE(
+                vehicle_maintenance_settings.custom_due_soon_km,
+                maintenance_templates.default_due_soon_km
+              ),
+              maintenance_templates.priority,
+              vehicle_maintenance_settings.notes,
+              vehicle_maintenance_settings.updated_at
+            FROM vehicle_maintenance_settings
+            INNER JOIN maintenance_templates
+              ON maintenance_templates.id = vehicle_maintenance_settings.template_id
+             AND maintenance_templates.deleted_at IS NULL
+            WHERE vehicle_maintenance_settings.vehicle_id = ?1
+              AND vehicle_maintenance_settings.deleted_at IS NULL
+            ORDER BY maintenance_templates.category, maintenance_templates.name
+            ",
+        )
+        .map_err(|_| "Could not prepare maintenance reminders.".to_string())?;
+
+    let rows = statement
+        .query_map(params![vehicle_id], setting_record_from_row)
+        .map_err(|_| "Could not read maintenance reminders.".to_string())?;
+
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|_| "Could not parse maintenance reminders.".to_string())
+}
+
+fn get_vehicle_maintenance_setting(
+    connection: &Connection,
+    setting_id: &str,
+) -> Result<Option<VehicleMaintenanceSettingRecord>, String> {
+    connection
+        .query_row(
+            "
+            SELECT
+              vehicle_maintenance_settings.id,
+              vehicle_maintenance_settings.vehicle_id,
+              vehicle_maintenance_settings.template_id,
+              maintenance_templates.template_key,
+              maintenance_templates.name,
+              maintenance_templates.category,
+              vehicle_maintenance_settings.status,
+              vehicle_maintenance_settings.custom_time_interval_days,
+              vehicle_maintenance_settings.custom_odometer_interval_km,
+              vehicle_maintenance_settings.custom_due_soon_days,
+              vehicle_maintenance_settings.custom_due_soon_km,
+              COALESCE(
+                vehicle_maintenance_settings.custom_due_soon_days,
+                maintenance_templates.default_due_soon_days
+              ),
+              COALESCE(
+                vehicle_maintenance_settings.custom_due_soon_km,
+                maintenance_templates.default_due_soon_km
+              ),
+              maintenance_templates.priority,
+              vehicle_maintenance_settings.notes,
+              vehicle_maintenance_settings.updated_at
+            FROM vehicle_maintenance_settings
+            INNER JOIN maintenance_templates
+              ON maintenance_templates.id = vehicle_maintenance_settings.template_id
+             AND maintenance_templates.deleted_at IS NULL
+            WHERE vehicle_maintenance_settings.id = ?1
+              AND vehicle_maintenance_settings.deleted_at IS NULL
+            ",
+            params![setting_id],
+            setting_record_from_row,
+        )
+        .optional()
+        .map_err(|_| "Could not read the maintenance reminder.".to_string())
+}
+
+fn setting_record_from_row(row: &Row<'_>) -> rusqlite::Result<VehicleMaintenanceSettingRecord> {
+    Ok(VehicleMaintenanceSettingRecord {
+        id: row.get(0)?,
+        vehicle_id: row.get(1)?,
+        template_id: row.get(2)?,
+        template_key: row.get(3)?,
+        template_name: row.get(4)?,
+        category: row.get(5)?,
+        status: row.get(6)?,
+        custom_time_interval_days: row.get(7)?,
+        custom_odometer_interval_km: row.get(8)?,
+        custom_due_soon_days: row.get(9)?,
+        custom_due_soon_km: row.get(10)?,
+        effective_due_soon_days: row.get(11)?,
+        effective_due_soon_km: row.get(12)?,
+        priority: row.get(13)?,
+        notes: row.get(14)?,
+        updated_at: row.get(15)?,
+    })
+}
+
+fn normalize_setting_request(
+    request: UpsertVehicleMaintenanceSettingRequest,
+) -> Result<NormalizedSettingRequest, String> {
+    let vehicle_id = required_trimmed(request.vehicle_id, "Choose a vehicle.")?;
+    let template_id = required_trimmed(request.template_id, "Choose a maintenance item.")?;
+    let status = request.status.unwrap_or_else(|| "active".to_string());
+    let status = status.trim().to_string();
+
+    if !["active", "manually_added", "disabled", "not_applicable"].contains(&status.as_str()) {
+        return Err("Choose a valid reminder status.".to_string());
+    }
+
+    let custom_time_interval_days = normalize_optional_non_negative_integer(
+        request.custom_time_interval_days,
+        "Days interval",
+    )?;
+    let custom_odometer_interval_km = normalize_optional_non_negative_integer(
+        request.custom_odometer_interval_km,
+        "Km interval",
+    )?;
+    let custom_due_soon_days =
+        normalize_optional_non_negative_integer(request.custom_due_soon_days, "Due soon days")?;
+    let custom_due_soon_km =
+        normalize_optional_non_negative_integer(request.custom_due_soon_km, "Due soon km")?;
+
+    if matches!(status.as_str(), "active" | "manually_added")
+        && custom_time_interval_days.is_none()
+        && custom_odometer_interval_km.is_none()
+    {
+        return Err(
+            "Set at least one reminder interval, such as every 90 days or every 5,000 km."
+                .to_string(),
+        );
+    }
+
+    Ok(NormalizedSettingRequest {
+        vehicle_id,
+        template_id,
+        status,
+        custom_time_interval_days,
+        custom_odometer_interval_km,
+        custom_due_soon_days,
+        custom_due_soon_km,
+        notes: trim_optional(request.notes),
+    })
+}
+
+fn normalize_optional_non_negative_integer(
+    value: Option<i64>,
+    label: &str,
+) -> Result<Option<i64>, String> {
+    match value {
+        Some(value) if value < 0 => Err(format!("{label} cannot be negative.")),
+        Some(0) => Ok(None),
+        value => Ok(value),
+    }
+}
+
+fn required_trimmed(value: String, message: &str) -> Result<String, String> {
+    let trimmed = value.trim().to_string();
+    (!trimmed.is_empty())
+        .then_some(trimmed)
+        .ok_or_else(|| message.to_string())
+}
+
+fn trim_optional(value: Option<String>) -> Option<String> {
+    value.and_then(|value| {
+        let trimmed = value.trim().to_string();
+        (!trimmed.is_empty()).then_some(trimmed)
+    })
+}
+
+fn ensure_template_exists(connection: &Connection, template_id: &str) -> Result<(), String> {
+    let exists = connection
+        .query_row(
+            "
+            SELECT 1
+            FROM maintenance_templates
+            WHERE id = ?1
+              AND is_active = 1
+              AND deleted_at IS NULL
+            ",
+            params![template_id],
+            |_| Ok(()),
+        )
+        .optional()
+        .map_err(|_| "Could not check the maintenance item.".to_string())?
+        .is_some();
+
+    exists
+        .then_some(())
+        .ok_or_else(|| "Maintenance item was not found.".to_string())
+}
+
+fn link_existing_schedule_to_setting(
+    connection: &Connection,
+    setting: &SettingScheduleSource,
+) -> Result<(), String> {
+    connection
+        .execute(
+            "
+            UPDATE maintenance_schedules
+            SET
+              vehicle_maintenance_setting_id = ?1,
+              due_soon_days = ?2,
+              due_soon_km = ?3,
+              priority = ?4,
+              updated_at = datetime('now')
+            WHERE vehicle_id = ?5
+              AND template_id = ?6
+              AND deleted_at IS NULL
+              AND archived_at IS NULL
+            ",
+            params![
+                setting.id,
+                setting.due_soon_days,
+                setting.due_soon_km,
+                setting.priority,
+                setting.vehicle_id,
+                setting.template_id,
+            ],
+        )
+        .map_err(|_| "Could not link schedule to reminder.".to_string())?;
+
+    Ok(())
+}
+
+fn recalculate_schedule_for_setting(
+    connection: &Connection,
+    setting_id: &str,
+    completed_date: Option<&str>,
+    completed_odometer: Option<f64>,
+    current_odometer_override: Option<f64>,
+) -> Result<Option<String>, String> {
+    let Some(setting) = setting_source_by_id(connection, setting_id)? else {
+        return Ok(None);
+    };
+    let vehicle = vehicle_profile(connection, &setting.vehicle_id)?;
+    let today = current_date(connection)?;
+    let schedule_id =
+        schedule_id_by_vehicle_template(connection, &setting.vehicle_id, &setting.template_id)?;
+    let base_date = completed_date.unwrap_or(&today);
+    let base_odometer = completed_odometer
+        .or(current_odometer_override)
+        .unwrap_or(vehicle.current_odometer);
+    let next_due_date = match setting.custom_time_interval_days {
+        Some(days) => Some(date_plus_days(connection, base_date, days)?),
+        None => None,
+    };
+    let next_due_odometer = setting
+        .custom_odometer_interval_km
+        .map(|interval| base_odometer + interval as f64);
+    let status = evaluate_due_status(
+        base_date,
+        vehicle.current_odometer.max(base_odometer),
+        next_due_date.as_deref(),
+        next_due_odometer,
+        setting.due_soon_days,
+        setting.due_soon_km,
+        setting.status == "disabled",
+    )
+    .status;
+    let notes = schedule_setup_note(next_due_date.as_deref(), next_due_odometer);
+
+    match schedule_id {
+        Some(schedule_id) => {
+            connection
+                .execute(
+                    "
+                    UPDATE maintenance_schedules
+                    SET
+                      vehicle_maintenance_setting_id = ?1,
+                      next_due_date = ?2,
+                      next_due_odometer = ?3,
+                      due_soon_days = ?4,
+                      due_soon_km = ?5,
+                      status = ?6,
+                      priority = ?7,
+                      notes = ?8,
+                      archived_at = NULL,
+                      updated_at = datetime('now')
+                    WHERE id = ?9
+                    ",
+                    params![
+                        setting.id,
+                        next_due_date,
+                        next_due_odometer,
+                        setting.due_soon_days,
+                        setting.due_soon_km,
+                        status,
+                        setting.priority,
+                        notes,
+                        schedule_id,
+                    ],
+                )
+                .map_err(|_| "Could not update the maintenance reminder schedule.".to_string())?;
+            Ok(Some(schedule_id))
+        }
+        None => {
+            let new_schedule_id = generate_local_id("maintenance_schedule");
+            connection
+                .execute(
+                    "
+                    INSERT INTO maintenance_schedules (
+                      id,
+                      vehicle_id,
+                      template_id,
+                      vehicle_maintenance_setting_id,
+                      next_due_date,
+                      next_due_odometer,
+                      due_soon_days,
+                      due_soon_km,
+                      status,
+                      priority,
+                      notes
+                    )
+                    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+                    ",
+                    params![
+                        new_schedule_id,
+                        setting.vehicle_id,
+                        setting.template_id,
+                        setting.id,
+                        next_due_date,
+                        next_due_odometer,
+                        setting.due_soon_days,
+                        setting.due_soon_km,
+                        status,
+                        setting.priority,
+                        notes,
+                    ],
+                )
+                .map_err(|_| "Could not create the maintenance reminder schedule.".to_string())?;
+            Ok(Some(new_schedule_id))
+        }
+    }
 }
 
 fn vehicle_profile(
@@ -538,19 +1502,11 @@ fn vehicle_is_archived(vehicle: &ScheduleVehicleProfile) -> bool {
 }
 
 fn schedule_setup_note(
-    legal_document: bool,
     next_due_date: Option<&str>,
     next_due_odometer: Option<f64>,
 ) -> Option<String> {
-    if legal_document {
-        return Some(
-            "Needs setup: enter the real registration or insurance renewal date before alerts."
-                .to_string(),
-        );
-    }
-
     if next_due_date.is_none() && next_due_odometer.is_none() {
-        return Some("Needs setup: no due date or odometer interval is available.".to_string());
+        return Some("No reminder interval is set yet.".to_string());
     }
 
     None
@@ -1015,18 +1971,6 @@ mod tests {
             .expect("vehicle should insert");
     }
 
-    fn insert_feature(connection: &Connection, vehicle_id: &str, feature: &str) {
-        connection
-            .execute(
-                "
-                INSERT INTO vehicle_features (id, vehicle_id, feature_key, enabled)
-                VALUES (?1, ?2, ?3, 1)
-                ",
-                params![format!("{vehicle_id}_{feature}"), vehicle_id, feature],
-            )
-            .expect("feature should insert");
-    }
-
     fn set_setting(connection: &Connection, key: &str, value: &str, value_type: &str) {
         connection
             .execute(
@@ -1041,6 +1985,47 @@ mod tests {
                 params![key, value, value_type],
             )
             .expect("setting should save");
+    }
+
+    fn template_id(connection: &Connection, key: &str) -> String {
+        connection
+            .query_row(
+                "SELECT id FROM maintenance_templates WHERE template_key = ?1",
+                params![key],
+                |row| row.get(0),
+            )
+            .unwrap_or_else(|_| panic!("template {key} should exist"))
+    }
+
+    fn save_reminder(
+        connection: &Connection,
+        vehicle_id: &str,
+        template_key: &str,
+        days: Option<i64>,
+        km: Option<i64>,
+    ) {
+        connection
+            .execute(
+                "
+                INSERT INTO vehicle_maintenance_settings (
+                  id,
+                  vehicle_id,
+                  template_id,
+                  status,
+                  custom_time_interval_days,
+                  custom_odometer_interval_km
+                )
+                VALUES (?1, ?2, ?3, 'active', ?4, ?5)
+                ",
+                params![
+                    format!("{vehicle_id}_{template_key}_setting"),
+                    vehicle_id,
+                    template_id(connection, template_key),
+                    days,
+                    km,
+                ],
+            )
+            .expect("reminder should save");
     }
 
     fn schedule_for<'a>(
@@ -1064,9 +2049,16 @@ mod tests {
     }
 
     #[test]
-    fn applicable_templates_create_schedules_and_sync_is_idempotent() {
+    fn configured_reminders_create_schedules_and_sync_is_idempotent() {
         let (_temp_dir, connection) = setup_database();
         insert_vehicle(&connection, "gas", "gasoline", "automatic", "fwd", 1_000.0);
+        save_reminder(
+            &connection,
+            "gas",
+            "engine_oil_change",
+            Some(180),
+            Some(5_000),
+        );
 
         let first =
             sync_schedules_for_vehicle_on(&connection, "gas", "2026-01-01").expect("sync first");
@@ -1082,42 +2074,44 @@ mod tests {
     }
 
     #[test]
-    fn excluded_and_feature_required_templates_do_not_create_schedules_without_feature() {
+    fn templates_do_not_create_schedules_without_vehicle_reminders() {
         let (_temp_dir, connection) = setup_database();
         insert_vehicle(&connection, "diesel", "diesel", "manual", "rwd", 2_000.0);
 
         let result =
             sync_schedules_for_vehicle_on(&connection, "diesel", "2026-01-01").expect("sync");
 
-        assert!(result
-            .schedules
-            .iter()
-            .all(|schedule| schedule.template_key.as_deref() != Some("spark_plug_replacement")));
-        assert!(result
-            .schedules
-            .iter()
-            .all(|schedule| schedule.template_key.as_deref() != Some("dpf_inspection")));
+        assert_eq!(result.created_count, 0);
+        assert!(result.schedules.is_empty());
     }
 
     #[test]
-    fn feature_required_templates_create_schedules_with_matching_feature() {
+    fn reminders_can_be_created_for_specific_templates_only() {
         let (_temp_dir, connection) = setup_database();
         insert_vehicle(&connection, "diesel", "diesel", "manual", "rwd", 2_000.0);
-        insert_feature(&connection, "diesel", "diesel_particulate_filter");
+        save_reminder(&connection, "diesel", "dpf_inspection", Some(365), None);
 
         let result =
             sync_schedules_for_vehicle_on(&connection, "diesel", "2026-01-01").expect("sync");
 
-        assert!(result
-            .schedules
-            .iter()
-            .any(|schedule| schedule.template_key.as_deref() == Some("dpf_inspection")));
+        assert_eq!(result.schedules.len(), 1);
+        assert_eq!(
+            result.schedules[0].template_key.as_deref(),
+            Some("dpf_inspection")
+        );
     }
 
     #[test]
     fn next_due_date_and_odometer_are_calculated_from_today_and_current_odometer() {
         let (_temp_dir, connection) = setup_database();
         insert_vehicle(&connection, "gas", "gasoline", "automatic", "fwd", 1_000.0);
+        save_reminder(
+            &connection,
+            "gas",
+            "engine_oil_change",
+            Some(180),
+            Some(5_000),
+        );
 
         let result = sync_schedules_for_vehicle_on(&connection, "gas", "2026-01-01").expect("sync");
         let oil = schedule_for(&result.schedules, "engine_oil_change");
@@ -1132,25 +2126,49 @@ mod tests {
         insert_vehicle(&connection, "gas", "gasoline", "automatic", "fwd", 1_000.0);
         set_setting(&connection, "default_due_soon_days", "21", "integer");
         set_setting(&connection, "default_due_soon_km", "750", "integer");
+        upsert_vehicle_maintenance_setting(
+            &connection,
+            UpsertVehicleMaintenanceSettingRequest {
+                vehicle_id: "gas".to_string(),
+                template_id: template_id(&connection, "engine_oil_change"),
+                status: Some("active".to_string()),
+                custom_time_interval_days: Some(180),
+                custom_odometer_interval_km: Some(5_000),
+                custom_due_soon_days: None,
+                custom_due_soon_km: None,
+                notes: None,
+            },
+        )
+        .expect("reminder should save");
 
-        let result = sync_schedules_for_vehicle_on(&connection, "gas", "2026-01-01").expect("sync");
-        let oil = schedule_for(&result.schedules, "engine_oil_change");
+        let schedules = list_schedules_for_vehicle(&connection, "gas").expect("schedules");
+        let oil = schedule_for(&schedules, "engine_oil_change");
 
         assert_eq!(oil.due_soon_days, 21);
         assert_eq!(oil.due_soon_km, 750);
     }
 
     #[test]
-    fn legal_renewals_are_created_as_needs_setup_without_invented_dates() {
+    fn reminder_requires_at_least_one_interval() {
         let (_temp_dir, connection) = setup_database();
         insert_vehicle(&connection, "gas", "gasoline", "automatic", "fwd", 1_000.0);
 
-        let result = sync_schedules_for_vehicle_on(&connection, "gas", "2026-01-01").expect("sync");
-        let registration = schedule_for(&result.schedules, "registration_renewal");
+        let error = upsert_vehicle_maintenance_setting(
+            &connection,
+            UpsertVehicleMaintenanceSettingRequest {
+                vehicle_id: "gas".to_string(),
+                template_id: template_id(&connection, "registration_renewal"),
+                status: Some("active".to_string()),
+                custom_time_interval_days: None,
+                custom_odometer_interval_km: None,
+                custom_due_soon_days: None,
+                custom_due_soon_km: None,
+                notes: None,
+            },
+        )
+        .expect_err("empty reminder should fail");
 
-        assert_eq!(registration.due_status, "needs_setup");
-        assert_eq!(registration.next_due_date, None);
-        assert!(registration.due_reason.contains("Needs setup"));
+        assert!(error.contains("Set at least one reminder interval"));
     }
 
     #[test]
@@ -1244,6 +2262,13 @@ mod tests {
     fn overdue_alert_is_created_and_not_duplicated() {
         let (_temp_dir, connection) = setup_database();
         insert_vehicle(&connection, "gas", "gasoline", "automatic", "fwd", 7_000.0);
+        save_reminder(
+            &connection,
+            "gas",
+            "engine_oil_change",
+            Some(180),
+            Some(5_000),
+        );
         sync_schedules_for_vehicle_on(&connection, "gas", "2026-01-01").expect("sync");
         let oil_id: String = connection
             .query_row(
@@ -1303,6 +2328,13 @@ mod tests {
             "false",
             "boolean",
         );
+        save_reminder(
+            &connection,
+            "gas",
+            "engine_oil_change",
+            Some(180),
+            Some(5_000),
+        );
         sync_schedules_for_vehicle_on(&connection, "gas", "2026-01-01").expect("sync");
         let oil_id: String = connection
             .query_row(
@@ -1348,6 +2380,7 @@ mod tests {
     fn due_soon_alert_is_created() {
         let (_temp_dir, connection) = setup_database();
         insert_vehicle(&connection, "gas", "gasoline", "automatic", "fwd", 1_000.0);
+        save_reminder(&connection, "gas", "tire_pressure_check", Some(30), None);
         sync_schedules_for_vehicle_on(&connection, "gas", "2026-01-01").expect("sync");
         let tire_id: String = connection
             .query_row(

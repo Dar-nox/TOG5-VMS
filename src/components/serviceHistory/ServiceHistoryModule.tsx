@@ -107,7 +107,7 @@ export function ServiceHistoryModule() {
 
         {!loading && vehicles.length === 0 ? (
           <div className="maintenance-empty-note">
-            Add a vehicle and complete maintenance schedules before service history appears here.
+            Add a vehicle and log maintenance before service history appears here.
           </div>
         ) : null}
 
@@ -119,7 +119,7 @@ export function ServiceHistoryModule() {
 
         {!historyLoading && selectedVehicleId && logs.length === 0 ? (
           <div className="maintenance-empty-note">
-            No completed maintenance yet. Use the Maintenance page to complete a schedule.
+            No completed maintenance yet. Use the Maintenance page to log the work when it is done.
           </div>
         ) : null}
 

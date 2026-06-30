@@ -437,8 +437,8 @@ fn setup_hints(
     } else if vehicle_summary.active_count > 0 && maintenance_summary.total_schedule_count == 0 {
         hints.push(hint(
             "no_schedules",
-            "Create maintenance schedules",
-            "Sync schedules from the smart template engine for each active vehicle.",
+            "Set maintenance reminders",
+            "Add reminders only for the maintenance items you want each vehicle to track.",
             Some("Open Maintenance"),
             Some("maintenance"),
         ));

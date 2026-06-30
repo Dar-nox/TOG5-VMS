@@ -75,6 +75,40 @@ pub struct MaintenanceScheduleRecord {
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+pub struct VehicleMaintenanceSettingRecord {
+    pub id: String,
+    pub vehicle_id: String,
+    pub template_id: String,
+    pub template_key: Option<String>,
+    pub template_name: String,
+    pub category: String,
+    pub status: String,
+    pub custom_time_interval_days: Option<i64>,
+    pub custom_odometer_interval_km: Option<i64>,
+    pub custom_due_soon_days: Option<i64>,
+    pub custom_due_soon_km: Option<i64>,
+    pub effective_due_soon_days: i64,
+    pub effective_due_soon_km: i64,
+    pub priority: String,
+    pub notes: Option<String>,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpsertVehicleMaintenanceSettingRequest {
+    pub vehicle_id: String,
+    pub template_id: String,
+    pub status: Option<String>,
+    pub custom_time_interval_days: Option<i64>,
+    pub custom_odometer_interval_km: Option<i64>,
+    pub custom_due_soon_days: Option<i64>,
+    pub custom_due_soon_km: Option<i64>,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct SyncMaintenanceSchedulesResult {
     pub vehicle_id: String,
     pub created_count: usize,
@@ -149,6 +183,35 @@ pub struct CompleteMaintenanceScheduleRequest {
     pub after_photo_id: Option<String>,
     pub warranty_expiration: Option<String>,
     pub notes: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LogMaintenanceRequest {
+    pub vehicle_id: String,
+    pub template_id: String,
+    pub completed_date: String,
+    pub odometer: Option<f64>,
+    pub work_performed: String,
+    pub parts_replaced: Option<String>,
+    pub labor_cost: Option<f64>,
+    pub parts_cost: Option<f64>,
+    pub total_cost: Option<f64>,
+    pub mechanic_shop: Option<String>,
+    pub receipt_document_id: Option<String>,
+    pub before_photo_id: Option<String>,
+    pub after_photo_id: Option<String>,
+    pub warranty_expiration: Option<String>,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LogMaintenanceResult {
+    pub log: MaintenanceLogRecord,
+    pub schedule: Option<MaintenanceScheduleRecord>,
+    pub resolved_alert_count: usize,
+    pub reminder_used: bool,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
