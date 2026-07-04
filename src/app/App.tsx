@@ -13,7 +13,7 @@ import {
   ServiceHistoryPage,
   SettingsPage,
   VehiclesPage,
-} from "./routes/PlaceholderPages";
+} from "./routes/Pages";
 
 export function App() {
   const [activePage, setActivePage] = useState<PageId>("dashboard");

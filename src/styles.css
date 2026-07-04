@@ -219,7 +219,6 @@ h1 {
 }
 
 .summary-card,
-.placeholder-section,
 .alert-card {
   border: 1px solid #d8e0dd;
   border-radius: 8px;
@@ -529,12 +528,6 @@ h1 {
   height: 100%;
   border-radius: inherit;
   background: #3b78a0;
-}
-
-.placeholder-section {
-  display: grid;
-  gap: 22px;
-  padding: 24px;
 }
 
 .section-heading h2 {

@@ -4,12 +4,16 @@ import {
   maintenanceFileUrl,
   type MaintenanceLogRecord,
 } from "../../services/api/maintenance";
+import { getAppSettings } from "../../services/api/settings";
 import { listVehicles, type VehicleRecord } from "../../services/api/vehicles";
+
+const DEFAULT_CURRENCY = "PHP";
 
 export function ServiceHistoryModule() {
   const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState("");
   const [logs, setLogs] = useState<MaintenanceLogRecord[]>([]);
+  const [currency, setCurrency] = useState(DEFAULT_CURRENCY);
   const [loading, setLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -38,8 +42,12 @@ export function ServiceHistoryModule() {
     setErrorMessage(null);
 
     try {
-      const vehicleRecords = await listVehicles();
+      const [vehicleRecords, settings] = await Promise.all([
+        listVehicles(),
+        getAppSettings().catch(() => null),
+      ]);
       setVehicles(vehicleRecords);
+      setCurrency(settings?.settings.preferredCurrency || DEFAULT_CURRENCY);
       setSelectedVehicleId((currentId) => {
         if (currentId && vehicleRecords.some((vehicle) => vehicle.id === currentId)) {
           return currentId;
@@ -73,8 +81,8 @@ export function ServiceHistoryModule() {
           <div>
             <h2>Service History</h2>
             <p>
-              Completed maintenance records saved locally for each vehicle. Reports and expenses
-              come later.
+              Completed maintenance records saved locally for each vehicle. These records also feed
+              your reports and cost summaries.
             </p>
           </div>
 
@@ -126,7 +134,7 @@ export function ServiceHistoryModule() {
         {!historyLoading && logs.length > 0 ? (
           <div className="service-history-list" aria-label="Completed service history">
             {logs.map((log) => (
-              <ServiceHistoryCard key={log.id} log={log} />
+              <ServiceHistoryCard key={log.id} currency={currency} log={log} />
             ))}
           </div>
         ) : null}
@@ -135,7 +143,7 @@ export function ServiceHistoryModule() {
   );
 }
 
-function ServiceHistoryCard({ log }: { log: MaintenanceLogRecord }) {
+function ServiceHistoryCard({ currency, log }: { currency: string; log: MaintenanceLogRecord }) {
   const receiptHref = maintenanceFileUrl(log.receiptFilePath);
   const beforeHref = maintenanceFileUrl(log.beforePhotoPath);
   const afterHref = maintenanceFileUrl(log.afterPhotoPath);
@@ -145,7 +153,7 @@ function ServiceHistoryCard({ log }: { log: MaintenanceLogRecord }) {
       <div className="service-history-main">
         <div className="maintenance-card-heading">
           <span className="maintenance-category">{formatDate(log.completedDate)}</span>
-          <span className="priority-pill">{formatMoney(log.totalCost)}</span>
+          <span className="priority-pill">{formatMoney(log.totalCost, currency)}</span>
         </div>
 
         <h3>{log.templateName ?? "Maintenance service"}</h3>
@@ -159,8 +167,8 @@ function ServiceHistoryCard({ log }: { log: MaintenanceLogRecord }) {
       <div className="service-history-meta">
         <span>Odometer: {formatOdometer(log.odometer)} km</span>
         <span>Provider: {log.mechanicShop ?? "Not recorded"}</span>
-        <span>Labor: {formatMoney(log.laborCost)}</span>
-        <span>Parts: {formatMoney(log.partsCost)}</span>
+        <span>Labor: {formatMoney(log.laborCost, currency)}</span>
+        <span>Parts: {formatMoney(log.partsCost, currency)}</span>
         <span>
           Warranty: {log.warrantyExpiration ? formatDate(log.warrantyExpiration) : "Not recorded"}
         </span>
@@ -212,9 +220,9 @@ function formatOdometer(value: number) {
   return Math.round(value).toLocaleString();
 }
 
-function formatMoney(value: number) {
+function formatMoney(value: number, currency = DEFAULT_CURRENCY) {
   return new Intl.NumberFormat(undefined, {
-    currency: "PHP",
+    currency,
     maximumFractionDigits: 2,
     style: "currency",
   }).format(value);

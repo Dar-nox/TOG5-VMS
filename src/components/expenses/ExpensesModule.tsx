@@ -72,6 +72,11 @@ export function ExpensesModule() {
     [categoryFilter, endDate, startDate, vehicleFilter],
   );
 
+  const categoryFilterOptions = useMemo(
+    () => buildCategoryFilterOptions(expenses, summary, categoryFilter),
+    [categoryFilter, expenses, summary],
+  );
+
   const loadExpenses = useCallback(async (activeFilter: ExpenseListFilter) => {
     setExpensesLoading(true);
     setErrorMessage(null);
@@ -216,6 +221,7 @@ export function ExpensesModule() {
 
           <ExpenseFilters
             categoryFilter={categoryFilter}
+            categoryOptions={categoryFilterOptions}
             endDate={endDate}
             startDate={startDate}
             vehicleFilter={vehicleFilter}
@@ -270,6 +276,7 @@ function ExpenseFilters(props: {
   vehicles: VehicleRecord[];
   vehicleFilter: string;
   categoryFilter: string;
+  categoryOptions: Array<{ value: string; label: string }>;
   startDate: string;
   endDate: string;
   onVehicleFilterChange: (value: string) => void;
@@ -301,7 +308,7 @@ function ExpenseFilters(props: {
           onChange={(event) => props.onCategoryFilterChange(event.target.value)}
         >
           <option value="all">All categories</option>
-          {categoryOptions.map((option) => (
+          {props.categoryOptions.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
             </option>
@@ -720,6 +727,34 @@ function formatMoney(value: number, currency = "PHP") {
 
 function categoryLabel(value: string) {
   return categoryOptions.find((option) => option.value === value)?.label ?? labelFromKey(value);
+}
+
+function buildCategoryFilterOptions(
+  expenses: ExpenseRecord[],
+  summary: ExpenseSummaryReport | null,
+  currentCategory: string,
+) {
+  const builtInValues = new Set(categoryOptions.map((option) => option.value));
+  const customValues = new Map<string, string>();
+  const addCustomCategory = (value?: string | null) => {
+    const trimmed = value?.trim();
+
+    if (!trimmed || trimmed === "all" || builtInValues.has(trimmed as ExpenseCategory)) {
+      return;
+    }
+
+    customValues.set(trimmed, categoryLabel(trimmed));
+  };
+
+  expenses.forEach((expense) => addCustomCategory(expense.category));
+  summary?.categoryTotals.forEach((total) => addCustomCategory(total.category));
+  addCustomCategory(currentCategory);
+
+  const customOptions = [...customValues.entries()]
+    .sort((first, second) => first[1].localeCompare(second[1]))
+    .map(([value, label]) => ({ value, label }));
+
+  return [...categoryOptions, ...customOptions];
 }
 
 function findCategoryOption(value: string) {

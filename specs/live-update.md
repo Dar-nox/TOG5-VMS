@@ -50,7 +50,7 @@ Phase 14 - Client Testing and Fixes.
 
 ## Phase State
 
-Phase 14 in progress / QA pass started. Client smoke-test documentation and bug triage log were created, automated validation passed, the release binary smoke test passed, the installer artifact was checked non-destructively, and a client-feedback Maintenance simplification refactor was completed. Manual visual/client installer testing is still pending.
+Phase 14 in progress / QA cleanup pass completed. Client smoke-test documentation and bug triage log were created, automated validation passed, the release binary smoke test passed, the installer artifact was checked non-destructively, the Maintenance simplification refactor was completed, and high-signal QA cleanup fixes were applied. Manual visual/client installer testing is still pending.
 
 ## Last Completed Phase
 
@@ -4827,3 +4827,122 @@ npm.cmd run build
 ### Suggested Next Step
 
 Visually confirm the custom category toggle loop no longer gets stuck.
+
+---
+
+## Update 2026-07-01 10:25 +08:00 - Phase 14: Overall QA Cleanup Fixes
+
+### Summary
+
+Applied the high-signal cleanup fixes from the overall QA pass without changing the database schema or adding new product scope.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Fixes Made
+
+- Expanded Tauri asset protocol access from vehicle photos only to all app-managed display folders:
+  - `vehicle-photos`
+  - `fuel-receipts`
+  - `maintenance-receipts`
+  - `maintenance-photos`
+- Updated Fuel Logs and Service History cost display to use the Settings preferred currency, with `PHP` fallback if settings cannot be loaded.
+- Updated Expenses category filtering so custom categories discovered from loaded expenses/summary data appear in the filter dropdown.
+- Removed stale Service History copy that said reports and expenses come later.
+- Updated the Phase 13 release checklist to describe the simplified Maintenance workflow instead of the old Schedules/Applicability/Template Library tabs.
+- Renamed the route wrapper file from `PlaceholderPages.tsx` to `Pages.tsx`.
+- Removed unused `PlaceholderSection` component and `.placeholder-section` CSS.
+- Removed obsolete `.gitkeep` files from directories that now contain real tracked files.
+
+### Files Created
+
+- `src/app/routes/Pages.tsx`
+
+### Files Modified
+
+- `docs/release/phase-13-windows-release-checklist.md`
+- `specs/live-update.md`
+- `src-tauri/tauri.conf.json`
+- `src/app/App.tsx`
+- `src/components/expenses/ExpensesModule.tsx`
+- `src/components/fuel/FuelLogsModule.tsx`
+- `src/components/serviceHistory/ServiceHistoryModule.tsx`
+- `src/styles.css`
+
+### Files Deleted
+
+- `src/app/routes/PlaceholderPages.tsx`
+- `src/components/common/PlaceholderSection.tsx`
+- Obsolete `.gitkeep` files in populated source folders:
+  - `src-tauri/migrations/.gitkeep`
+  - `src-tauri/src/backup/.gitkeep`
+  - `src-tauri/src/db/.gitkeep`
+  - `src/app/routes/.gitkeep`
+  - `src/components/common/.gitkeep`
+  - `src/components/dashboard/.gitkeep`
+  - `src/components/fuel/.gitkeep`
+  - `src/components/maintenance/.gitkeep`
+  - `src/components/reports/.gitkeep`
+  - `src/components/vehicles/.gitkeep`
+  - `src/domain/alerts/.gitkeep`
+  - `src/domain/expenses/.gitkeep`
+  - `src/domain/fuel/.gitkeep`
+  - `src/domain/maintenance/.gitkeep`
+  - `src/domain/vehicles/.gitkeep`
+  - `src/services/api/.gitkeep`
+  - `src/types/.gitkeep`
+
+### Commands Run
+
+```bash
+npm.cmd exec prettier -- --write src-tauri/tauri.conf.json src/app/App.tsx src/app/routes/Pages.tsx src/components/expenses/ExpensesModule.tsx src/components/fuel/FuelLogsModule.tsx src/components/serviceHistory/ServiceHistoryModule.tsx src/styles.css docs/release/phase-13-windows-release-checklist.md
+npm.cmd run test
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+cargo fmt --manifest-path src-tauri/Cargo.toml
+cargo fmt --manifest-path src-tauri/Cargo.toml --check
+cargo check --manifest-path src-tauri/Cargo.toml
+cargo test --manifest-path src-tauri/Cargo.toml
+npm.cmd run tauri:dev
+```
+
+### Command Results
+
+- Prettier write: completed; touched files were already formatted.
+- `npm.cmd run test`: passed, 12 Vitest tests.
+- `npm.cmd run typecheck`: passed.
+- `npm.cmd run lint`: passed.
+- `npm.cmd run format:check`: passed.
+- `npm.cmd run build`: passed.
+- `cargo fmt --manifest-path src-tauri/Cargo.toml`: completed.
+- `cargo fmt --manifest-path src-tauri/Cargo.toml --check`: passed.
+- `cargo check --manifest-path src-tauri/Cargo.toml`: first attempt timed out while waiting for the build-directory lock during `cargo test`; rerun passed.
+- `cargo test --manifest-path src-tauri/Cargo.toml`: passed, 65 Rust tests.
+- `npm.cmd run tauri:dev`: launched Vite on `127.0.0.1:1420`, compiled Tauri, and ran `target\debug\tog5-vms.exe`. Dev processes were stopped afterward and port 1420 was clear.
+- Final `npm.cmd run format:check` after updating this file: passed.
+
+### Tauri Launch Result
+
+The Tauri dev app process launched successfully. Human visual confirmation is still needed for the actual desktop window and attachment-link behavior.
+
+### Manual Checks Still Needed
+
+1. Confirm vehicle photos still display.
+2. Open a Fuel Logs receipt link.
+3. Open Service History receipt, before-photo, and after-photo links.
+4. Confirm Fuel Logs and Service History show the Settings preferred currency.
+5. Save a custom expense category and confirm it appears in the category filter.
+6. Confirm Dashboard, Vehicles, Maintenance, Fuel Logs, Service History, Expenses, Reports, Backup & Restore, Alerts, and Settings still open.
+
+### Decisions Made
+
+- Left `logo.png` and `vms-logo.png` in the project root because they may be useful source branding assets.
+- Kept empty future-use folders and their `.gitkeep` files.
+- Did not change database schema, backend repositories, reports aggregation, or product workflows.
+
+### Suggested Next Step
+
+Run the manual visual checks above, with special attention to Fuel Logs and Service History attachment links.

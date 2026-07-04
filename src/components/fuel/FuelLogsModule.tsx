@@ -14,6 +14,7 @@ import {
   type FuelLogMutationRequest,
   type FuelLogRecord,
 } from "../../services/api/fuel";
+import { getAppSettings } from "../../services/api/settings";
 import { listVehicles, type VehicleRecord } from "../../services/api/vehicles";
 
 type FuelFormState = {
@@ -41,11 +42,14 @@ const fuelTypeOptions: Array<{ value: FuelLogFuelType; label: string }> = [
   { value: "other", label: "Other" },
 ];
 
+const DEFAULT_CURRENCY = "PHP";
+
 export function FuelLogsModule() {
   const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState("");
   const [fuelLogs, setFuelLogs] = useState<FuelLogRecord[]>([]);
   const [summary, setSummary] = useState<FuelEfficiencySummaryRecord | null>(null);
+  const [currency, setCurrency] = useState(DEFAULT_CURRENCY);
   const [form, setForm] = useState<FuelFormState>(() => emptyForm());
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [editingLogId, setEditingLogId] = useState<string | null>(null);
@@ -101,8 +105,12 @@ export function FuelLogsModule() {
     setErrorMessage(null);
 
     try {
-      const vehicleRecords = await listVehicles();
+      const [vehicleRecords, settings] = await Promise.all([
+        listVehicles(),
+        getAppSettings().catch(() => null),
+      ]);
       setVehicles(vehicleRecords);
+      setCurrency(settings?.settings.preferredCurrency || DEFAULT_CURRENCY);
       setSelectedVehicleId((currentId) => {
         if (currentId && vehicleRecords.some((vehicle) => vehicle.id === currentId)) {
           return currentId;
@@ -312,6 +320,7 @@ export function FuelLogsModule() {
 
               <FuelLogHistory
                 actionLogId={actionLogId}
+                currency={currency}
                 fuelLogs={fuelLogs}
                 loading={logsLoading}
                 onArchive={(logId) => void handleArchive(logId)}
@@ -539,6 +548,7 @@ function FuelLogForm(props: {
 
 function FuelLogHistory(props: {
   actionLogId: string | null;
+  currency: string;
   fuelLogs: FuelLogRecord[];
   loading: boolean;
   onArchive: (logId: string) => void;
@@ -565,6 +575,7 @@ function FuelLogHistory(props: {
             <FuelLogCard
               key={log.id}
               actionLogId={props.actionLogId}
+              currency={props.currency}
               log={log}
               onArchive={props.onArchive}
               onEdit={props.onEdit}
@@ -578,6 +589,7 @@ function FuelLogHistory(props: {
 
 function FuelLogCard(props: {
   actionLogId: string | null;
+  currency: string;
   log: FuelLogRecord;
   onArchive: (logId: string) => void;
   onEdit: (log: FuelLogRecord) => void;
@@ -610,11 +622,11 @@ function FuelLogCard(props: {
 
       <div className="fuel-log-meta">
         <span>{props.log.liters.toLocaleString()} L</span>
-        <span>Total: {formatMoney(props.log.totalAmount)}</span>
-        <span>Price/L: {formatMoney(props.log.pricePerLiter)}</span>
+        <span>Total: {formatMoney(props.log.totalAmount, props.currency)}</span>
+        <span>Price/L: {formatMoney(props.log.pricePerLiter, props.currency)}</span>
         <span>{props.log.isFullTank ? "Full tank" : "Partial tank"}</span>
         <span>{formatEfficiency(props.log.computedKmPerLiter)}</span>
-        <span>{formatCostPerKm(props.log.computedCostPerKm)}</span>
+        <span>{formatCostPerKm(props.log.computedCostPerKm, props.currency)}</span>
         <span>
           {receiptHref ? (
             <a href={receiptHref} rel="noreferrer" target="_blank">
@@ -790,13 +802,13 @@ function formatOdometer(value: number) {
   return Math.round(value).toLocaleString();
 }
 
-function formatMoney(value?: number | null) {
+function formatMoney(value?: number | null, currency = DEFAULT_CURRENCY) {
   if (value == null) {
     return "--";
   }
 
   return new Intl.NumberFormat(undefined, {
-    currency: "PHP",
+    currency,
     maximumFractionDigits: 2,
     style: "currency",
   }).format(value);
@@ -806,8 +818,8 @@ function formatEfficiency(value?: number | null) {
   return value == null ? "-- km/L" : `${value.toFixed(2)} km/L`;
 }
 
-function formatCostPerKm(value?: number | null) {
-  return value == null ? "-- / km" : `${formatMoney(value)} / km`;
+function formatCostPerKm(value?: number | null, currency = DEFAULT_CURRENCY) {
+  return value == null ? "-- / km" : `${formatMoney(value, currency)} / km`;
 }
 
 function efficiencyStatusLabel(log: FuelLogRecord) {

@@ -61,7 +61,7 @@ Generated release artifacts stay under `src-tauri/target/`, which is ignored by 
 
 - Dashboard opens and shows real local overview data or friendly empty states.
 - Vehicles opens and a saved vehicle photo displays.
-- Maintenance opens with Schedules, Applicability, and Template Library tabs.
+- Maintenance opens with the simplified log-maintenance workflow, vehicle reminders, and needs-attention list.
 - Fuel Logs opens and receipt indicators still work.
 - Service History opens and attachment indicators still work.
 - Expenses opens.
