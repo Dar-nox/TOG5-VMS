@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { dismissAlert, listAlerts } from "../../services/api/alerts";
+import { dismissAlert, refreshActiveAlerts } from "../../services/api/alerts";
 import type { AlertRecord } from "../../services/api/maintenance";
 
 export function AlertsModule() {
@@ -13,7 +13,8 @@ export function AlertsModule() {
     setErrorMessage(null);
 
     try {
-      setAlerts(await listAlerts());
+      const result = await refreshActiveAlerts();
+      setAlerts(result.alerts);
     } catch (error) {
       setErrorMessage(messageFromError(error));
     } finally {
@@ -49,8 +50,8 @@ export function AlertsModule() {
             desktop notifications are sent yet.
           </p>
         </div>
-        <button className="secondary-button" type="button" onClick={loadAlerts}>
-          Refresh
+        <button className="secondary-button" disabled={loading} type="button" onClick={loadAlerts}>
+          {loading ? "Refreshing..." : "Refresh"}
         </button>
       </section>
 

@@ -5,8 +5,9 @@ use rusqlite::{params, Connection, OptionalExtension, Row};
 use crate::vehicles::photo_storage::generate_local_id;
 
 use super::models::{
-    AccessSummary, AppSettings, BackupReminderStatus, LocalRoleRecord, LocalUserRecord,
-    UpdateAppSettingsRequest, UpdateLocalUserRequest,
+    AccessSummary, AppSettings, BackupReminderStatus, ClearAppDataRequest, ClearAppDataResponse,
+    ClearAppDataTableResult, LocalRoleRecord, LocalUserRecord, UpdateAppSettingsRequest,
+    UpdateLocalUserRequest,
 };
 
 const KEY_PREFERRED_CURRENCY: &str = "preferred_currency";
@@ -26,6 +27,21 @@ const VALID_DISTANCE_UNITS: &[&str] = &["km", "mi"];
 const VALID_FUEL_EFFICIENCY_UNITS: &[&str] = &["km_per_liter", "liters_per_100km"];
 const VALID_DATE_DISPLAY_PREFERENCES: &[&str] = &["yyyy_mm_dd", "dd_mm_yyyy", "mm_dd_yyyy"];
 const VALID_ROLES: &[&str] = &["owner", "manager", "viewer"];
+const PRODUCT_DATA_TABLES: &[&str] = &[
+    "audit_logs",
+    "alerts",
+    "expenses",
+    "repair_records",
+    "maintenance_logs",
+    "fuel_logs",
+    "maintenance_schedules",
+    "vehicle_maintenance_settings",
+    "vehicle_features",
+    "vehicle_documents",
+    "vehicles",
+    "vehicle_photos",
+    "parts_inventory",
+];
 
 struct DefaultSetting {
     key: &'static str,
@@ -267,6 +283,49 @@ pub fn access_summary(connection: &Connection) -> Result<AccessSummary, String> 
         app_lock_status: "Not enabled".to_string(),
         encryption_status: "Not enabled".to_string(),
         security_note: "Local role scaffolding is ready, but there is no login screen, app lock, or database encryption yet. Treat this as convenience access setup, not strong data security.".to_string(),
+    })
+}
+
+pub fn clear_app_product_data(
+    connection: &mut Connection,
+    request: ClearAppDataRequest,
+) -> Result<ClearAppDataResponse, String> {
+    if !request.confirm_clear_data {
+        return Err("Confirm the clear-data warning before continuing.".to_string());
+    }
+
+    let transaction = connection
+        .transaction()
+        .map_err(|_| "Could not start the local data clear operation.".to_string())?;
+    let mut tables_cleared = Vec::new();
+
+    for table_name in PRODUCT_DATA_TABLES {
+        let sql = format!("DELETE FROM {table_name}");
+        let rows_deleted = transaction
+            .execute(&sql, [])
+            .map_err(|_| format!("Could not clear local {table_name} records."))?;
+
+        tables_cleared.push(ClearAppDataTableResult {
+            table_name: (*table_name).to_string(),
+            rows_deleted,
+        });
+    }
+
+    transaction
+        .commit()
+        .map_err(|_| "Could not finish the local data clear operation.".to_string())?;
+
+    ensure_default_settings(connection)?;
+    ensure_default_owner_user(connection)?;
+
+    Ok(ClearAppDataResponse {
+        message: "Local product data was cleared. Settings, user profile, templates, and backup packages were kept.".to_string(),
+        tables_cleared,
+        managed_folders_cleared: Vec::new(),
+        files_removed: 0,
+        settings_kept: true,
+        users_kept: true,
+        backups_kept: true,
     })
 }
 
@@ -856,5 +915,225 @@ mod tests {
             recent.latest_backup_path.as_deref(),
             Some("C:/tmp/test.tog5backup")
         );
+    }
+
+    #[test]
+    fn clear_app_product_data_removes_records_but_keeps_settings_users_templates_and_backups() {
+        let (_temp_dir, mut connection) = setup_database();
+        ensure_default_settings(&connection).expect("settings should exist");
+        let owner = ensure_default_owner_user(&connection).expect("owner should exist");
+
+        let unconfirmed = clear_app_product_data(
+            &mut connection,
+            ClearAppDataRequest {
+                confirm_clear_data: false,
+            },
+        )
+        .expect_err("clear should require confirmation");
+        assert!(unconfirmed.contains("Confirm"));
+
+        connection
+            .execute_batch(
+                "
+                INSERT INTO maintenance_templates (
+                  id,
+                  name,
+                  category,
+                  default_due_soon_days,
+                  default_due_soon_km,
+                  priority,
+                  template_key
+                )
+                VALUES ('template-1', 'Oil Change', 'engine', 14, 500, 'medium', 'oil_change');
+
+                INSERT INTO vehicles (
+                  id,
+                  vehicle_name,
+                  vehicle_type,
+                  fuel_type,
+                  current_odometer,
+                  status
+                )
+                VALUES ('vehicle-1', 'Test Vehicle', 'car', 'gasoline', 1000, 'active');
+
+                INSERT INTO vehicle_photos (
+                  id,
+                  vehicle_id,
+                  file_path,
+                  original_filename,
+                  is_primary
+                )
+                VALUES ('photo-1', 'vehicle-1', 'vehicle-photos/test.jpg', 'test.jpg', 1);
+
+                UPDATE vehicles
+                SET primary_photo_id = 'photo-1'
+                WHERE id = 'vehicle-1';
+
+                INSERT INTO vehicle_documents (
+                  id,
+                  vehicle_id,
+                  document_type,
+                  file_path
+                )
+                VALUES ('document-1', 'vehicle-1', 'receipt', 'fuel-receipts/test.pdf');
+
+                INSERT INTO vehicle_features (
+                  id,
+                  vehicle_id,
+                  feature_key,
+                  enabled
+                )
+                VALUES ('feature-1', 'vehicle-1', 'turbo', 1);
+
+                INSERT INTO fuel_logs (
+                  id,
+                  vehicle_id,
+                  fuel_date,
+                  odometer,
+                  fuel_type,
+                  liters,
+                  price_per_liter,
+                  total_amount,
+                  receipt_document_id,
+                  is_full_tank
+                )
+                VALUES ('fuel-1', 'vehicle-1', '2026-07-01', 1100, 'gasoline', 10, 60, 600, 'document-1', 1);
+
+                INSERT INTO vehicle_maintenance_settings (
+                  id,
+                  vehicle_id,
+                  template_id,
+                  status,
+                  custom_time_interval_days
+                )
+                VALUES ('setting-1', 'vehicle-1', 'template-1', 'active', 90);
+
+                INSERT INTO maintenance_schedules (
+                  id,
+                  vehicle_id,
+                  template_id,
+                  vehicle_maintenance_setting_id,
+                  next_due_date,
+                  due_soon_days,
+                  due_soon_km,
+                  status,
+                  priority
+                )
+                VALUES ('schedule-1', 'vehicle-1', 'template-1', 'setting-1', '2026-08-01', 14, 500, 'due_soon', 'high');
+
+                INSERT INTO maintenance_logs (
+                  id,
+                  vehicle_id,
+                  template_id,
+                  schedule_id,
+                  completed_date,
+                  odometer,
+                  work_performed,
+                  labor_cost,
+                  parts_cost,
+                  total_cost,
+                  receipt_document_id,
+                  before_photo_id,
+                  after_photo_id
+                )
+                VALUES ('log-1', 'vehicle-1', 'template-1', 'schedule-1', '2026-07-01', 1200, 'Changed oil', 100, 200, 300, 'document-1', 'photo-1', 'photo-1');
+
+                INSERT INTO repair_records (
+                  id,
+                  vehicle_id,
+                  repair_date,
+                  issue_description,
+                  total_cost
+                )
+                VALUES ('repair-1', 'vehicle-1', '2026-07-01', 'Noise', 500);
+
+                INSERT INTO expenses (
+                  id,
+                  vehicle_id,
+                  expense_date,
+                  category,
+                  description,
+                  amount
+                )
+                VALUES ('expense-1', 'vehicle-1', '2026-07-01', 'parking', 'Parking', 50);
+
+                INSERT INTO alerts (
+                  id,
+                  vehicle_id,
+                  maintenance_schedule_id,
+                  alert_type,
+                  priority,
+                  title,
+                  message,
+                  status
+                )
+                VALUES ('alert-1', 'vehicle-1', 'schedule-1', 'maintenance_due_soon', 'high', 'Due soon', 'Oil Change due soon', 'active');
+
+                INSERT INTO parts_inventory (
+                  id,
+                  part_name,
+                  quantity_on_hand
+                )
+                VALUES ('part-1', 'Oil Filter', 2);
+
+                INSERT INTO backups (
+                  id,
+                  backup_path,
+                  status,
+                  completed_at
+                )
+                VALUES ('backup-1', 'C:/tmp/test.tog5backup', 'completed', datetime('now'));
+                ",
+            )
+            .expect("test product records should insert");
+
+        connection
+            .execute(
+                "
+                INSERT INTO audit_logs (
+                  id,
+                  user_id,
+                  action,
+                  entity_type,
+                  entity_id,
+                  summary
+                )
+                VALUES ('audit-1', ?1, 'create', 'vehicle', 'vehicle-1', 'Created vehicle')
+                ",
+                params![owner.id],
+            )
+            .expect("audit record should insert");
+
+        let cleared = clear_app_product_data(
+            &mut connection,
+            ClearAppDataRequest {
+                confirm_clear_data: true,
+            },
+        )
+        .expect("product data should clear");
+
+        assert!(cleared.settings_kept);
+        assert!(cleared.users_kept);
+        assert!(cleared.backups_kept);
+        assert!(cleared
+            .tables_cleared
+            .iter()
+            .any(|table| table.table_name == "vehicles" && table.rows_deleted == 1));
+
+        for table_name in PRODUCT_DATA_TABLES {
+            assert_eq!(count_rows(&connection, table_name), 0, "{table_name}");
+        }
+
+        assert_eq!(count_rows(&connection, "maintenance_templates"), 1);
+        assert!(count_rows(&connection, "settings") > 0);
+        assert_eq!(count_rows(&connection, "users"), 1);
+        assert_eq!(count_rows(&connection, "backups"), 1);
+    }
+
+    fn count_rows(connection: &Connection, table_name: &str) -> i64 {
+        let sql = format!("SELECT COUNT(*) FROM {table_name}");
+        connection
+            .query_row(&sql, [], |row| row.get(0))
+            .expect("row count should read")
     }
 }

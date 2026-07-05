@@ -32,6 +32,33 @@ pub struct MaintenanceTemplateRecord {
     pub rules: Vec<MaintenanceTemplateRuleRecord>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateMaintenanceTemplateRequest {
+    pub name: String,
+    pub category: String,
+    pub description: Option<String>,
+    pub default_time_interval_days: Option<i64>,
+    pub default_odometer_interval_km: Option<i64>,
+    pub default_due_soon_days: Option<i64>,
+    pub default_due_soon_km: Option<i64>,
+    pub priority: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateMaintenanceTemplateRequest {
+    pub id: String,
+    pub name: String,
+    pub category: String,
+    pub description: Option<String>,
+    pub default_time_interval_days: Option<i64>,
+    pub default_odometer_interval_km: Option<i64>,
+    pub default_due_soon_days: Option<i64>,
+    pub default_due_soon_km: Option<i64>,
+    pub priority: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ApplicableMaintenanceTemplate {

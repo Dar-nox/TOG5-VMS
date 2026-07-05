@@ -142,7 +142,7 @@ export function FuelLogsModule() {
 
   const handleFieldChange = useCallback(
     <Field extends keyof FuelFormState>(field: Field, value: FuelFormState[Field]) => {
-      setForm((currentForm) => ({ ...currentForm, [field]: value }));
+      setForm((currentForm) => fuelFormWithAutoTotal(currentForm, field, value));
       setFormIssues([]);
       setFormWarnings([]);
     },
@@ -762,6 +762,27 @@ function emptyForm(vehicle?: VehicleRecord | null): FuelFormState {
   };
 }
 
+function fuelFormWithAutoTotal<Field extends keyof FuelFormState>(
+  currentForm: FuelFormState,
+  field: Field,
+  value: FuelFormState[Field],
+): FuelFormState {
+  const nextForm: FuelFormState = { ...currentForm, [field]: value };
+
+  if (field !== "liters" && field !== "pricePerLiter") {
+    return nextForm;
+  }
+
+  const liters = parseNumber(nextForm.liters);
+  const pricePerLiter = parseNumber(nextForm.pricePerLiter);
+
+  if (liters !== undefined && liters > 0 && pricePerLiter !== undefined && pricePerLiter >= 0) {
+    nextForm.totalAmount = formatMoneyInput(liters * pricePerLiter);
+  }
+
+  return nextForm;
+}
+
 function fuelTypeFromVehicle(fuelType: VehicleFuelType): FuelLogFuelType {
   return fuelType;
 }
@@ -777,6 +798,10 @@ function parseNumber(value: string): number | undefined {
 
 function parseOptionalNumber(value: string): number | undefined {
   return parseNumber(value);
+}
+
+function formatMoneyInput(value: number) {
+  return value.toFixed(2);
 }
 
 function trimToUndefined(value: string): string | undefined {

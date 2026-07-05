@@ -2,6 +2,7 @@ export type PageId =
   | "dashboard"
   | "vehicles"
   | "fuel"
+  | "trips"
   | "maintenance"
   | "service-history"
   | "expenses"
@@ -35,6 +36,12 @@ export const navigationItems: NavigationItem[] = [
     label: "Fuel Logs",
     shortLabel: "Fuel",
     description: "Fuel purchases, receipts, odometer readings",
+  },
+  {
+    id: "trips",
+    label: "Trips",
+    shortLabel: "Trips",
+    description: "Vehicle time out, drivers, passengers, and destinations",
   },
   {
     id: "maintenance",

@@ -7,6 +7,7 @@ import { MaintenanceTemplateModule } from "../../components/maintenance/Maintena
 import { ReportsModule } from "../../components/reports/ReportsModule";
 import { ServiceHistoryModule } from "../../components/serviceHistory/ServiceHistoryModule";
 import { SettingsModule } from "../../components/settings/SettingsModule";
+import { TripsModule } from "../../components/trips/TripsModule";
 import { VehicleModule } from "../../components/vehicles/VehicleModule";
 import type { PageId } from "../../types/navigation";
 
@@ -20,6 +21,10 @@ export function VehiclesPage() {
 
 export function FuelLogsPage() {
   return <FuelLogsModule />;
+}
+
+export function TripsPage() {
+  return <TripsModule />;
 }
 
 export function MaintenancePage() {

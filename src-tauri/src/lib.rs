@@ -6,6 +6,7 @@ mod expenses;
 mod fuel;
 mod maintenance;
 mod settings;
+mod trips;
 mod vehicles;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -51,6 +52,9 @@ pub fn run() {
             maintenance::commands::list_maintenance_templates,
             maintenance::commands::get_applicable_maintenance_templates_for_vehicle,
             maintenance::commands::seed_maintenance_templates,
+            maintenance::commands::create_maintenance_template,
+            maintenance::commands::update_maintenance_template,
+            maintenance::commands::archive_maintenance_template,
             maintenance::commands::list_maintenance_schedules_for_vehicle,
             maintenance::commands::sync_maintenance_schedules_for_vehicle,
             maintenance::commands::list_vehicle_maintenance_settings,
@@ -71,6 +75,14 @@ pub fn run() {
             settings::commands::list_local_users,
             settings::commands::update_local_user,
             settings::commands::get_access_summary,
+            settings::commands::clear_app_data,
+            trips::commands::list_trips,
+            trips::commands::list_open_trips,
+            trips::commands::get_trip,
+            trips::commands::start_trip,
+            trips::commands::complete_trip,
+            trips::commands::archive_trip,
+            trips::commands::get_trip_reports_overview,
             vehicles::commands::list_vehicles,
             vehicles::commands::get_vehicle,
             vehicles::commands::store_vehicle_photo,

@@ -19,6 +19,12 @@ import {
   type VehicleMutationRequest,
   type VehicleRecord,
 } from "../../services/api/vehicles";
+import {
+  listMaintenanceSchedulesForVehicle,
+  listVehicleMaintenanceSettings,
+  type MaintenanceScheduleRecord,
+  type VehicleMaintenanceSettingRecord,
+} from "../../services/api/maintenance";
 
 type EditableVehicleStatus = Exclude<VehicleStatus, "archived">;
 type ViewMode = "profile" | "create" | "edit";
@@ -107,6 +113,12 @@ export function VehicleModule() {
   const [photoSaving, setPhotoSaving] = useState(false);
   const [archiveSaving, setArchiveSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [maintenanceSchedules, setMaintenanceSchedules] = useState<MaintenanceScheduleRecord[]>([]);
+  const [maintenanceSettings, setMaintenanceSettings] = useState<VehicleMaintenanceSettingRecord[]>(
+    [],
+  );
+  const [maintenanceLoading, setMaintenanceLoading] = useState(false);
+  const [maintenanceError, setMaintenanceError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const selectedVehicle = useMemo(
@@ -138,6 +150,37 @@ export function VehicleModule() {
   useEffect(() => {
     void loadVehicles();
   }, [loadVehicles]);
+
+  const loadMaintenanceOverview = useCallback(async (vehicleId: string | null) => {
+    if (!vehicleId) {
+      setMaintenanceSettings([]);
+      setMaintenanceSchedules([]);
+      setMaintenanceError(null);
+      return;
+    }
+
+    setMaintenanceLoading(true);
+    setMaintenanceError(null);
+
+    try {
+      const [settings, schedules] = await Promise.all([
+        listVehicleMaintenanceSettings(vehicleId),
+        listMaintenanceSchedulesForVehicle(vehicleId),
+      ]);
+      setMaintenanceSettings(settings);
+      setMaintenanceSchedules(schedules);
+    } catch (error) {
+      setMaintenanceSettings([]);
+      setMaintenanceSchedules([]);
+      setMaintenanceError(messageFromError(error));
+    } finally {
+      setMaintenanceLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadMaintenanceOverview(selectedVehicleId);
+  }, [loadMaintenanceOverview, selectedVehicleId]);
 
   function startCreate() {
     setValidationIssues([]);
@@ -245,8 +288,8 @@ export function VehicleModule() {
         <div>
           <h2>Vehicles</h2>
           <p>
-            Add vehicles with a name and picture first. Plate number stays optional, and
-            maintenance-specific details will guide later templates.
+            Add vehicles with a name and picture first. Plate number stays optional, and maintenance
+            reminders can be set per vehicle when you need them.
           </p>
         </div>
         {!loading && vehicles.length > 0 ? (
@@ -308,6 +351,10 @@ export function VehicleModule() {
           ) : selectedVehicle ? (
             <VehicleProfile
               archiveSaving={archiveSaving}
+              maintenanceError={maintenanceError}
+              maintenanceLoading={maintenanceLoading}
+              maintenanceSchedules={maintenanceSchedules}
+              maintenanceSettings={maintenanceSettings}
               vehicle={selectedVehicle}
               onArchive={() => void handleArchive(selectedVehicle)}
               onEdit={() => startEdit(selectedVehicle)}
@@ -524,6 +571,10 @@ function VehicleForm(props: {
 
 function VehicleProfile(props: {
   archiveSaving: boolean;
+  maintenanceError: string | null;
+  maintenanceLoading: boolean;
+  maintenanceSchedules: MaintenanceScheduleRecord[];
+  maintenanceSettings: VehicleMaintenanceSettingRecord[];
   vehicle: VehicleRecord;
   onArchive: () => void;
   onEdit: () => void;
@@ -575,13 +626,12 @@ function VehicleProfile(props: {
         </div>
       ) : null}
 
-      <div className="vehicle-rules-note">
-        <h3>Maintenance setup later</h3>
-        <p>
-          Vehicle type, fuel type, transmission, drivetrain, and future features will decide which
-          maintenance templates apply.
-        </p>
-      </div>
+      <VehicleMaintenanceOverview
+        error={props.maintenanceError}
+        loading={props.maintenanceLoading}
+        schedules={props.maintenanceSchedules}
+        settings={props.maintenanceSettings}
+      />
 
       <div className="form-actions">
         <button className="secondary-button" type="button" onClick={props.onEdit}>
@@ -598,6 +648,133 @@ function VehicleProfile(props: {
       </div>
     </div>
   );
+}
+
+type VehicleMaintenanceOverviewRow = {
+  id: string;
+  name: string;
+  category: string;
+  dueStatus?: string;
+  dueReason?: string;
+  nextDueDate?: string | null;
+  nextDueOdometer?: number | null;
+};
+
+function VehicleMaintenanceOverview(props: {
+  error: string | null;
+  loading: boolean;
+  schedules: MaintenanceScheduleRecord[];
+  settings: VehicleMaintenanceSettingRecord[];
+}) {
+  const rows = buildMaintenanceOverviewRows(props.settings, props.schedules);
+
+  return (
+    <section className="vehicle-maintenance-overview" aria-label="Vehicle maintenance reminders">
+      <div className="vehicle-maintenance-heading">
+        <div>
+          <h3>Maintenance reminders</h3>
+          <p>Items set for this vehicle appear here with their next due date or odometer.</p>
+        </div>
+      </div>
+
+      {props.loading ? <p className="vehicle-maintenance-muted">Loading reminders...</p> : null}
+      {props.error ? <div className="inline-error compact">{props.error}</div> : null}
+
+      {!props.loading && !props.error && rows.length === 0 ? (
+        <p className="vehicle-maintenance-muted">
+          No maintenance reminders are set for this vehicle yet. Use the Maintenance page to add
+          items and choose when they are due.
+        </p>
+      ) : null}
+
+      {rows.length > 0 ? (
+        <div className="vehicle-maintenance-list">
+          {rows.map((row) => (
+            <article className="vehicle-maintenance-row" key={row.id}>
+              <div className="vehicle-maintenance-main">
+                <strong>{row.name}</strong>
+                <span>{labelValue(row.category)}</span>
+                {row.dueReason ? <p>{row.dueReason}</p> : null}
+              </div>
+              <div className="vehicle-maintenance-status">
+                <span className={`schedule-status-pill ${row.dueStatus ?? "needs_setup"}`}>
+                  {scheduleStatusLabel(row.dueStatus)}
+                </span>
+                <div className="vehicle-maintenance-targets">
+                  {row.nextDueDate ? <span>{formatDateOnly(row.nextDueDate)}</span> : null}
+                  {row.nextDueOdometer !== null && row.nextDueOdometer !== undefined ? (
+                    <span>{formatOdometer(row.nextDueOdometer)}</span>
+                  ) : null}
+                  {!row.nextDueDate &&
+                  (row.nextDueOdometer === null || row.nextDueOdometer === undefined) ? (
+                    <span>No next due set</span>
+                  ) : null}
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function buildMaintenanceOverviewRows(
+  settings: VehicleMaintenanceSettingRecord[],
+  schedules: MaintenanceScheduleRecord[],
+): VehicleMaintenanceOverviewRow[] {
+  const visibleSettings = settings.filter(
+    (setting) => setting.status !== "disabled" && setting.status !== "not_applicable",
+  );
+  const scheduleByTemplateId = new Map(
+    schedules.map((schedule) => [schedule.templateId, schedule]),
+  );
+  const rows = visibleSettings.map((setting) => {
+    const schedule = scheduleByTemplateId.get(setting.templateId);
+
+    return {
+      id: setting.id,
+      name: setting.templateName,
+      category: String(setting.category),
+      dueStatus: schedule?.dueStatus ?? "needs_setup",
+      dueReason: schedule?.dueReason ?? "Log this item once to start next due tracking.",
+      nextDueDate: schedule?.nextDueDate ?? null,
+      nextDueOdometer: schedule?.nextDueOdometer ?? null,
+    };
+  });
+  const settingTemplateIds = new Set(visibleSettings.map((setting) => setting.templateId));
+
+  for (const schedule of schedules) {
+    if (settingTemplateIds.has(schedule.templateId)) {
+      continue;
+    }
+
+    rows.push({
+      id: schedule.id,
+      name: schedule.templateName,
+      category: String(schedule.category),
+      dueStatus: schedule.dueStatus,
+      dueReason: schedule.dueReason,
+      nextDueDate: schedule.nextDueDate ?? null,
+      nextDueOdometer: schedule.nextDueOdometer ?? null,
+    });
+  }
+
+  return rows.sort((left, right) => {
+    const statusOrder: Record<string, number> = {
+      overdue: 0,
+      due_today: 1,
+      due_soon: 2,
+      needs_setup: 3,
+      not_due: 4,
+      disabled: 5,
+    };
+
+    return (
+      (statusOrder[left.dueStatus ?? "needs_setup"] ?? 6) -
+      (statusOrder[right.dueStatus ?? "needs_setup"] ?? 6)
+    );
+  });
 }
 
 function VehiclePhoto(props: { vehicle: VehicleRecord; size: "small" | "large" }) {
@@ -744,6 +921,14 @@ function labelFor<T extends string>(value: T, options: Array<{ value: T; label: 
   return options.find((option) => option.value === value)?.label ?? value;
 }
 
+function labelValue(value: string) {
+  return value
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 function labelForStatus(status: VehicleStatus) {
   return labelFor(status, [
     ...statusOptions,
@@ -751,8 +936,36 @@ function labelForStatus(status: VehicleStatus) {
   ] satisfies Array<{ value: VehicleStatus; label: string }>);
 }
 
+function scheduleStatusLabel(status?: string) {
+  switch (status) {
+    case "not_due":
+      return "Not due";
+    case "due_soon":
+      return "Due soon";
+    case "due_today":
+      return "Due today";
+    case "overdue":
+      return "Overdue";
+    case "disabled":
+      return "Disabled";
+    case "needs_setup":
+    default:
+      return "Needs setup";
+  }
+}
+
 function formatOdometer(value: number) {
   return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(value)} km`;
+}
+
+function formatDateOnly(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(date);
 }
 
 function formatDateTime(value: string) {

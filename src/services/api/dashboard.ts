@@ -41,6 +41,7 @@ export type DashboardAlertItem = {
   message: string;
   alertType: string;
   priority: string;
+  maintenanceScheduleId?: string | null;
   vehicleName?: string | null;
   maintenanceTemplateName?: string | null;
   createdAt: string;

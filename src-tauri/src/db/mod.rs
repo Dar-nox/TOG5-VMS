@@ -25,6 +25,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "maintenance_schedules_alerts_indexes",
         sql: include_str!("../../migrations/003_maintenance_schedules_alerts_indexes.sql"),
     },
+    Migration {
+        version: 4,
+        name: "trip_logs",
+        sql: include_str!("../../migrations/004_trip_logs.sql"),
+    },
 ];
 
 #[derive(Debug, Clone, Copy)]
@@ -223,6 +228,7 @@ mod tests {
         assert_eq!(second_status.applied_migrations[0].version, 1);
         assert_eq!(second_status.applied_migrations[1].version, 2);
         assert_eq!(second_status.applied_migrations[2].version, 3);
+        assert_eq!(second_status.applied_migrations[3].version, 4);
     }
 
     #[test]
@@ -261,6 +267,10 @@ mod tests {
             "settings",
             "backups",
             "audit_logs",
+            "trips",
+            "trip_drivers",
+            "trip_passengers",
+            "trip_destinations",
         ] {
             assert!(
                 table_names.iter().any(|name| name == table),

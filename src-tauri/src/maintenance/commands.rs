@@ -9,11 +9,12 @@ use super::{
     },
     models::{
         AlertRecord, ApplicableMaintenanceTemplate, CompleteMaintenanceScheduleRequest,
-        CompleteMaintenanceScheduleResult, LogMaintenanceRequest, LogMaintenanceResult,
-        MaintenanceAttachmentRecord, MaintenanceLogRecord, MaintenanceScheduleRecord,
-        MaintenanceTemplateRecord, RefreshMaintenanceAlertsResult, SeedMaintenanceTemplatesResult,
-        StoreMaintenancePhotoRequest, StoreMaintenanceReceiptRequest,
-        SyncMaintenanceSchedulesResult, UpsertVehicleMaintenanceSettingRequest,
+        CompleteMaintenanceScheduleResult, CreateMaintenanceTemplateRequest, LogMaintenanceRequest,
+        LogMaintenanceResult, MaintenanceAttachmentRecord, MaintenanceLogRecord,
+        MaintenanceScheduleRecord, MaintenanceTemplateRecord, RefreshMaintenanceAlertsResult,
+        SeedMaintenanceTemplatesResult, StoreMaintenancePhotoRequest,
+        StoreMaintenanceReceiptRequest, SyncMaintenanceSchedulesResult,
+        UpdateMaintenanceTemplateRequest, UpsertVehicleMaintenanceSettingRequest,
         VehicleMaintenanceSettingRecord,
     },
     repository, scheduling, service_history,
@@ -24,7 +25,7 @@ pub fn list_maintenance_templates(
     app: AppHandle,
 ) -> Result<Vec<MaintenanceTemplateRecord>, String> {
     let connection = db::open_app_connection(&app)?;
-    repository::list_active_templates(&connection)
+    repository::list_user_maintenance_templates(&connection)
 }
 
 #[tauri::command]
@@ -42,6 +43,30 @@ pub fn seed_maintenance_templates(
 ) -> Result<SeedMaintenanceTemplatesResult, String> {
     let mut connection = db::open_app_connection(&app)?;
     repository::seed_default_templates(&mut connection)
+}
+
+#[tauri::command]
+pub fn create_maintenance_template(
+    app: AppHandle,
+    request: CreateMaintenanceTemplateRequest,
+) -> Result<MaintenanceTemplateRecord, String> {
+    let connection = db::open_app_connection(&app)?;
+    repository::create_maintenance_template(&connection, request)
+}
+
+#[tauri::command]
+pub fn update_maintenance_template(
+    app: AppHandle,
+    request: UpdateMaintenanceTemplateRequest,
+) -> Result<MaintenanceTemplateRecord, String> {
+    let connection = db::open_app_connection(&app)?;
+    repository::update_maintenance_template(&connection, request)
+}
+
+#[tauri::command]
+pub fn archive_maintenance_template(app: AppHandle, template_id: String) -> Result<(), String> {
+    let connection = db::open_app_connection(&app)?;
+    repository::archive_maintenance_template(&connection, &template_id)
 }
 
 #[tauri::command]

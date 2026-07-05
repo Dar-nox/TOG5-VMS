@@ -7,6 +7,7 @@ const settingsCommands = {
   listUsers: "list_local_users",
   updateUser: "update_local_user",
   accessSummary: "get_access_summary",
+  clearAppData: "clear_app_data",
 } as const;
 
 export type AppSettings = {
@@ -82,6 +83,25 @@ export type AppSettingsResponse = {
   dataSafety: LocalDataSafetyInfo;
 };
 
+export type ClearAppDataRequest = {
+  confirmClearData: boolean;
+};
+
+export type ClearAppDataTableResult = {
+  tableName: string;
+  rowsDeleted: number;
+};
+
+export type ClearAppDataResponse = {
+  message: string;
+  tablesCleared: ClearAppDataTableResult[];
+  managedFoldersCleared: string[];
+  filesRemoved: number;
+  settingsKept: boolean;
+  usersKept: boolean;
+  backupsKept: boolean;
+};
+
 export async function getAppSettings(): Promise<AppSettingsResponse> {
   return invoke<AppSettingsResponse>(settingsCommands.get);
 }
@@ -106,4 +126,8 @@ export async function updateLocalUser(request: UpdateLocalUserRequest): Promise<
 
 export async function getAccessSummary(): Promise<AccessSummary> {
   return invoke<AccessSummary>(settingsCommands.accessSummary);
+}
+
+export async function clearAppData(request: ClearAppDataRequest): Promise<ClearAppDataResponse> {
+  return invoke<ClearAppDataResponse>(settingsCommands.clearAppData, { request });
 }

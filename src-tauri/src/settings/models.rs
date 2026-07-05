@@ -103,3 +103,28 @@ pub struct AccessSummary {
     pub encryption_status: String,
     pub security_note: String,
 }
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClearAppDataRequest {
+    pub confirm_clear_data: bool,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ClearAppDataTableResult {
+    pub table_name: String,
+    pub rows_deleted: usize,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ClearAppDataResponse {
+    pub message: String,
+    pub tables_cleared: Vec<ClearAppDataTableResult>,
+    pub managed_folders_cleared: Vec<String>,
+    pub files_removed: u64,
+    pub settings_kept: bool,
+    pub users_kept: bool,
+    pub backups_kept: bool,
+}

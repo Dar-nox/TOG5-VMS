@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { SummaryCard } from "../common/SummaryCard";
+import { refreshActiveAlerts } from "../../services/api/alerts";
 import {
   dashboardPhotoUrl,
   getDashboardOverview,
@@ -24,6 +25,7 @@ export function DashboardModule({ onNavigate }: DashboardModuleProps) {
     setError(null);
 
     try {
+      await refreshActiveAlerts().catch(() => null);
       setOverview(await getDashboardOverview());
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : String(loadError));
@@ -45,6 +47,7 @@ export function DashboardModule({ onNavigate }: DashboardModuleProps) {
       overview.maintenanceSummary.overdueCount +
       overview.maintenanceSummary.dueTodayCount +
       overview.maintenanceSummary.dueSoonCount;
+    const visibleAlertCount = Math.max(overview.alertsSummary.activeCount, maintenanceAttention);
     const latestEfficiency = formatKmPerLiter(overview.fuelSummary.latestOfficialKmPerLiter);
     const latestBackupLabel = overview.backupSummary.reminderDue
       ? "Due"
@@ -60,18 +63,21 @@ export function DashboardModule({ onNavigate }: DashboardModuleProps) {
         tone: "info" as const,
       },
       {
-        label: "Maintenance due",
-        value: String(maintenanceAttention),
-        detail: `${overview.maintenanceSummary.overdueCount} overdue, ${overview.maintenanceSummary.dueTodayCount} due today`,
-        tone:
-          overview.maintenanceSummary.overdueCount > 0 ? ("danger" as const) : ("warning" as const),
-      },
-      {
         label: "Active alerts",
-        value: String(overview.alertsSummary.activeCount),
-        detail: `${overview.alertsSummary.highPriorityCount} high or critical`,
+        value: String(visibleAlertCount),
+        detail: alertSummaryDetail(
+          visibleAlertCount,
+          maintenanceAttention,
+          overview.maintenanceSummary.overdueCount,
+          overview.alertsSummary.highPriorityCount,
+        ),
         tone:
-          overview.alertsSummary.highPriorityCount > 0 ? ("danger" as const) : ("neutral" as const),
+          overview.alertsSummary.highPriorityCount > 0 ||
+          overview.maintenanceSummary.overdueCount > 0
+            ? ("danger" as const)
+            : visibleAlertCount > 0
+              ? ("warning" as const)
+              : ("good" as const),
       },
       {
         label: "Fuel efficiency",
@@ -122,6 +128,15 @@ export function DashboardModule({ onNavigate }: DashboardModuleProps) {
     return null;
   }
 
+  const alertScheduleIds = new Set(
+    overview.alertsSummary.topAlerts
+      .map((alert) => alert.maintenanceScheduleId)
+      .filter((scheduleId): scheduleId is string => Boolean(scheduleId)),
+  );
+  const visibleMaintenanceItems = overview.maintenanceSummary.upcoming.filter(
+    (item) => !alertScheduleIds.has(item.id),
+  );
+
   return (
     <div className="dashboard-module">
       <section className="dashboard-hero">
@@ -163,15 +178,13 @@ export function DashboardModule({ onNavigate }: DashboardModuleProps) {
         <div className="dashboard-panel-header">
           <div>
             <h2>Needs attention</h2>
-            <p>
-              Overdue work, due-soon items, alerts, and local setup reminders stay visible here.
-            </p>
+            <p>Important reminders and alerts that need your attention.</p>
           </div>
           {error ? <span className="status-pill archived">Refresh failed</span> : null}
         </div>
 
         <div className="dashboard-attention-list">
-          {overview.maintenanceSummary.upcoming.map((item) => (
+          {visibleMaintenanceItems.map((item) => (
             <MaintenanceAttentionRow key={item.id} item={item} onNavigate={navigate} />
           ))}
 
@@ -200,11 +213,11 @@ export function DashboardModule({ onNavigate }: DashboardModuleProps) {
             <SetupHintRow key={hint.code} hint={hint} onNavigate={navigate} />
           ))}
 
-          {overview.maintenanceSummary.upcoming.length === 0 &&
+          {visibleMaintenanceItems.length === 0 &&
           overview.alertsSummary.topAlerts.length === 0 &&
           overview.setupHints.length === 0 ? (
             <div className="maintenance-empty-note">
-              Nothing needs attention right now. New schedules, alerts, and backup reminders will
+              Nothing needs attention right now. New reminders, alerts, and backup reminders will
               appear here when they need action.
             </div>
           ) : null}
@@ -242,7 +255,7 @@ export function DashboardModule({ onNavigate }: DashboardModuleProps) {
           <div className="dashboard-panel-header">
             <div>
               <h2>Monthly cost mix</h2>
-              <p>Current month totals avoid linked expense duplicates.</p>
+              <p>Fuel, maintenance, and manual expense totals for this month.</p>
             </div>
           </div>
           <div className="dashboard-cost-list">
@@ -253,19 +266,13 @@ export function DashboardModule({ onNavigate }: DashboardModuleProps) {
               currency={overview.preferredCurrency}
             />
             <CostBreakdownRow
-              label="Service"
-              value={overview.costSummary.maintenanceTotal}
+              label="Maintenance"
+              value={overview.costSummary.maintenanceTotal + overview.costSummary.repairTotal}
               total={overview.costSummary.totalTrackedCost}
               currency={overview.preferredCurrency}
             />
             <CostBreakdownRow
-              label="Repairs"
-              value={overview.costSummary.repairTotal}
-              total={overview.costSummary.totalTrackedCost}
-              currency={overview.preferredCurrency}
-            />
-            <CostBreakdownRow
-              label="Manual"
+              label="Manual Expenses"
               value={overview.costSummary.manualExpenseTotal}
               total={overview.costSummary.totalTrackedCost}
               currency={overview.preferredCurrency}
@@ -417,6 +424,28 @@ function statusClass(value: string) {
   }
 
   return "active";
+}
+
+function alertSummaryDetail(
+  visibleAlertCount: number,
+  maintenanceAttention: number,
+  overdueCount: number,
+  highPriorityCount: number,
+) {
+  if (visibleAlertCount === 0) {
+    return "No active alerts";
+  }
+
+  const priorityDetail =
+    highPriorityCount > 0
+      ? `${highPriorityCount} high or critical`
+      : `${visibleAlertCount} total active`;
+
+  return `${maintenanceAttention} maintenance ${pluralize("reminder", maintenanceAttention)}, ${overdueCount} overdue, ${priorityDetail}`;
+}
+
+function pluralize(word: string, count: number) {
+  return count === 1 ? word : `${word}s`;
 }
 
 function formatKmPerLiter(value?: number | null) {

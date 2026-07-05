@@ -2,13 +2,20 @@ use std::collections::HashSet;
 
 use rusqlite::{params, Connection, OptionalExtension, Row};
 
+use crate::vehicles::photo_storage::generate_local_id;
+
 use super::{
     models::{
-        ApplicableMaintenanceTemplate, MaintenanceTemplateRecord, MaintenanceTemplateRuleRecord,
-        MaintenanceVehicleProfile, SeedMaintenanceTemplatesResult,
+        ApplicableMaintenanceTemplate, CreateMaintenanceTemplateRequest, MaintenanceTemplateRecord,
+        MaintenanceTemplateRuleRecord, MaintenanceVehicleProfile, SeedMaintenanceTemplatesResult,
+        UpdateMaintenanceTemplateRequest,
     },
     seeds::{default_templates, RuleSeed, TemplateSeed},
 };
+
+const DEFAULT_DUE_SOON_DAYS: i64 = 14;
+const DEFAULT_DUE_SOON_KM: i64 = 500;
+const VALID_PRIORITIES: [&str; 4] = ["low", "medium", "high", "critical"];
 
 pub fn seed_default_templates(
     connection: &mut Connection,
@@ -85,6 +92,253 @@ pub fn list_active_templates(
     Ok(templates)
 }
 
+pub fn list_user_maintenance_templates(
+    connection: &Connection,
+) -> Result<Vec<MaintenanceTemplateRecord>, String> {
+    let mut statement = connection
+        .prepare(
+            "
+            SELECT
+              id,
+              template_key,
+              name,
+              category,
+              description,
+              default_time_interval_days,
+              default_odometer_interval_km,
+              default_due_soon_days,
+              default_due_soon_km,
+              priority,
+              is_active
+            FROM maintenance_templates
+            WHERE is_active = 1
+              AND deleted_at IS NULL
+              AND (
+                template_key IS NULL
+                OR EXISTS (
+                  SELECT 1
+                  FROM vehicle_maintenance_settings
+                  WHERE vehicle_maintenance_settings.template_id = maintenance_templates.id
+                    AND vehicle_maintenance_settings.deleted_at IS NULL
+                )
+                OR EXISTS (
+                  SELECT 1
+                  FROM maintenance_schedules
+                  WHERE maintenance_schedules.template_id = maintenance_templates.id
+                    AND maintenance_schedules.deleted_at IS NULL
+                    AND maintenance_schedules.archived_at IS NULL
+                )
+              )
+            ORDER BY name
+            ",
+        )
+        .map_err(|_| "Could not prepare the maintenance item list.".to_string())?;
+
+    let rows = statement
+        .query_map([], template_from_row)
+        .map_err(|_| "Could not read maintenance items.".to_string())?;
+    let mut templates = rows
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| "Could not parse maintenance items.".to_string())?;
+
+    for template in &mut templates {
+        template.rules = list_rules_for_template(connection, &template.id)?;
+    }
+
+    Ok(templates)
+}
+
+pub fn create_maintenance_template(
+    connection: &Connection,
+    request: CreateMaintenanceTemplateRequest,
+) -> Result<MaintenanceTemplateRecord, String> {
+    let template = normalize_template_request(NewTemplateRequest {
+        name: request.name,
+        category: request.category,
+        description: request.description,
+        default_time_interval_days: request.default_time_interval_days,
+        default_odometer_interval_km: request.default_odometer_interval_km,
+        default_due_soon_days: request.default_due_soon_days,
+        default_due_soon_km: request.default_due_soon_km,
+        priority: request.priority,
+    })?;
+
+    ensure_template_name_is_available(connection, &template.name, None)?;
+
+    let template_id = generate_local_id("maintenance_template");
+    connection
+        .execute(
+            "
+            INSERT INTO maintenance_templates (
+              id,
+              template_key,
+              name,
+              category,
+              description,
+              default_time_interval_days,
+              default_odometer_interval_km,
+              default_due_soon_days,
+              default_due_soon_km,
+              priority,
+              is_active
+            )
+            VALUES (?1, NULL, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 1)
+            ",
+            params![
+                template_id,
+                template.name,
+                template.category,
+                template.description,
+                template.default_time_interval_days,
+                template.default_odometer_interval_km,
+                template.default_due_soon_days,
+                template.default_due_soon_km,
+                template.priority,
+            ],
+        )
+        .map_err(|_| "Could not add the maintenance item.".to_string())?;
+
+    get_template_by_id(connection, &template_id)?
+        .ok_or_else(|| "Maintenance item was saved but could not be read.".to_string())
+}
+
+pub fn update_maintenance_template(
+    connection: &Connection,
+    request: UpdateMaintenanceTemplateRequest,
+) -> Result<MaintenanceTemplateRecord, String> {
+    let template_id =
+        required_trimmed(&request.id, "Choose a maintenance item to edit.")?.to_string();
+    ensure_template_is_editable(connection, &template_id)?;
+
+    let template = normalize_template_request(NewTemplateRequest {
+        name: request.name,
+        category: request.category,
+        description: request.description,
+        default_time_interval_days: request.default_time_interval_days,
+        default_odometer_interval_km: request.default_odometer_interval_km,
+        default_due_soon_days: request.default_due_soon_days,
+        default_due_soon_km: request.default_due_soon_km,
+        priority: request.priority,
+    })?;
+
+    ensure_template_name_is_available(connection, &template.name, Some(&template_id))?;
+
+    let changed_rows = connection
+        .execute(
+            "
+            UPDATE maintenance_templates
+            SET
+              name = ?1,
+              category = ?2,
+              description = ?3,
+              default_time_interval_days = ?4,
+              default_odometer_interval_km = ?5,
+              default_due_soon_days = ?6,
+              default_due_soon_km = ?7,
+              priority = ?8,
+              is_active = 1,
+              updated_at = datetime('now')
+            WHERE id = ?9
+              AND deleted_at IS NULL
+            ",
+            params![
+                template.name,
+                template.category,
+                template.description,
+                template.default_time_interval_days,
+                template.default_odometer_interval_km,
+                template.default_due_soon_days,
+                template.default_due_soon_km,
+                template.priority,
+                template_id,
+            ],
+        )
+        .map_err(|_| "Could not update the maintenance item.".to_string())?;
+
+    if changed_rows == 0 {
+        return Err("Maintenance item was not found.".to_string());
+    }
+
+    get_template_by_id(connection, &template_id)?
+        .ok_or_else(|| "Maintenance item was updated but could not be read.".to_string())
+}
+
+pub fn archive_maintenance_template(
+    connection: &Connection,
+    template_id: &str,
+) -> Result<(), String> {
+    let template_id = required_trimmed(template_id, "Choose a maintenance item to remove.")?;
+    let changed_rows = connection
+        .execute(
+            "
+            UPDATE maintenance_templates
+            SET
+              is_active = 0,
+              updated_at = datetime('now')
+            WHERE id = ?1
+              AND deleted_at IS NULL
+            ",
+            params![template_id],
+        )
+        .map_err(|_| "Could not remove the maintenance item.".to_string())?;
+
+    if changed_rows == 0 {
+        return Err("Maintenance item was not found.".to_string());
+    }
+
+    connection
+        .execute(
+            "
+            UPDATE vehicle_maintenance_settings
+            SET
+              status = 'disabled',
+              updated_at = datetime('now'),
+              deleted_at = COALESCE(deleted_at, datetime('now'))
+            WHERE template_id = ?1
+              AND deleted_at IS NULL
+            ",
+            params![template_id],
+        )
+        .map_err(|_| "Could not disable reminders for the removed item.".to_string())?;
+
+    connection
+        .execute(
+            "
+            UPDATE maintenance_schedules
+            SET
+              status = 'disabled',
+              updated_at = datetime('now'),
+              archived_at = COALESCE(archived_at, datetime('now'))
+            WHERE template_id = ?1
+              AND deleted_at IS NULL
+              AND archived_at IS NULL
+            ",
+            params![template_id],
+        )
+        .map_err(|_| "Could not disable schedules for the removed item.".to_string())?;
+
+    connection
+        .execute(
+            "
+            UPDATE alerts
+            SET
+              status = 'resolved',
+              resolved_at = COALESCE(resolved_at, datetime('now')),
+              updated_at = datetime('now')
+            WHERE status = 'active'
+              AND maintenance_schedule_id IN (
+                SELECT id
+                FROM maintenance_schedules
+                WHERE template_id = ?1
+              )
+            ",
+            params![template_id],
+        )
+        .map_err(|_| "Could not resolve alerts for the removed item.".to_string())?;
+
+    Ok(())
+}
+
 pub fn list_rules_for_template(
     connection: &Connection,
     template_id: &str,
@@ -132,6 +386,222 @@ pub fn applicable_templates_for_vehicle(
         .collect())
 }
 
+#[derive(Debug)]
+struct NewTemplateRequest {
+    name: String,
+    category: String,
+    description: Option<String>,
+    default_time_interval_days: Option<i64>,
+    default_odometer_interval_km: Option<i64>,
+    default_due_soon_days: Option<i64>,
+    default_due_soon_km: Option<i64>,
+    priority: Option<String>,
+}
+
+#[derive(Debug)]
+struct NormalizedTemplateRequest {
+    name: String,
+    category: String,
+    description: Option<String>,
+    default_time_interval_days: Option<i64>,
+    default_odometer_interval_km: Option<i64>,
+    default_due_soon_days: i64,
+    default_due_soon_km: i64,
+    priority: String,
+}
+
+fn normalize_template_request(
+    request: NewTemplateRequest,
+) -> Result<NormalizedTemplateRequest, String> {
+    Ok(NormalizedTemplateRequest {
+        name: required_trimmed(&request.name, "Maintenance item name is required.")?.to_string(),
+        category: normalize_category(&request.category)?,
+        description: trim_optional(request.description),
+        default_time_interval_days: optional_positive_integer(
+            request.default_time_interval_days,
+            "Default day interval",
+        )?,
+        default_odometer_interval_km: optional_positive_integer(
+            request.default_odometer_interval_km,
+            "Default km interval",
+        )?,
+        default_due_soon_days: optional_non_negative_integer(
+            request.default_due_soon_days,
+            "Default warn days",
+        )?
+        .unwrap_or(DEFAULT_DUE_SOON_DAYS),
+        default_due_soon_km: optional_non_negative_integer(
+            request.default_due_soon_km,
+            "Default warn km",
+        )?
+        .unwrap_or(DEFAULT_DUE_SOON_KM),
+        priority: normalize_priority(request.priority)?,
+    })
+}
+
+fn required_trimmed<'a>(value: &'a str, message: &str) -> Result<&'a str, String> {
+    let trimmed = value.trim();
+
+    if trimmed.is_empty() {
+        return Err(message.to_string());
+    }
+
+    Ok(trimmed)
+}
+
+fn normalize_category(value: &str) -> Result<String, String> {
+    let trimmed = required_trimmed(value, "Maintenance item category is required.")?;
+    let category = trimmed
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() {
+                character.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>()
+        .split('_')
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join("_");
+
+    if category.is_empty() {
+        return Err("Maintenance item category is required.".to_string());
+    }
+
+    Ok(category)
+}
+
+fn trim_optional(value: Option<String>) -> Option<String> {
+    value.and_then(|value| {
+        let trimmed = value.trim();
+        (!trimmed.is_empty()).then(|| trimmed.to_string())
+    })
+}
+
+fn optional_positive_integer(value: Option<i64>, label: &str) -> Result<Option<i64>, String> {
+    match value {
+        Some(value) if value <= 0 => Err(format!("{label} must be greater than zero.")),
+        Some(value) => Ok(Some(value)),
+        None => Ok(None),
+    }
+}
+
+fn optional_non_negative_integer(value: Option<i64>, label: &str) -> Result<Option<i64>, String> {
+    match value {
+        Some(value) if value < 0 => Err(format!("{label} cannot be negative.")),
+        Some(value) => Ok(Some(value)),
+        None => Ok(None),
+    }
+}
+
+fn normalize_priority(priority: Option<String>) -> Result<String, String> {
+    let priority = priority
+        .and_then(|priority| {
+            let trimmed = priority.trim().to_ascii_lowercase();
+            (!trimmed.is_empty()).then_some(trimmed)
+        })
+        .unwrap_or_else(|| "medium".to_string());
+
+    if !VALID_PRIORITIES.contains(&priority.as_str()) {
+        return Err("Choose a valid maintenance item priority.".to_string());
+    }
+
+    Ok(priority)
+}
+
+fn ensure_template_name_is_available(
+    connection: &Connection,
+    name: &str,
+    except_template_id: Option<&str>,
+) -> Result<(), String> {
+    let exists = connection
+        .query_row(
+            "
+            SELECT 1
+            FROM maintenance_templates
+            WHERE lower(name) = lower(?1)
+              AND is_active = 1
+              AND deleted_at IS NULL
+              AND template_key IS NULL
+              AND (?2 IS NULL OR id <> ?2)
+            LIMIT 1
+            ",
+            params![name, except_template_id],
+            |_| Ok(()),
+        )
+        .optional()
+        .map_err(|_| "Could not check existing maintenance item names.".to_string())?
+        .is_some();
+
+    if exists {
+        return Err("A maintenance item with this name already exists.".to_string());
+    }
+
+    Ok(())
+}
+
+fn ensure_template_is_editable(connection: &Connection, template_id: &str) -> Result<(), String> {
+    let exists = connection
+        .query_row(
+            "
+            SELECT 1
+            FROM maintenance_templates
+            WHERE id = ?1
+              AND is_active = 1
+              AND deleted_at IS NULL
+            ",
+            params![template_id],
+            |_| Ok(()),
+        )
+        .optional()
+        .map_err(|_| "Could not check the maintenance item.".to_string())?
+        .is_some();
+
+    if !exists {
+        return Err("Maintenance item was not found.".to_string());
+    }
+
+    Ok(())
+}
+
+fn get_template_by_id(
+    connection: &Connection,
+    template_id: &str,
+) -> Result<Option<MaintenanceTemplateRecord>, String> {
+    let mut template = connection
+        .query_row(
+            "
+            SELECT
+              id,
+              template_key,
+              name,
+              category,
+              description,
+              default_time_interval_days,
+              default_odometer_interval_km,
+              default_due_soon_days,
+              default_due_soon_km,
+              priority,
+              is_active
+            FROM maintenance_templates
+            WHERE id = ?1
+              AND deleted_at IS NULL
+            ",
+            params![template_id],
+            template_from_row,
+        )
+        .optional()
+        .map_err(|_| "Could not read the maintenance item.".to_string())?;
+
+    if let Some(template) = &mut template {
+        template.rules = list_rules_for_template(connection, &template.id)?;
+    }
+
+    Ok(template)
+}
+
 fn upsert_template(connection: &Connection, seed: &TemplateSeed) -> Result<String, String> {
     let existing_id = connection
         .query_row(
@@ -148,28 +618,45 @@ fn upsert_template(connection: &Connection, seed: &TemplateSeed) -> Result<Strin
         .optional()
         .map_err(|_| "Could not check existing maintenance template seed.".to_string())?;
 
-    let template_id = existing_id.unwrap_or_else(|| format!("maintenance_template__{}", seed.key));
+    if let Some(template_id) = existing_id {
+        connection
+            .execute(
+                "
+                UPDATE maintenance_templates
+                SET
+                  template_key = COALESCE(template_key, ?1),
+                  updated_at = updated_at
+                WHERE id = ?2
+                ",
+                params![seed.key, template_id],
+            )
+            .map_err(|_| "Could not preserve maintenance template seed.".to_string())?;
 
-    let changed_rows = connection
+        return Ok(template_id);
+    }
+
+    let template_id = format!("maintenance_template__{}", seed.key);
+
+    connection
         .execute(
             "
-            UPDATE maintenance_templates
-            SET
-              template_key = ?1,
-              name = ?2,
-              category = ?3,
-              description = ?4,
-              default_time_interval_days = ?5,
-              default_odometer_interval_km = ?6,
-              default_due_soon_days = ?7,
-              default_due_soon_km = ?8,
-              priority = ?9,
-              is_active = 1,
-              updated_at = datetime('now'),
-              deleted_at = NULL
-            WHERE id = ?10
+            INSERT INTO maintenance_templates (
+              id,
+              template_key,
+              name,
+              category,
+              description,
+              default_time_interval_days,
+              default_odometer_interval_km,
+              default_due_soon_days,
+              default_due_soon_km,
+              priority,
+              is_active
+            )
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 1)
             ",
             params![
+                template_id,
                 seed.key,
                 seed.name,
                 seed.category,
@@ -178,46 +665,10 @@ fn upsert_template(connection: &Connection, seed: &TemplateSeed) -> Result<Strin
                 seed.default_odometer_interval_km,
                 seed.default_due_soon_days,
                 seed.default_due_soon_km,
-                seed.priority,
-                template_id
+                seed.priority
             ],
         )
-        .map_err(|_| "Could not update maintenance template seed.".to_string())?;
-
-    if changed_rows == 0 {
-        connection
-            .execute(
-                "
-                INSERT INTO maintenance_templates (
-                  id,
-                  template_key,
-                  name,
-                  category,
-                  description,
-                  default_time_interval_days,
-                  default_odometer_interval_km,
-                  default_due_soon_days,
-                  default_due_soon_km,
-                  priority,
-                  is_active
-                )
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 1)
-                ",
-                params![
-                    template_id,
-                    seed.key,
-                    seed.name,
-                    seed.category,
-                    seed.description,
-                    seed.default_time_interval_days,
-                    seed.default_odometer_interval_km,
-                    seed.default_due_soon_days,
-                    seed.default_due_soon_km,
-                    seed.priority
-                ],
-            )
-            .map_err(|_| "Could not insert maintenance template seed.".to_string())?;
-    }
+        .map_err(|_| "Could not insert maintenance template seed.".to_string())?;
 
     Ok(template_id)
 }
@@ -617,6 +1068,268 @@ mod tests {
         assert_eq!(first, second);
         assert_eq!(template_count as usize, first.template_count);
         assert_eq!(rule_count as usize, first.rule_count);
+    }
+
+    #[test]
+    fn custom_maintenance_items_can_be_created_updated_and_archived() {
+        let (_temp_dir, connection) = setup_database();
+
+        let created = create_maintenance_template(
+            &connection,
+            CreateMaintenanceTemplateRequest {
+                name: "Battery terminal cleaning".to_string(),
+                category: "Electrical".to_string(),
+                description: Some("Clean corrosion from terminals.".to_string()),
+                default_time_interval_days: Some(180),
+                default_odometer_interval_km: None,
+                default_due_soon_days: Some(14),
+                default_due_soon_km: Some(500),
+                priority: Some("low".to_string()),
+            },
+        )
+        .expect("item should create");
+
+        assert_eq!(created.name, "Battery terminal cleaning");
+        assert_eq!(created.category, "electrical");
+        assert_eq!(created.default_time_interval_days, Some(180));
+        assert_eq!(created.priority, "low");
+
+        let updated = update_maintenance_template(
+            &connection,
+            UpdateMaintenanceTemplateRequest {
+                id: created.id.clone(),
+                name: "Battery terminal service".to_string(),
+                category: "Electrical".to_string(),
+                description: Some("Clean and tighten terminals.".to_string()),
+                default_time_interval_days: Some(365),
+                default_odometer_interval_km: None,
+                default_due_soon_days: Some(30),
+                default_due_soon_km: Some(750),
+                priority: Some("medium".to_string()),
+            },
+        )
+        .expect("item should update");
+
+        assert_eq!(updated.name, "Battery terminal service");
+        assert_eq!(updated.default_time_interval_days, Some(365));
+        assert_eq!(updated.default_due_soon_days, 30);
+
+        insert_vehicle(&connection, "vehicle-1", "gasoline", "automatic", "fwd");
+        connection
+            .execute(
+                "
+                INSERT INTO vehicle_maintenance_settings (
+                  id,
+                  vehicle_id,
+                  template_id,
+                  status,
+                  custom_time_interval_days
+                )
+                VALUES ('setting-1', 'vehicle-1', ?1, 'active', 365)
+                ",
+                params![updated.id],
+            )
+            .expect("setting should insert");
+        connection
+            .execute(
+                "
+                INSERT INTO maintenance_schedules (
+                  id,
+                  vehicle_id,
+                  template_id,
+                  vehicle_maintenance_setting_id,
+                  next_due_date,
+                  status
+                )
+                VALUES ('schedule-1', 'vehicle-1', ?1, 'setting-1', '2026-12-31', 'due_soon')
+                ",
+                params![updated.id],
+            )
+            .expect("schedule should insert");
+        connection
+            .execute(
+                "
+                INSERT INTO alerts (
+                  id,
+                  vehicle_id,
+                  maintenance_schedule_id,
+                  alert_type,
+                  priority,
+                  title,
+                  message,
+                  status
+                )
+                VALUES (
+                  'alert-1',
+                  'vehicle-1',
+                  'schedule-1',
+                  'maintenance_due_soon',
+                  'high',
+                  'Due soon',
+                  'Battery terminal service is due soon.',
+                  'active'
+                )
+                ",
+                [],
+            )
+            .expect("alert should insert");
+
+        archive_maintenance_template(&connection, &updated.id).expect("item should archive");
+
+        let active_ids = list_active_templates(&connection)
+            .expect("templates should list")
+            .into_iter()
+            .map(|template| template.id)
+            .collect::<Vec<_>>();
+        assert!(!active_ids.contains(&updated.id));
+
+        let is_active: i64 = connection
+            .query_row(
+                "SELECT is_active FROM maintenance_templates WHERE id = ?1",
+                params![updated.id],
+                |row| row.get(0),
+            )
+            .expect("archived template should remain in database");
+        assert_eq!(is_active, 0);
+
+        let disabled_setting_count: i64 = connection
+            .query_row(
+                "
+                SELECT COUNT(*)
+                FROM vehicle_maintenance_settings
+                WHERE id = 'setting-1'
+                  AND status = 'disabled'
+                  AND deleted_at IS NOT NULL
+                ",
+                [],
+                |row| row.get(0),
+            )
+            .expect("disabled setting count should read");
+        let archived_schedule_count: i64 = connection
+            .query_row(
+                "
+                SELECT COUNT(*)
+                FROM maintenance_schedules
+                WHERE id = 'schedule-1'
+                  AND archived_at IS NOT NULL
+                ",
+                [],
+                |row| row.get(0),
+            )
+            .expect("archived schedule count should read");
+        let resolved_alert_count: i64 = connection
+            .query_row(
+                "
+                SELECT COUNT(*)
+                FROM alerts
+                WHERE id = 'alert-1'
+                  AND status = 'resolved'
+                  AND resolved_at IS NOT NULL
+                ",
+                [],
+                |row| row.get(0),
+            )
+            .expect("resolved alert count should read");
+
+        assert_eq!(disabled_setting_count, 1);
+        assert_eq!(archived_schedule_count, 1);
+        assert_eq!(resolved_alert_count, 1);
+    }
+
+    #[test]
+    fn user_maintenance_item_list_hides_unconfigured_seeded_defaults() {
+        let (_temp_dir, mut connection) = setup_database();
+        seed(&mut connection);
+
+        let initial_visible_items =
+            list_user_maintenance_templates(&connection).expect("items should list");
+        assert!(initial_visible_items.is_empty());
+
+        create_maintenance_template(
+            &connection,
+            CreateMaintenanceTemplateRequest {
+                name: "Brake Inspection".to_string(),
+                category: "Maintenance".to_string(),
+                description: None,
+                default_time_interval_days: None,
+                default_odometer_interval_km: None,
+                default_due_soon_days: None,
+                default_due_soon_km: None,
+                priority: None,
+            },
+        )
+        .expect("custom item should create even when a hidden seeded item has the same name");
+
+        let visible_items =
+            list_user_maintenance_templates(&connection).expect("items should list");
+        assert_eq!(visible_items.len(), 1);
+        assert_eq!(visible_items[0].name, "Brake Inspection");
+        assert_eq!(visible_items[0].template_key, None);
+    }
+
+    #[test]
+    fn seeding_does_not_reactivate_user_removed_builtin_items() {
+        let (_temp_dir, mut connection) = setup_database();
+        seed(&mut connection);
+        let oil_template_id: String = connection
+            .query_row(
+                "SELECT id FROM maintenance_templates WHERE template_key = 'engine_oil_change'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("oil template should exist");
+
+        archive_maintenance_template(&connection, &oil_template_id).expect("item should archive");
+        seed_default_templates(&mut connection).expect("seed should rerun");
+
+        let is_active: i64 = connection
+            .query_row(
+                "SELECT is_active FROM maintenance_templates WHERE id = ?1",
+                params![oil_template_id],
+                |row| row.get(0),
+            )
+            .expect("template should remain");
+        assert_eq!(is_active, 0);
+    }
+
+    #[test]
+    fn seeding_preserves_user_edits_to_builtin_items() {
+        let (_temp_dir, mut connection) = setup_database();
+        seed(&mut connection);
+        let oil_template_id: String = connection
+            .query_row(
+                "SELECT id FROM maintenance_templates WHERE template_key = 'engine_oil_change'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("oil template should exist");
+
+        update_maintenance_template(
+            &connection,
+            UpdateMaintenanceTemplateRequest {
+                id: oil_template_id.clone(),
+                name: "Oil service".to_string(),
+                category: "Custom Engine".to_string(),
+                description: Some("Client wording".to_string()),
+                default_time_interval_days: Some(120),
+                default_odometer_interval_km: Some(4_000),
+                default_due_soon_days: Some(10),
+                default_due_soon_km: Some(300),
+                priority: Some("high".to_string()),
+            },
+        )
+        .expect("builtin item should update");
+
+        seed_default_templates(&mut connection).expect("seed should rerun");
+
+        let edited = get_template_by_id(&connection, &oil_template_id)
+            .expect("template should read")
+            .expect("template should exist");
+        assert_eq!(edited.name, "Oil service");
+        assert_eq!(edited.category, "custom_engine");
+        assert_eq!(edited.default_time_interval_days, Some(120));
+        assert_eq!(edited.default_odometer_interval_km, Some(4_000));
+        assert_eq!(edited.priority, "high");
     }
 
     #[test]

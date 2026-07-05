@@ -12,6 +12,7 @@ import {
   ReportsPage,
   ServiceHistoryPage,
   SettingsPage,
+  TripsPage,
   VehiclesPage,
 } from "./routes/Pages";
 
@@ -43,6 +44,8 @@ function renderPage(activePage: PageId, onNavigate: (page: PageId) => void) {
       return <VehiclesPage />;
     case "fuel":
       return <FuelLogsPage />;
+    case "trips":
+      return <TripsPage />;
     case "maintenance":
       return <MaintenancePage />;
     case "service-history":

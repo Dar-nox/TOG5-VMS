@@ -4946,3 +4946,1388 @@ The Tauri dev app process launched successfully. Human visual confirmation is st
 ### Suggested Next Step
 
 Run the manual visual checks above, with special attention to Fuel Logs and Service History attachment links.
+
+---
+
+## Update 2026-07-05 01:41 +08:00 - Phase 14: Alerts Refresh and Dashboard Active Alerts Cleanup
+
+### Summary
+
+Fixed the client-reported alert refresh behavior and simplified the Dashboard summary by combining Maintenance Due into Active Alerts.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Changes Made
+
+- Changed the Alerts page refresh behavior so it recalculates maintenance alerts for all active vehicles before listing active alerts.
+- The Alerts page now uses a `Refreshing...` button state while recalculating and loading alerts.
+- Updated Dashboard loading to refresh maintenance alerts before reading the overview, so alert counts are less likely to feel delayed.
+- Removed the separate `Maintenance due` Dashboard summary card.
+- Updated the remaining `Active alerts` Dashboard card to include maintenance reminder attention in one user-facing count/detail.
+- Added a Dashboard-specific responsive summary grid so the five-card layout stays cohesive after removing the extra card.
+
+### Files Modified
+
+- `src/services/api/alerts.ts`
+- `src/components/alerts/AlertsModule.tsx`
+- `src/components/dashboard/DashboardModule.tsx`
+- `src/styles.css`
+- `specs/live-update.md`
+
+### Commands Run
+
+```bash
+npm.cmd exec prettier -- --write src/services/api/alerts.ts src/components/alerts/AlertsModule.tsx src/components/dashboard/DashboardModule.tsx src/styles.css
+npm.cmd run test
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+cargo fmt --manifest-path src-tauri/Cargo.toml --check
+cargo check --manifest-path src-tauri/Cargo.toml
+cargo test --manifest-path src-tauri/Cargo.toml
+npm.cmd run tauri:dev
+```
+
+### Command Results
+
+- Prettier write: completed.
+- `npm.cmd run test`: passed, 12 Vitest tests.
+- `npm.cmd run typecheck`: passed.
+- `npm.cmd run lint`: passed.
+- `npm.cmd run format:check`: passed.
+- `npm.cmd run build`: passed.
+- `cargo fmt --manifest-path src-tauri/Cargo.toml --check`: passed.
+- `cargo check --manifest-path src-tauri/Cargo.toml`: passed.
+- `cargo test --manifest-path src-tauri/Cargo.toml`: passed, 65 Rust tests.
+- `npm.cmd run tauri:dev`: Vite listened on `127.0.0.1:1420` and `target\debug\tog5-vms.exe` launched. The wrapper returned nonzero only because the validation script intentionally stopped the running dev app afterward; no leftover `tog5-vms`, Cargo, or port 1420 process remained.
+
+### Manual Checks Still Needed
+
+1. Create or use a vehicle maintenance reminder that is due soon/overdue.
+2. Open Alerts and press Refresh.
+3. Confirm the due soon/overdue maintenance alert appears immediately after refresh.
+4. Open Dashboard and confirm there is no separate `Maintenance due` card.
+5. Confirm the `Active alerts` card includes maintenance reminder attention and the five-card layout still looks balanced.
+
+### Decisions Made
+
+- Used existing frontend APIs and existing Tauri commands instead of adding a new backend command or schema change.
+- Kept the Dashboard needs-attention list intact because it provides contextual rows, not duplicate summary cards.
+
+### Suggested Next Step
+
+Run the manual visual checks above, then continue with the next client feedback item.
+
+---
+
+## Update 2026-07-05 01:46 +08:00 - Dashboard Summary Value Overflow Fix
+
+### Summary
+
+Fixed a Dashboard card layout bug where long summary values, especially large monthly cost amounts, could overflow outside the card.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Changes Made
+
+- Added safer width handling to shared summary card value text.
+- Made Dashboard summary card values slightly more compact than the generic summary card value style.
+- Increased the Dashboard summary grid minimum card width so long values have more room before wrapping.
+- Kept Dashboard data aggregation and navigation behavior unchanged.
+
+### Files Modified
+
+- `src/styles.css`
+- `specs/live-update.md`
+
+### Commands Run
+
+```bash
+npm.cmd exec prettier -- --write src/styles.css
+npm.cmd run test
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+npm.cmd run tauri:dev
+```
+
+### Command Results
+
+- Prettier write: completed, `src/styles.css` unchanged after formatting.
+- `npm.cmd run test`: passed, 12 Vitest tests.
+- `npm.cmd run typecheck`: passed.
+- `npm.cmd run lint`: passed.
+- `npm.cmd run format:check`: passed.
+- `npm.cmd run build`: passed.
+- `npm.cmd run tauri:dev`: Vite started on `127.0.0.1:1420` and `target\debug\tog5-vms.exe` launched. The process was stopped after launch confirmation; the final nonzero exit was caused by manual Ctrl+C shutdown. No `tog5-vms` process or port `1420` listener remained afterward.
+
+### Manual Checks Still Needed
+
+1. Open Dashboard with a large monthly cost value.
+2. Confirm the Monthly costs number stays inside the card.
+3. Confirm the other Dashboard summary cards still look balanced at normal and narrow widths.
+
+### Decisions Made
+
+- Fixed this with CSS resilience instead of changing the reported money value or hiding decimals.
+- Applied the behavior to Dashboard summary card values generally so other long Dashboard metrics are less likely to overflow.
+
+### Suggested Next Step
+
+Run the Dashboard visual check, then continue with the next client feedback item.
+
+---
+
+## Update 2026-07-05 14:46 +08:00 - Phase 14: User-Managed Maintenance Items
+
+### Summary
+
+Added client-requested maintenance item management so users can add, edit, and remove maintenance items themselves instead of relying only on the long built-in seeded list.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Changes Made
+
+- Added local Tauri/Rust commands for creating, updating, and archiving maintenance items.
+- Added a compact `Maintenance items` manager to the Maintenance page.
+- Grouped maintenance item dropdown choices by category to make log/reminder selection easier to scan.
+- When choosing an item for a vehicle reminder, the reminder form now pre-fills that item’s suggested day/km intervals and warning thresholds.
+- Removing a maintenance item now soft-disables it, disables related active reminders/schedules, resolves active alerts for that item, and keeps service history intact.
+- Updated maintenance seeding so built-in item removals and edits are preserved across app startup instead of being overwritten by the default seed library.
+
+### Files Modified
+
+- `src-tauri/src/lib.rs`
+- `src-tauri/src/maintenance/commands.rs`
+- `src-tauri/src/maintenance/models.rs`
+- `src-tauri/src/maintenance/repository.rs`
+- `src/components/maintenance/MaintenanceTemplateModule.tsx`
+- `src/services/api/maintenance.ts`
+- `src/styles.css`
+- `specs/live-update.md`
+
+### Tests Added
+
+- Rust test for creating, updating, and archiving custom maintenance items.
+- Rust test confirming removal disables related reminders/schedules and resolves related alerts.
+- Rust test confirming removed built-in items are not reactivated by startup seeding.
+- Rust test confirming user edits to built-in items are preserved after reseeding.
+
+### Commands Run
+
+```bash
+npm.cmd exec prettier -- --write src/components/maintenance/MaintenanceTemplateModule.tsx src/services/api/maintenance.ts src/styles.css
+cargo fmt --manifest-path src-tauri/Cargo.toml
+npm.cmd run typecheck
+cargo check --manifest-path src-tauri/Cargo.toml
+npm.cmd run test
+npm.cmd run lint
+npm.cmd run format:check
+cargo fmt --manifest-path src-tauri/Cargo.toml --check
+npm.cmd run build
+cargo test --manifest-path src-tauri/Cargo.toml
+npm.cmd run tauri:dev
+Get-NetTCPConnection -LocalPort 1420 -ErrorAction SilentlyContinue
+Get-Process | Where-Object { $_.ProcessName -like '*tog5*' -or ($_.Path -like '*TOG5-VMS*') }
+Stop-Process -Id 30240 -Force
+Stop-Process -Id 23224 -Force
+Stop-Process -Id 12236 -Force
+```
+
+### Command Results
+
+- Prettier write: completed.
+- `cargo fmt --manifest-path src-tauri/Cargo.toml`: completed.
+- `npm.cmd run typecheck`: passed.
+- `cargo check --manifest-path src-tauri/Cargo.toml`: passed.
+- `npm.cmd run test`: passed, 12 Vitest tests.
+- `npm.cmd run lint`: passed.
+- `npm.cmd run format:check`: passed.
+- `cargo fmt --manifest-path src-tauri/Cargo.toml --check`: passed.
+- `npm.cmd run build`: passed.
+- `cargo test --manifest-path src-tauri/Cargo.toml`: passed, 69 Rust tests.
+- `npm.cmd run tauri:dev`: timed out because the dev app stayed running; Vite and `target\debug\tog5-vms.exe` launched successfully.
+- Stopped leftover TOG5 dev helper/server/app processes after validation.
+- Final process and port checks showed no TOG5 process and no port `1420` listener remaining.
+
+### Tauri Launch Result
+
+The Tauri debug desktop process launched. Human visual confirmation of the new Maintenance item manager is still needed.
+
+### Decisions Made
+
+- Used the existing `maintenance_templates` table instead of adding a migration.
+- Used soft deactivation for removing maintenance items so history and database references are preserved.
+- Preserved user edits/removals to seeded built-in maintenance items during future startup seeding.
+- Kept smart applicability/template rules internal and did not bring back the old complex template workspace.
+
+### Manual Checks Still Needed
+
+1. Open Maintenance.
+2. Confirm maintenance item dropdowns are grouped by category.
+3. Add a custom maintenance item.
+4. Edit the custom item and confirm the changes persist after reopening the app.
+5. Remove an item and confirm it disappears from new log/reminder choices.
+6. Confirm existing service history for removed items remains visible.
+7. Confirm Vehicles, Fuel Logs, Service History, Dashboard, Alerts, Expenses, Reports, Backup, and Settings still open.
+
+### Suggested Next Step
+
+Run the Maintenance visual workflow checks with the client and continue with the next client feedback item.
+
+---
+
+## Update 2026-07-05 15:37 +08:00 - Phase 14: Maintenance Item List Correction
+
+### Summary
+
+Corrected the previous Maintenance item management change after client feedback: removed category grouping from the maintenance item dropdowns and hid the long seeded default maintenance library from the normal user-facing Maintenance item list.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Changes Made
+
+- Removed `<optgroup>` category grouping from Maintenance item dropdowns.
+- Restored a flat maintenance item picker sorted by item name.
+- Hid unconfigured seeded/default maintenance templates from the user-facing `list_maintenance_templates` command.
+- Kept seeded templates internal so legacy applicability/tests and existing referenced records can still work.
+- User-created maintenance items remain visible and manageable.
+- Allowed users to create custom items with the same name as hidden seeded defaults.
+- Simplified the Maintenance item editor by removing the visible Category field.
+- New user-created items now use an internal `maintenance` category.
+- Added first-use empty-state copy explaining that users should add their own maintenance item before logging work or setting reminders.
+
+### Files Modified
+
+- `src-tauri/src/maintenance/commands.rs`
+- `src-tauri/src/maintenance/repository.rs`
+- `src/components/maintenance/MaintenanceTemplateModule.tsx`
+- `specs/live-update.md`
+
+### Tests Added
+
+- Rust test confirming the user-facing maintenance item list hides unconfigured seeded defaults.
+- Rust test confirms a user-created item with the same name as a hidden seeded default can still be added and shown.
+
+### Commands Run
+
+```bash
+npm.cmd exec prettier -- --write src/components/maintenance/MaintenanceTemplateModule.tsx
+cargo fmt --manifest-path src-tauri/Cargo.toml
+npm.cmd run typecheck
+cargo check --manifest-path src-tauri/Cargo.toml
+npm.cmd run test
+npm.cmd run lint
+npm.cmd run format:check
+cargo fmt --manifest-path src-tauri/Cargo.toml --check
+npm.cmd run build
+cargo test --manifest-path src-tauri/Cargo.toml
+npm.cmd run tauri:dev
+Get-NetTCPConnection -LocalPort 1420 -ErrorAction SilentlyContinue
+Stop-Process -Id 19008,29932 -Force
+Stop-Process -Id 30240 -Force
+```
+
+### Command Results
+
+- Prettier write: completed.
+- `cargo fmt --manifest-path src-tauri/Cargo.toml`: completed.
+- `npm.cmd run typecheck`: passed.
+- `cargo check --manifest-path src-tauri/Cargo.toml`: passed.
+- `npm.cmd run test`: passed, 12 Vitest tests.
+- `npm.cmd run lint`: passed.
+- `npm.cmd run format:check`: passed.
+- `cargo fmt --manifest-path src-tauri/Cargo.toml --check`: passed.
+- `npm.cmd run build`: passed.
+- `cargo test --manifest-path src-tauri/Cargo.toml`: passed, 70 Rust tests.
+- `npm.cmd run tauri:dev`: timed out because the dev app stayed running; Vite and `target\debug\tog5-vms.exe` launched successfully.
+- Stopped leftover TOG5 dev server/helper/app processes after validation.
+- Final checks showed no TOG5 process and no port `1420` listener remaining.
+
+### Tauri Launch Result
+
+The Tauri debug desktop process launched. Human visual confirmation of the corrected flat Maintenance item list is still needed.
+
+### Decisions Made
+
+- Did not hard-delete seeded template rows from SQLite because older service history/reminder references may point to them.
+- Hid unconfigured seeded defaults from normal UI instead of exposing a long default catalog.
+- Kept old referenced seeded items visible only when tied to existing active reminder/schedule data so user data does not become unreachable.
+- Removed visible category editing to match the client request for simple item control rather than more categorization.
+
+### Manual Checks Still Needed
+
+1. Open Maintenance.
+2. Confirm the maintenance item dropdown is flat and has no category headers.
+3. Confirm the long default maintenance list is gone.
+4. Add a maintenance item.
+5. Confirm the new item appears in Log maintenance and Reminder dropdowns.
+6. Edit and remove the item.
+7. Confirm existing service history still opens.
+
+### Suggested Next Step
+
+Run the Maintenance page visual check with the client, then continue with the next feedback item.
+
+---
+
+## Update 2026-07-05 16:53 +08:00 - Phase 14: Maintenance Attachment Picker UI Fix
+
+### Summary
+
+Fixed the Maintenance log receipt/before-photo/after-photo picker layout so file buttons and selected filenames remain readable at smaller and maximized window widths.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Changes Made
+
+- Replaced the visible native file input controls in the Maintenance log attachments section with app-styled `Choose file` buttons.
+- Added a readable selected filename line for each attachment.
+- Made attachment cards wrap responsively before they become too narrow.
+- Prevented native file input text from being clipped or shortened unpredictably by browser styling.
+- Kept receipt/photo storage behavior unchanged.
+
+### Files Modified
+
+- `src/components/maintenance/MaintenanceTemplateModule.tsx`
+- `src/styles.css`
+- `specs/live-update.md`
+
+### Commands Run
+
+```bash
+npm.cmd exec prettier -- --write src/components/maintenance/MaintenanceTemplateModule.tsx src/styles.css
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+npm.cmd run test
+npm.cmd run tauri:dev
+Get-NetTCPConnection -LocalPort 1420 -ErrorAction SilentlyContinue
+Stop-Process -Id 22236,14376,19728 -Force
+Stop-Process -Id 31000,17888,13916 -Force
+```
+
+### Command Results
+
+- Prettier write: completed.
+- `npm.cmd run typecheck`: passed.
+- `npm.cmd run lint`: passed.
+- `npm.cmd run format:check`: passed.
+- `npm.cmd run build`: passed.
+- `npm.cmd run test`: passed, 12 Vitest tests.
+- First `npm.cmd run tauri:dev`: failed because port `1420` was already in use by leftover TOG5 dev processes.
+- Stopped the leftover TOG5 dev server/helper/app processes and retried.
+- Second `npm.cmd run tauri:dev`: launched the dev app and timed out because it stayed running as expected.
+- Stopped the launched TOG5 dev server/helper/app processes afterward.
+- Final check showed no TOG5 process remained; port `1420` only had a harmless `TimeWait` entry.
+
+### Tauri Launch Result
+
+The Tauri debug desktop process launched. Human visual confirmation of the attachment picker layout is still needed.
+
+### Manual Checks Still Needed
+
+1. Open Maintenance.
+2. Select receipt, before photo, and after photo files.
+3. Confirm the `Choose file` buttons are not cut off.
+4. Confirm selected filenames are readable at maximized and smaller window widths.
+5. Confirm saving a maintenance log with attachments still works.
+
+### Suggested Next Step
+
+Run the Maintenance attachment visual check, then continue with the next client feedback item.
+
+---
+
+## Update 2026-07-05 17:15 +08:00 - Phase 14: Maintenance Section Validation Scoping
+
+### Summary
+
+Fixed Maintenance page validation placement so each form section shows only its own validation messages.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Changes Made
+
+- Replaced the shared Maintenance `issues` state with separate `logIssues`, `reminderIssues`, and `itemIssues`.
+- Removed global rendering of form validation errors at the top of the Maintenance workspace.
+- Kept Maintenance log validation inside the `Log maintenance done` panel.
+- Added reminder validation rendering inside `Reminders for this vehicle`.
+- Added maintenance item validation rendering inside `Maintenance items`.
+- Cleared stale success messages when a submit fails validation.
+- Kept success message behavior unchanged; no toast/pop-up system was added.
+
+### Files Modified
+
+- `src/components/maintenance/MaintenanceTemplateModule.tsx`
+- `specs/live-update.md`
+
+### Commands Run
+
+```bash
+npm.cmd exec prettier -- --write src/components/maintenance/MaintenanceTemplateModule.tsx
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run test
+npm.cmd run build
+npm.cmd run tauri:dev
+Get-NetTCPConnection -LocalPort 1420 -ErrorAction SilentlyContinue
+Stop-Process -Id 31204,22904,30348 -Force
+Stop-Process -Id 32728,31756,14972 -Force
+```
+
+### Command Results
+
+- Prettier write: completed.
+- `npm.cmd run typecheck`: passed.
+- `npm.cmd run lint`: passed.
+- `npm.cmd run format:check`: passed.
+- `npm.cmd run test`: passed, 12 Vitest tests.
+- `npm.cmd run build`: passed.
+- First `npm.cmd run tauri:dev`: failed because port `1420` was already in use by leftover TOG5 dev processes.
+- Stopped leftover TOG5 dev server/helper/app processes and retried.
+- Second `npm.cmd run tauri:dev`: launched the dev app and timed out because it stayed running as expected.
+- Stopped the launched TOG5 dev server/helper/app processes afterward.
+- Final check showed no TOG5 process remained; port `1420` only had a transient `TimeWait` entry.
+
+### Tauri Launch Result
+
+The Tauri debug desktop process launched. Human visual confirmation of section-scoped validation placement is still needed.
+
+### Manual Checks Still Needed
+
+1. Open Maintenance.
+2. Submit an empty Maintenance item form.
+3. Confirm the error appears only inside `Maintenance items`.
+4. Submit an incomplete Log maintenance form.
+5. Confirm the error appears only inside `Log maintenance done`.
+6. Submit an incomplete reminder form.
+7. Confirm the error appears only inside `Reminders for this vehicle`.
+8. Confirm stale success messages clear when a validation error appears.
+
+### Suggested Next Step
+
+Run the Maintenance validation placement visual check, then continue with the next client feedback item.
+
+---
+
+## Update 2026-07-05 13:35 +08:00 - Settings Clear Local Product Data Action
+
+### Summary
+
+Added a guarded Settings action to clear local product/test data from this device without removing app settings, the local user profile, maintenance item suggestions, or existing backup packages.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Changes Made
+
+- Added a backend `clear_app_data` Tauri command.
+- Added typed clear-data request/response models.
+- Added a transactional product-data clear operation that removes product records from vehicle, fuel, maintenance, service history, expense, alert, parts, document/photo, and audit tables.
+- Preserved `settings`, `users`, `maintenance_templates`, `maintenance_template_rules`, `schema_migrations`, and `backups`.
+- Cleared app-managed local upload folders:
+  - `vehicle-photos`
+  - `fuel-receipts`
+  - `maintenance-receipts`
+  - `maintenance-photos`
+- Recreated the managed folders after clearing them.
+- Added a Settings `Clear Local Product Data` danger-zone card.
+- Added a required checkbox confirmation before the destructive button becomes usable.
+- Added frontend API wrapper/types for `clearAppData`.
+- Added Rust coverage for clearing product data while keeping settings, users, templates, and backups.
+
+### Files Modified
+
+- `src-tauri/src/lib.rs`
+- `src-tauri/src/settings/commands.rs`
+- `src-tauri/src/settings/models.rs`
+- `src-tauri/src/settings/repository.rs`
+- `src/components/settings/SettingsModule.tsx`
+- `src/services/api/settings.ts`
+- `src/styles.css`
+- `specs/live-update.md`
+
+### Commands Run
+
+```bash
+npm.cmd exec prettier -- --write src/services/api/settings.ts src/components/settings/SettingsModule.tsx src/styles.css
+cargo fmt --manifest-path src-tauri/Cargo.toml
+npm.cmd run typecheck
+cargo check --manifest-path src-tauri/Cargo.toml
+npm.cmd run test
+npm.cmd run lint
+cargo fmt --manifest-path src-tauri/Cargo.toml --check
+npm.cmd run format:check
+npm.cmd run build
+cargo test --manifest-path src-tauri/Cargo.toml
+npm.cmd run tauri:dev
+```
+
+### Command Results
+
+- Prettier write: completed.
+- `cargo fmt --manifest-path src-tauri/Cargo.toml`: completed.
+- `npm.cmd run typecheck`: passed.
+- `cargo check --manifest-path src-tauri/Cargo.toml`: passed.
+- `npm.cmd run test`: passed, 12 Vitest tests.
+- `npm.cmd run lint`: passed.
+- `cargo fmt --manifest-path src-tauri/Cargo.toml --check`: passed.
+- `npm.cmd run format:check`: passed.
+- `npm.cmd run build`: passed.
+- First `cargo test --manifest-path src-tauri/Cargo.toml`: all visible tests passed but the command timed out at 60 seconds after test completion output.
+- Second `cargo test --manifest-path src-tauri/Cargo.toml`: passed cleanly, 66 Rust tests.
+- `npm.cmd run tauri:dev`: initial command timed out before returning output, but the dev server and `target\debug\tog5-vms.exe` did launch. The leftover TOG5 dev server, Cargo, Node, and app processes were stopped afterward. No TOG5 app process or port `1420` listener remained.
+
+### Manual Checks Still Needed
+
+1. Open Settings.
+2. Confirm the `Clear Local Product Data` card appears under local data safety.
+3. Confirm the `Clear local data` button is disabled until the checkbox is checked.
+4. Create a backup before testing if any real data should be preserved.
+5. Check the confirmation box and clear data only on a test copy/device.
+6. Confirm vehicles, logs, reminders, expenses, alerts, and uploaded files are cleared.
+7. Confirm Settings still opens and the local owner/profile remains.
+8. Confirm backup history/packages remain available.
+
+### Decisions Made
+
+- Kept this as a product-data cleanup action rather than deleting the whole app-data folder or database.
+- Preserved backup packages so accidental cleanup can still be recovered from if a backup exists.
+- Preserved settings and local user/access scaffolding so the app remains usable immediately after cleanup.
+- Preserved the seeded maintenance template catalog because it is internal product reference data, not user-entered test data.
+
+### Suggested Next Step
+
+Manually verify the Settings clear-data confirmation flow on a test data set, then continue with the next client feedback item.
+
+---
+
+## Update 2026-07-05 02:27 +08:00 - Dashboard Needs Attention Duplicate Cleanup
+
+### Summary
+
+Removed the confusing duplicate Dashboard `Needs attention` display where a due-soon maintenance reminder and its generated alert could appear as two separate rows for the same item.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Changes Made
+
+- Added `maintenanceScheduleId` to Dashboard alert response items.
+- Updated the Dashboard alert query to return the linked `alerts.maintenance_schedule_id`.
+- Filtered Dashboard maintenance reminder rows when a visible alert row already represents the same schedule.
+- Updated the `Needs attention` helper copy to say `Important reminders and alerts that need your attention.`
+- Updated the empty-state copy to say `New reminders` instead of `New schedules`.
+- Kept Maintenance, Alerts, scheduling, alert generation, and database behavior unchanged.
+
+### Files Modified
+
+- `src-tauri/src/dashboard/models.rs`
+- `src-tauri/src/dashboard/repository.rs`
+- `src/services/api/dashboard.ts`
+- `src/components/dashboard/DashboardModule.tsx`
+- `specs/live-update.md`
+
+### Commands Run
+
+```bash
+npm.cmd exec prettier -- --write src/components/dashboard/DashboardModule.tsx src/services/api/dashboard.ts
+cargo fmt --manifest-path src-tauri/Cargo.toml
+npm.cmd run test
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+cargo fmt --manifest-path src-tauri/Cargo.toml --check
+cargo check --manifest-path src-tauri/Cargo.toml
+cargo test --manifest-path src-tauri/Cargo.toml
+npm.cmd run tauri:dev
+```
+
+### Command Results
+
+- Prettier write: completed, files unchanged after formatting.
+- `cargo fmt --manifest-path src-tauri/Cargo.toml`: completed.
+- `npm.cmd run test`: passed, 12 Vitest tests.
+- `npm.cmd run typecheck`: passed.
+- `npm.cmd run lint`: passed.
+- `npm.cmd run format:check`: passed.
+- `npm.cmd run build`: passed.
+- `cargo fmt --manifest-path src-tauri/Cargo.toml --check`: passed.
+- `cargo check --manifest-path src-tauri/Cargo.toml`: passed.
+- `cargo test --manifest-path src-tauri/Cargo.toml`: passed, 65 Rust tests.
+- `npm.cmd run tauri:dev`: Vite started on `127.0.0.1:1420` and `target\debug\tog5-vms.exe` launched. The process was stopped after launch confirmation; the final nonzero exit was caused by manual Ctrl+C shutdown. No `tog5-vms` process or port `1420` listener remained afterward.
+
+### Manual Checks Still Needed
+
+1. Open Dashboard with a maintenance reminder that has a matching due-soon/overdue alert.
+2. Confirm only one row appears for that maintenance item in `Needs attention`.
+3. Confirm the Alerts page still shows the alert.
+4. Confirm the Maintenance page still shows the reminder details.
+
+### Decisions Made
+
+- Used the linked maintenance schedule id for exact deduplication instead of matching by title/date text.
+- Kept this as a Dashboard presentation cleanup so underlying maintenance reminders and alert records remain intact.
+
+### Suggested Next Step
+
+Run the Dashboard duplicate-row visual check, then continue with the next client feedback item.
+
+---
+
+## Update 2026-07-05 02:33 +08:00 - Fuel and Maintenance Total Auto-Fill Polish
+
+### Summary
+
+Added live total auto-fill behavior to the Fuel Logs and Maintenance logging forms based on client feedback.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Changes Made
+
+- Fuel Logs now automatically fills `Total amount` when both `Liters` and `Price per liter` are valid.
+- Maintenance logging now automatically fills `Total cost` from `Labor cost + Parts cost`.
+- Maintenance logging clears `Total cost` again when both labor and parts costs are blank.
+- Existing save-time validation and backend persistence behavior were kept unchanged.
+- Total fields remain editable so users can still correct unusual real-world receipts if needed.
+
+### Files Modified
+
+- `src/components/fuel/FuelLogsModule.tsx`
+- `src/components/maintenance/MaintenanceTemplateModule.tsx`
+- `specs/live-update.md`
+
+### Commands Run
+
+```bash
+npm.cmd exec prettier -- --write src/components/fuel/FuelLogsModule.tsx src/components/maintenance/MaintenanceTemplateModule.tsx
+npm.cmd run test
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+npm.cmd run tauri:dev
+```
+
+### Command Results
+
+- Prettier write: completed, files unchanged after formatting.
+- `npm.cmd run test`: passed, 12 Vitest tests.
+- `npm.cmd run typecheck`: passed.
+- `npm.cmd run lint`: passed.
+- `npm.cmd run format:check`: passed.
+- `npm.cmd run build`: passed.
+- `npm.cmd run tauri:dev`: Vite started on `127.0.0.1:1420` and `target\debug\tog5-vms.exe` launched. The process was stopped after launch confirmation; the final nonzero exit was caused by manual Ctrl+C shutdown. No `tog5-vms` process or port `1420` listener remained afterward.
+
+### Manual Checks Still Needed
+
+1. Open Fuel Logs and enter liters plus price per liter.
+2. Confirm `Total amount` fills automatically.
+3. Open Maintenance and enter labor cost plus parts cost.
+4. Confirm `Total cost` fills automatically.
+5. Confirm both forms still save normally.
+
+### Decisions Made
+
+- Kept this as frontend form behavior rather than a schema or backend command change.
+- Kept total fields editable to avoid blocking real receipts or corrected totals.
+
+### Suggested Next Step
+
+Run the manual form checks above, then continue with the next client feedback item.
+
+---
+
+## Update 2026-07-05 03:16 +08:00 - Interruption Recovery Sanity Check
+
+### Summary
+
+Checked the project after the user manually stopped the app/dev process during the previous follow-up. No broken or half-applied state was found.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Checks Completed
+
+- Confirmed the shell is still operating in the project root.
+- Checked for leftover `tog5-vms`, Cargo, and project Node dev processes.
+- Checked port `1420`.
+- Ran frontend and Rust validation commands.
+
+### Files Modified
+
+- `specs/live-update.md`
+
+### Commands Run
+
+```bash
+git status --short --untracked-files=all
+Get-NetTCPConnection -LocalPort 1420 -ErrorAction SilentlyContinue
+Get-Process tog5-vms,cargo,node -ErrorAction SilentlyContinue
+npm.cmd run test
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+cargo check --manifest-path src-tauri/Cargo.toml
+cargo test --manifest-path src-tauri/Cargo.toml
+```
+
+### Command Results
+
+- Project root confirmed as `C:\Development Projects\TOG5-VMS`.
+- No `tog5-vms` app process was running.
+- No port `1420` listener remained.
+- Only an unrelated Adobe Creative Cloud Node process was visible.
+- `npm.cmd run test`: passed, 12 Vitest tests.
+- `npm.cmd run typecheck`: passed.
+- `npm.cmd run lint`: passed.
+- `npm.cmd run format:check`: passed.
+- `npm.cmd run build`: passed.
+- `cargo check --manifest-path src-tauri/Cargo.toml`: passed.
+- `cargo test --manifest-path src-tauri/Cargo.toml`: passed, 65 Rust tests.
+
+### Issues Encountered
+
+- None from the manual stop. The interruption did not corrupt the working tree or leave the dev server running.
+
+### Decisions Made
+
+- Did not relaunch `npm.cmd run tauri:dev` again during this recovery check because the user had already stopped the app manually and port/process cleanup was confirmed.
+
+### Suggested Next Step
+
+Continue with the next client feedback item.
+
+---
+
+## Update 2026-07-05 18:40 +08:00 - Phase 14: Vehicle Maintenance Overview Polish
+
+### Summary
+
+Replaced the stale Vehicle profile `Maintenance setup later` card with a real read-only `Maintenance reminders` overview for the selected vehicle.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Changes Made
+
+- Vehicle profile now loads existing vehicle maintenance settings and schedule records for the selected vehicle.
+- Added a compact maintenance reminder list to the Vehicle details panel.
+- Shows reminder item name, category, due status, due reason, next due date, and next due odometer when available.
+- Shows a friendly empty state when no reminders are set for the vehicle.
+- Keeps reminder editing and maintenance logging on the Maintenance page, avoiding a second management workflow on Vehicles.
+- Updated Vehicles header copy so it no longer references future/template setup.
+- Added responsive CSS so reminder rows stack cleanly on narrow windows.
+- Recovered from an interrupted `tauri:dev` run and confirmed no TOG5 process or port `1420` listener remained afterward.
+
+### Files Modified
+
+- `src/components/vehicles/VehicleModule.tsx`
+- `src/styles.css`
+- `specs/live-update.md`
+
+### Commands Run
+
+```bash
+Get-Location
+git status --short
+Get-NetTCPConnection -LocalPort 1420 -ErrorAction SilentlyContinue | Select-Object LocalAddress,LocalPort,State,OwningProcess
+Get-Process -Id 5092 | Select-Object Id,ProcessName,Path
+Stop-Process -Id 5092 -Force
+npm.cmd exec prettier -- --write src/components/vehicles/VehicleModule.tsx src/styles.css
+npm.cmd run test
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+cargo fmt --manifest-path src-tauri/Cargo.toml --check
+cargo check --manifest-path src-tauri/Cargo.toml
+cargo test --manifest-path src-tauri/Cargo.toml
+npm.cmd run tauri:dev
+Stop-Process -Id 24648,24672 -Force
+```
+
+### Command Results
+
+- Confirmed working directory: `C:\Development Projects\TOG5-VMS`.
+- First port check found a leftover `node.exe` listener on `127.0.0.1:1420`; it had already exited by the time `Stop-Process` ran.
+- Prettier write completed.
+- `npm.cmd run test`: passed, 12 Vitest tests.
+- `npm.cmd run typecheck`: passed.
+- `npm.cmd run lint`: passed.
+- `npm.cmd run format:check`: passed.
+- `npm.cmd run build`: passed.
+- `cargo fmt --manifest-path src-tauri/Cargo.toml --check`: passed.
+- `cargo check --manifest-path src-tauri/Cargo.toml`: passed.
+- `cargo test --manifest-path src-tauri/Cargo.toml`: passed, 70 Rust tests.
+- `npm.cmd run tauri:dev`: timed out at the tool limit, but process inspection confirmed Vite was listening on `127.0.0.1:1420` and `target\debug\tog5-vms.exe` launched.
+- Stopped the TOG5 dev server/app processes after launch confirmation.
+- Final port/process check confirmed no `tog5-vms` process or port `1420` listener remained.
+
+### Manual Visual Checks Still Needed
+
+1. Open Vehicles.
+2. Select a vehicle with maintenance reminders.
+3. Confirm the old `Maintenance setup later` card is gone.
+4. Confirm configured maintenance items appear with next due date/km when available.
+5. Confirm vehicles with no reminders show the friendly empty reminder message.
+6. Confirm the Vehicle profile still looks clean at normal and narrow window widths.
+
+### Decisions Made
+
+- Used existing maintenance setting and schedule APIs instead of adding backend commands or schema changes.
+- Kept Vehicle page read-only for reminders because Maintenance remains the primary place to log work and edit reminder intervals.
+- Included settings without generated schedules so reminders do not disappear just because no next-due target exists yet.
+
+### Issues Encountered
+
+- The interrupted `tauri:dev` left uncertainty around port `1420`, so the port and app process were checked and cleaned up.
+- Codex could confirm process launch but not perform human visual inspection of the desktop window.
+
+### Suggested Next Step
+
+Run the Vehicle page visual check, then continue with the next client feedback item.
+
+---
+
+## Update 2026-07-05 19:27 +08:00 - Phase 14: Maintenance Reminders UI Simplification
+
+### Summary
+
+Removed the separate `Reminders for this vehicle` panel from the Maintenance page and folded reminder management into the `Maintenance items` cards.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Changes Made
+
+- Removed the standalone visible `Reminders for this vehicle` workflow from the Maintenance page.
+- Kept `Needs attention` and `Log maintenance done` unchanged.
+- Each Maintenance item card now shows whether the selected vehicle has a reminder for that item.
+- Added inline `Set reminder` / `Edit reminder` / `Remove reminder` controls inside each Maintenance item card.
+- Preserved existing vehicle reminder records, alert behavior, schedule behavior, and backend commands.
+- Kept Maintenance item add/edit/remove behavior intact.
+- Removed stale `Reminders for this vehicle` copy and old reminder-card CSS selectors.
+- Added responsive inline reminder editor styling.
+
+### Files Modified
+
+- `src/components/maintenance/MaintenanceTemplateModule.tsx`
+- `src/styles.css`
+- `specs/live-update.md`
+
+### Commands Run
+
+```bash
+Get-Location
+npm.cmd exec prettier -- --write src/components/maintenance/MaintenanceTemplateModule.tsx src/styles.css
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run test
+npm.cmd run format:check
+npm.cmd run build
+npm.cmd run tauri:dev
+Stop-Process -Id 6096,22908 -Force
+Get-NetTCPConnection -LocalPort 1420 -ErrorAction SilentlyContinue | Select-Object LocalAddress,LocalPort,State,OwningProcess
+```
+
+### Command Results
+
+- Confirmed working directory: `C:\Development Projects\TOG5-VMS`.
+- Prettier write completed.
+- `npm.cmd run typecheck`: passed.
+- `npm.cmd run lint`: passed.
+- `npm.cmd run test`: passed, 12 Vitest tests.
+- `npm.cmd run format:check`: passed.
+- `npm.cmd run build`: passed.
+- `npm.cmd run tauri:dev`: timed out at the tool limit, but process inspection confirmed Vite was listening on `127.0.0.1:1420` and `target\debug\tog5-vms.exe` launched.
+- Stopped the TOG5 dev server/app processes after launch confirmation.
+- Final port/process check confirmed no `tog5-vms` process or port `1420` listener remained.
+
+### Manual Visual Checks Still Needed
+
+1. Open Maintenance.
+2. Confirm the separate `Reminders for this vehicle` panel is gone.
+3. Confirm Maintenance item cards show `Set reminder` when no reminder exists.
+4. Confirm `Edit reminder` opens inline fields inside the item card.
+5. Confirm saving/removing a reminder updates the selected vehicle reminders and Vehicle page overview.
+6. Confirm the inline editor stacks cleanly on narrower windows.
+
+### Decisions Made
+
+- Merged reminder controls into Maintenance items instead of deleting reminder functionality.
+- Kept due status/next due display out of the Maintenance item cards because the Vehicle profile now shows that overview.
+- Did not change backend, database schema, schedule calculation, alerts, or service history behavior.
+
+### Suggested Next Step
+
+Run the Maintenance page visual check, then continue with the next client feedback item.
+
+---
+
+## Update 2026-07-05 20:27 +08:00 - Phase 14: Maintenance Item Reminder Behavior and Card Clipping Fix
+
+### Summary
+
+Aligned the Maintenance item form with the simplified reminder model: the item day/km fields now apply as the selected vehicle's reminder when the item is saved, and the confusing `Set reminder` button flow was removed.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Changes Made
+
+- Saving a maintenance item with `Every how many days?` and/or `Every how many km?` now creates or updates the selected vehicle's reminder automatically.
+- Saving a maintenance item with both interval fields blank removes the selected vehicle's reminder for that item if one exists.
+- Removed the remaining per-card `Set reminder` / inline reminder editor flow.
+- Maintenance item cards now show simple status copy:
+  - `Tracking for this vehicle...` when a reminder exists.
+  - setup guidance when no reminder interval exists yet.
+  - legacy guidance if an item has intervals but has not yet been applied to the selected vehicle.
+- Editing an item now loads the selected vehicle's actual reminder values when that vehicle already has a reminder for the item.
+- Renamed form labels from `Suggested days` / `Suggested km` to `Every how many days?` / `Every how many km?`.
+- Removed the nested max-height/scroll behavior from the maintenance item list to prevent cards and buttons from clipping into each other.
+
+### Files Modified
+
+- `src/components/maintenance/MaintenanceTemplateModule.tsx`
+- `src/styles.css`
+- `specs/live-update.md`
+
+### Commands Run
+
+```bash
+Get-Location
+npm.cmd exec prettier -- --write src/components/maintenance/MaintenanceTemplateModule.tsx src/styles.css
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run test
+npm.cmd run format:check
+npm.cmd run build
+Get-NetTCPConnection -LocalPort 1420 -ErrorAction SilentlyContinue | Select-Object LocalAddress,LocalPort,State,OwningProcess
+Stop-Process -Id 32332 -Force
+npm.cmd run tauri:dev
+Stop-Process -Id 10696 -Force
+npm.cmd run tauri:dev
+Stop-Process -Id 22352,32772 -Force
+```
+
+### Command Results
+
+- Confirmed working directory: `C:\Development Projects\TOG5-VMS`.
+- Prettier write completed.
+- `npm.cmd run typecheck`: passed.
+- `npm.cmd run lint`: passed.
+- `npm.cmd run test`: passed, 12 Vitest tests.
+- `npm.cmd run format:check`: passed.
+- `npm.cmd run build`: passed.
+- First `npm.cmd run tauri:dev`: failed because a stale `tog5-vms.exe` process still held `src-tauri\target\debug\tog5-vms.exe`, causing Windows `Access is denied`.
+- Stopped the stale `tog5-vms.exe` process and retried.
+- Second `npm.cmd run tauri:dev`: timed out at the tool limit, but process inspection confirmed Vite was listening on `127.0.0.1:1420` and `target\debug\tog5-vms.exe` launched.
+- Stopped the TOG5 dev server/app processes after launch confirmation.
+- Final port/process check confirmed no `tog5-vms` process remained; only temporary `TIME_WAIT` sockets were visible.
+
+### Manual Visual Checks Still Needed
+
+1. Open Maintenance.
+2. Add a maintenance item with days/km values and confirm it shows as tracking for the selected vehicle after save.
+3. Confirm there is no separate `Set reminder` button flow.
+4. Edit an item, clear both interval fields, save, and confirm the selected vehicle reminder is removed.
+5. Confirm item cards no longer clip or overlap inside the list.
+6. Confirm the Vehicle page maintenance overview reflects the changed reminder.
+
+### Decisions Made
+
+- Treated the item interval fields as the selected vehicle's reminder intervals because that matches the simplified client expectation.
+- Kept backend schema and command APIs unchanged.
+- Left legacy items with intervals but no selected-vehicle reminder as a visible guidance state; editing and saving them applies the interval to the selected vehicle.
+
+### Suggested Next Step
+
+Run the Maintenance visual checks, then continue with the next client feedback item.
+
+---
+
+## Update 2026-07-05 03:07 +08:00 - Interruption Sanity Check
+
+### Summary
+
+Verified that the manual stop after the previous Tauri dev run did not leave the TOG 5 VMS workspace, dev server, or validation state broken.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Checks Completed
+
+- Confirmed the current working directory is still the project root.
+- Confirmed no `tog5-vms` or Cargo process remained running.
+- Confirmed port `1420` was clear.
+- Confirmed the working tree still contains the expected Phase 14 client-fix files.
+
+### Commands Run
+
+```bash
+git status --short --untracked-files=all
+Get-NetTCPConnection -LocalPort 1420 -ErrorAction SilentlyContinue
+Get-Process tog5-vms,cargo,node -ErrorAction SilentlyContinue
+npm.cmd run test
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+cargo fmt --manifest-path src-tauri/Cargo.toml --check
+cargo check --manifest-path src-tauri/Cargo.toml
+cargo test --manifest-path src-tauri/Cargo.toml
+```
+
+### Command Results
+
+- `npm.cmd run test`: passed, 12 Vitest tests.
+- `npm.cmd run typecheck`: passed.
+- `npm.cmd run lint`: passed.
+- `npm.cmd run format:check`: passed.
+- `npm.cmd run build`: passed.
+- `cargo fmt --manifest-path src-tauri/Cargo.toml --check`: passed.
+- `cargo check --manifest-path src-tauri/Cargo.toml`: passed.
+- `cargo test --manifest-path src-tauri/Cargo.toml`: passed, 65 Rust tests.
+- No TOG5 app process or port `1420` listener remained after the manual stop.
+
+### Files Modified
+
+- `specs/live-update.md`
+
+### Issues Encountered
+
+- No broken or interrupted source changes were found.
+
+### Suggested Next Step
+
+Continue with the next client feedback item.
+
+---
+
+## Update 2026-07-05 02:13 +08:00 - Dashboard Monthly Cost Mix Simplification
+
+### Summary
+
+Simplified the Dashboard `Monthly cost mix` section from four rows to three clearer rows: Fuel, Maintenance, and Manual Expenses.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Changes Made
+
+- Removed the separate Dashboard `Repairs` cost-mix row.
+- Renamed `Service` to `Maintenance`.
+- Combined maintenance/service costs and repair costs into the single Dashboard `Maintenance` row so the visible rows still add up to the monthly total.
+- Renamed `Manual` to `Manual Expenses`.
+- Updated Dashboard cost-mix helper copy to match the simplified three-category display.
+- Kept backend cost aggregation, Reports detail, and database behavior unchanged.
+
+### Files Modified
+
+- `src/components/dashboard/DashboardModule.tsx`
+- `specs/live-update.md`
+
+### Commands Run
+
+```bash
+npm.cmd exec prettier -- --write src/components/dashboard/DashboardModule.tsx
+npm.cmd run test
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+npm.cmd run tauri:dev
+```
+
+### Command Results
+
+- Prettier write: completed, `DashboardModule.tsx` unchanged after formatting.
+- `npm.cmd run test`: passed, 12 Vitest tests.
+- `npm.cmd run typecheck`: passed.
+- `npm.cmd run lint`: passed.
+- `npm.cmd run format:check`: passed.
+- `npm.cmd run build`: passed.
+- First `npm.cmd run tauri:dev`: failed because port `1420` was already in use by a leftover TOG5 dev server.
+- Stopped the leftover TOG5 dev process and retried once.
+- Second `npm.cmd run tauri:dev`: Vite started on `127.0.0.1:1420` and `target\debug\tog5-vms.exe` launched. The process was stopped after launch confirmation; the final nonzero exit was caused by manual Ctrl+C shutdown. No `tog5-vms` process or port `1420` listener remained afterward.
+
+### Manual Checks Still Needed
+
+1. Open Dashboard.
+2. Confirm `Monthly cost mix` shows only Fuel, Maintenance, and Manual Expenses.
+3. Confirm Maintenance includes maintenance/service and repair costs as one Dashboard category.
+4. Confirm Reports still show detailed cost categories where needed.
+
+### Decisions Made
+
+- Kept this as a Dashboard display simplification instead of changing backend/report data structures.
+- Kept repair totals available internally and in detailed Reports, but grouped them under Maintenance on the Dashboard because the separate Dashboard row felt redundant.
+
+### Suggested Next Step
+
+Run the Dashboard visual check, then continue with the next client feedback item.
+
+---
+
+## Update 2026-07-05 21:32 +08:00 - Phase 14: Trip Logs and Trip Reports
+
+### Summary
+
+Added a new local-only Trips module for operational vehicle trip logging and added Trip Reports beside the existing maintenance/cost reports.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Changes Made
+
+- Added a new Trips sidebar page.
+- Added trip start workflow with vehicle, time out, multiple drivers, optional passengers, reason, multiple destinations, and departure notes.
+- Added trip return workflow for open trips with return time and return notes.
+- Added open trip and past trip lists with friendly empty states.
+- Prevented starting a second open trip for the same vehicle.
+- Added local SQLite trip tables through a new migration.
+- Added Rust Trips repository, Tauri commands, and Rust tests.
+- Added typed frontend Trips API wrapper.
+- Added a `Trip Reports` tab to the existing Reports page.
+- Trip Reports show total trips, currently-out trips, completed trips, trips by vehicle, trips by driver, common destinations, and recent trips.
+- Kept Trips independent from odometer, fuel, maintenance, expenses, backup, auth, cloud, OCR, and native notifications.
+
+### Files Created
+
+- `src-tauri/migrations/004_trip_logs.sql`
+- `src-tauri/src/trips/mod.rs`
+- `src-tauri/src/trips/models.rs`
+- `src-tauri/src/trips/repository.rs`
+- `src-tauri/src/trips/commands.rs`
+- `src/components/trips/TripsModule.tsx`
+- `src/services/api/trips.ts`
+
+### Files Modified
+
+- `src-tauri/src/db/mod.rs` - registered trip migration and migration tests.
+- `src-tauri/src/lib.rs` - registered Trips module and commands.
+- `src/app/App.tsx` - added Trips route.
+- `src/app/routes/Pages.tsx` - added Trips page wrapper.
+- `src/types/navigation.ts` - added Trips navigation item.
+- `src/components/reports/ReportsModule.tsx` - added report tabs and Trip Reports UI.
+- `src/styles.css` - added Trips and report tab styling/responsive rules.
+- `specs/live-update.md` - recorded this update.
+
+### Files Deleted
+
+- None.
+
+### Commands Run
+
+```bash
+cargo check --manifest-path src-tauri/Cargo.toml
+npm.cmd exec prettier -- --write src-tauri/migrations/004_trip_logs.sql src/app/App.tsx src/app/routes/Pages.tsx src/components/trips/TripsModule.tsx src/components/reports/ReportsModule.tsx src/services/api/trips.ts src/styles.css src/types/navigation.ts
+npm.cmd run typecheck
+cargo fmt --manifest-path src-tauri/Cargo.toml
+cargo test --manifest-path src-tauri/Cargo.toml
+npm.cmd run test
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+cargo fmt --manifest-path src-tauri/Cargo.toml --check
+cargo check --manifest-path src-tauri/Cargo.toml
+npm.cmd run tauri:dev
+```
+
+### Command Results
+
+- Initial Rust check: passed.
+- Prettier write: TS/CSS files formatted; SQL migration was left hand-formatted because Prettier could not infer a SQL parser.
+- Typecheck: passed.
+- Rust fmt: passed.
+- Rust tests: passed, 74 tests.
+- Vitest: passed, 12 tests.
+- Lint: passed.
+- Format check: passed.
+- Frontend build: passed.
+- Rust fmt check: passed.
+- Rust check: passed.
+- Tauri dev launch: first run timed out without app confirmation and left dev processes; those were stopped. The retry timed out because the dev app stays running, but `target\debug\tog5-vms.exe` was confirmed running and then stopped.
+
+### Issues Encountered
+
+- Tauri dev output did not surface before the tool timeout. Process inspection confirmed the second launch reached the native app.
+- PowerShell blocked process command-line inspection through CIM, so cleanup used the visible TOG5/Cargo/Node process IDs from the launch while leaving unrelated Adobe Node untouched.
+
+### Decisions Made
+
+- Used simple text names for drivers, passengers, and destinations instead of adding a people directory.
+- Made Trips independent from odometer and distance calculations per client request.
+- Blocked duplicate open trips for the same vehicle to avoid impossible active vehicle usage.
+- Kept cancelled trip status internal/future-facing and did not show a cancelled workflow because users cannot currently create cancelled trips.
+- Added Trip Reports as a tab in Reports instead of creating a second reports navigation page.
+
+### Important Implementation Details
+
+- New tables: `trips`, `trip_drivers`, `trip_passengers`, and `trip_destinations`.
+- Trips use `open` and `completed` states in the current UI.
+- Archiving a trip hides it from trip history without hard-deleting the row.
+- Reports filters for vehicle/date range are shared between maintenance/cost reports and Trip Reports.
+
+### Manual Visual Checks Still Needed
+
+1. Open Trips from the sidebar.
+2. Start a trip with multiple drivers and multiple destinations.
+3. Confirm the open trip appears under `Currently out`.
+4. End the trip and confirm it moves to `Past trips`.
+5. Confirm a second open trip for the same vehicle is blocked.
+6. Open Reports and switch to `Trip Reports`.
+7. Confirm trip counts, driver totals, destination totals, and recent trips update.
+8. Confirm Dashboard, Vehicles, Maintenance, Fuel Logs, Service History, Expenses, Backup, Alerts, and Settings still open.
+
+### Suggested Next Step
+
+Run the Trips and Trip Reports visual checks with the client, then continue with the next client-requested fix or packaging handoff.
+
+---
+
+## Update 2026-07-06 00:01 +08:00 - Phase 14: Trips Time Out Field Layout Fix
+
+### Summary
+
+Fixed a Trips page UI bug where the `Time out` datetime input could clip outside the Start trip form container.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Changes Made
+
+- Changed the Start trip top form grid to a single-column layout so the native datetime input has enough horizontal space.
+- Added width guards for Trips form inputs, selects, and textareas.
+- Removed a stale unused Trips type import found by lint.
+- Kept Trips backend, database schema, reports behavior, and trip data unchanged.
+
+### Files Modified
+
+- `src/components/trips/TripsModule.tsx`
+- `src/styles.css`
+- `specs/live-update.md`
+
+### Commands Run
+
+```bash
+npm.cmd exec prettier -- --write src/styles.css
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd exec prettier -- --write src/components/trips/TripsModule.tsx src/styles.css
+npm.cmd run format:check
+npm.cmd run build
+```
+
+### Command Results
+
+- Prettier write: passed.
+- Typecheck: passed.
+- Lint: initially failed because `TripStatus` was unused after the Trips filter simplification; fixed and reran successfully.
+- Format check: passed.
+- Frontend build: passed.
+
+### Manual Visual Checks Still Needed
+
+1. Open Trips.
+2. Confirm the `Time out` field stays inside the Start trip form at the client screenshot width.
+3. Confirm wider and narrower window widths do not clip the datetime field.
+4. Confirm Start trip still saves normally.
+
+### Suggested Next Step
+
+Run the Trips visual check, then continue with the next client feedback item.
+
+---
+
+## Update 2026-07-06 00:07 +08:00 - Phase 14: Reports Export and Print Polish
+
+### Summary
+
+Added separate export and print actions for Maintenance reports and Trips reports, and renamed the `Trip Reports` tab to `Trips`.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Changes Made
+
+- Renamed the Reports tabs to `Maintenance` and `Trips`.
+- Added a report action bar that changes with the active tab.
+- Added `Export maintenance CSV` and `Print maintenance` actions.
+- Added `Export trips CSV` and `Print trips` actions.
+- Maintenance exports include summary totals, category totals, monthly totals, vehicle summaries, and recent cost events.
+- Trips exports include summary totals, trips by vehicle, trips by driver, trips by destination, and recent trips.
+- Print actions generate a dedicated print document for the active report instead of printing the whole app shell.
+- Updated visible cost labels from `Service` to `Maintenance` in the Reports page.
+- Kept this frontend-only; no database, Rust, command, or schema changes were needed.
+
+### Files Modified
+
+- `src/components/reports/ReportsModule.tsx`
+- `src/styles.css`
+- `specs/live-update.md`
+
+### Commands Run
+
+```bash
+npm.cmd exec prettier -- --write src/components/reports/ReportsModule.tsx src/styles.css
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+```
+
+### Command Results
+
+- Prettier write: passed.
+- Typecheck: passed.
+- Lint: passed.
+- Format check: passed.
+- Frontend build: passed.
+
+### Manual Visual Checks Still Needed
+
+1. Open Reports.
+2. Confirm tabs are labeled `Maintenance` and `Trips`.
+3. Confirm Maintenance export downloads a CSV.
+4. Confirm Maintenance print opens the print dialog/document.
+5. Confirm Trips export downloads a CSV.
+6. Confirm Trips print opens the print dialog/document.
+7. Confirm report filters affect both export and print output.
+
+### Suggested Next Step
+
+Run the Reports export/print manual checks, then continue with the next client feedback item.

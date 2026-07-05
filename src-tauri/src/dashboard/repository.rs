@@ -235,6 +235,7 @@ fn alerts_summary(connection: &Connection) -> Result<AlertsDashboardSummary, Str
               alerts.message,
               alerts.alert_type,
               alerts.priority,
+              alerts.maintenance_schedule_id,
               vehicles.vehicle_name,
               maintenance_templates.name,
               alerts.created_at,
@@ -726,10 +727,11 @@ fn alert_item_from_row(row: &Row<'_>) -> rusqlite::Result<DashboardAlertItem> {
         message: row.get(2)?,
         alert_type: row.get(3)?,
         priority: row.get(4)?,
-        vehicle_name: row.get(5)?,
-        maintenance_template_name: row.get(6)?,
-        created_at: row.get(7)?,
-        due_date: row.get(8)?,
+        maintenance_schedule_id: row.get(5)?,
+        vehicle_name: row.get(6)?,
+        maintenance_template_name: row.get(7)?,
+        created_at: row.get(8)?,
+        due_date: row.get(9)?,
     })
 }
 

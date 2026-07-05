@@ -13,6 +13,9 @@ const maintenanceCommands = {
   listTemplates: "list_maintenance_templates",
   applicableForVehicle: "get_applicable_maintenance_templates_for_vehicle",
   seedTemplates: "seed_maintenance_templates",
+  createTemplate: "create_maintenance_template",
+  updateTemplate: "update_maintenance_template",
+  archiveTemplate: "archive_maintenance_template",
   listSchedulesForVehicle: "list_maintenance_schedules_for_vehicle",
   syncSchedulesForVehicle: "sync_maintenance_schedules_for_vehicle",
   listVehicleMaintenanceSettings: "list_vehicle_maintenance_settings",
@@ -67,6 +70,21 @@ export type ApplicableMaintenanceTemplate = {
 export type SeedMaintenanceTemplatesResult = {
   templateCount: number;
   ruleCount: number;
+};
+
+export type CreateMaintenanceTemplateRequest = {
+  name: string;
+  category: string;
+  description?: string;
+  defaultTimeIntervalDays?: number;
+  defaultOdometerIntervalKm?: number;
+  defaultDueSoonDays?: number;
+  defaultDueSoonKm?: number;
+  priority?: MaintenancePriority;
+};
+
+export type UpdateMaintenanceTemplateRequest = CreateMaintenanceTemplateRequest & {
+  id: string;
 };
 
 export type MaintenanceScheduleRecord = {
@@ -259,6 +277,22 @@ export async function getApplicableMaintenanceTemplatesForVehicle(
 
 export async function seedMaintenanceTemplates(): Promise<SeedMaintenanceTemplatesResult> {
   return invoke<SeedMaintenanceTemplatesResult>(maintenanceCommands.seedTemplates);
+}
+
+export async function createMaintenanceTemplate(
+  request: CreateMaintenanceTemplateRequest,
+): Promise<MaintenanceTemplateRecord> {
+  return invoke<MaintenanceTemplateRecord>(maintenanceCommands.createTemplate, { request });
+}
+
+export async function updateMaintenanceTemplate(
+  request: UpdateMaintenanceTemplateRequest,
+): Promise<MaintenanceTemplateRecord> {
+  return invoke<MaintenanceTemplateRecord>(maintenanceCommands.updateTemplate, { request });
+}
+
+export async function archiveMaintenanceTemplate(templateId: string): Promise<void> {
+  return invoke<void>(maintenanceCommands.archiveTemplate, { templateId });
 }
 
 export async function listMaintenanceSchedulesForVehicle(

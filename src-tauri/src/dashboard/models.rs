@@ -69,6 +69,7 @@ pub struct DashboardAlertItem {
     pub message: String,
     pub alert_type: String,
     pub priority: String,
+    pub maintenance_schedule_id: Option<String>,
     pub vehicle_name: Option<String>,
     pub maintenance_template_name: Option<String>,
     pub created_at: String,

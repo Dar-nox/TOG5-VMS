@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import {
+  clearAppData,
   getAccessSummary,
   getAppSettings,
   listLocalUsers,
@@ -56,6 +57,8 @@ export function SettingsModule() {
   const [savingSettings, setSavingSettings] = useState(false);
   const [savingUser, setSavingUser] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [clearingData, setClearingData] = useState(false);
+  const [clearDataConfirmed, setClearDataConfirmed] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [formIssues, setFormIssues] = useState<string[]>([]);
@@ -183,6 +186,29 @@ export function SettingsModule() {
     [loadSettings, userForm],
   );
 
+  const handleClearAppData = useCallback(async () => {
+    if (!clearDataConfirmed) {
+      setErrorMessage("Confirm the clear-data warning before continuing.");
+      return;
+    }
+
+    setClearingData(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setFormIssues([]);
+
+    try {
+      const result = await clearAppData({ confirmClearData: true });
+      setClearDataConfirmed(false);
+      await loadSettings();
+      setSuccessMessage(`${result.message} ${result.filesRemoved} local files removed.`);
+    } catch (error) {
+      setErrorMessage(messageFromError(error));
+    } finally {
+      setClearingData(false);
+    }
+  }, [clearDataConfirmed, loadSettings]);
+
   return (
     <div className="settings-module">
       <section className="settings-workspace">
@@ -231,6 +257,12 @@ export function SettingsModule() {
                 form={settingsForm}
                 reminder={settingsResponse.backupReminder}
                 onFieldChange={handleSettingsChange}
+              />
+              <ClearLocalDataSection
+                confirmed={clearDataConfirmed}
+                clearing={clearingData}
+                onClear={() => void handleClearAppData()}
+                onConfirmChange={setClearDataConfirmed}
               />
               <StartupBehaviorSection form={settingsForm} onFieldChange={handleSettingsChange} />
 
@@ -508,6 +540,50 @@ function BackupSafetySection(props: {
         <PathRow label="App data folder" value={props.dataSafety.appDataDir} />
         <PathRow label="Backup package" value={props.dataSafety.backupPackageFormat} />
         <PathRow label="Encryption" value={props.dataSafety.encryptionStatus} />
+      </div>
+    </section>
+  );
+}
+
+function ClearLocalDataSection(props: {
+  confirmed: boolean;
+  clearing: boolean;
+  onClear: () => void;
+  onConfirmChange: (value: boolean) => void;
+}) {
+  return (
+    <section className="settings-card settings-danger-zone">
+      <div>
+        <h3>Clear Local Product Data</h3>
+        <p>
+          Use this only when you need to remove test records from this device. This clears vehicles,
+          fuel logs, maintenance records, reminders, expenses, alerts, and app-managed
+          photos/receipts. Settings, the local user profile, maintenance item suggestions, and
+          backup packages are kept.
+        </p>
+      </div>
+
+      <label className="settings-toggle settings-danger-confirmation">
+        <input
+          checked={props.confirmed}
+          type="checkbox"
+          onChange={(event) => props.onConfirmChange(event.target.checked)}
+        />
+        <span>
+          I understand this permanently clears local product data from this device and cannot be
+          undone unless I restore from a backup.
+        </span>
+      </label>
+
+      <div className="settings-actions">
+        <button
+          className="danger-button"
+          disabled={!props.confirmed || props.clearing}
+          type="button"
+          onClick={props.onClear}
+        >
+          {props.clearing ? "Clearing data..." : "Clear local data"}
+        </button>
       </div>
     </section>
   );
