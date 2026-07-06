@@ -6707,3 +6707,95 @@ Tauri dev launch was not run for this documentation/versioning task. The product
 ### Suggested Next Step
 
 Give the client the `TOG 5 VMS_0.2.0_x64-setup.exe` installer together with `docs/TOG5-VMS-user-manual-v0.2.0.md` and, if helpful, the client smoke-test plan.
+
+---
+
+## Update 2026-07-06 15:14 +08:00 - v0.2.0 Logo Refresh
+
+### Summary
+
+Updated the app icon/logo assets using the new root source image `logo-v0.2.0.png`.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Logo/Icon Approach
+
+- Used Tauri's icon generator to regenerate the full icon set from `logo-v0.2.0.png`.
+- Left the existing Tauri icon configuration unchanged because it already references the generated icon files in `src-tauri/icons/`.
+- Rebuilt the Windows release installer so the delivered `0.2.0` package uses the refreshed icon.
+
+### Files Modified
+
+- `src-tauri/icons/32x32.png`
+- `src-tauri/icons/64x64.png`
+- `src-tauri/icons/128x128.png`
+- `src-tauri/icons/128x128@2x.png`
+- `src-tauri/icons/icon.png`
+- `src-tauri/icons/icon.ico`
+- `src-tauri/icons/icon.icns`
+- `src-tauri/icons/StoreLogo.png`
+- `src-tauri/icons/Square*.png`
+- `src-tauri/icons/android/**`
+- `src-tauri/icons/ios/**`
+- `specs/live-update.md`
+
+### Commands Run
+
+```bash
+Get-Location
+Get-ChildItem -Force | Where-Object { $_.Name -like '*logo*' }
+rg -n "logo|vms-logo|icon\.png|src-tauri/icons|32x32|128x128|icon\.ico|icon\.icns" AGENTS.md README.md specs src package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml
+Get-ChildItem src-tauri\icons
+npm.cmd run tauri -- icon logo-v0.2.0.png
+git status --short --untracked-files=all
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run build
+npm.cmd run format:check
+cargo check --manifest-path src-tauri/Cargo.toml
+cargo fmt --manifest-path src-tauri/Cargo.toml --check
+npm.cmd run test
+cargo test --manifest-path src-tauri/Cargo.toml
+npm.cmd run tauri:build
+Get-Item "src-tauri\target\release\bundle\nsis\TOG 5 VMS_0.2.0_x64-setup.exe"
+git ls-files logo-v0.2.0.png
+git check-ignore -v logo-v0.2.0.png
+```
+
+### Command Results
+
+- Project root check: confirmed.
+- New source logo: found at `logo-v0.2.0.png`.
+- Tauri icon generation: passed.
+- Typecheck: passed.
+- Lint: passed.
+- Frontend build: passed.
+- Format check: passed.
+- Cargo check: passed.
+- Rust format check: passed.
+- Frontend tests: passed, 12 tests.
+- Rust tests: passed, 76 tests.
+- Tauri production build: passed.
+- `logo-v0.2.0.png` is tracked by Git and not ignored.
+
+### Packaging Result
+
+- Rebuilt release binary: `src-tauri/target/release/tog5-vms.exe`.
+- Rebuilt NSIS installer: `src-tauri/target/release/bundle/nsis/TOG 5 VMS_0.2.0_x64-setup.exe`.
+- Installer size observed after logo refresh: 3,344,057 bytes.
+
+### Tauri Launch
+
+Tauri dev launch was not run for this icon-only update. The production installer was rebuilt successfully. Human visual confirmation is still recommended to verify the installer icon, taskbar icon, and window icon look correct on Windows.
+
+### Manual Visual Checks Still Needed
+
+1. Launch the rebuilt installer or app.
+2. Confirm the installer icon uses the new logo.
+3. Confirm the installed app shortcut/taskbar/window icon uses the new logo.
+
+### Suggested Next Step
+
+Use the refreshed `TOG 5 VMS_0.2.0_x64-setup.exe` installer for the client handoff after a quick visual icon check.
