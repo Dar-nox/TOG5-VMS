@@ -4,9 +4,9 @@ This plan guides client/release smoke testing for the local-only Windows MVP. It
 
 ## Build Under Test
 
-- App version: `0.1.0`
+- App version: `0.2.0`
 - Release executable: `src-tauri/target/release/tog5-vms.exe`
-- Installer artifact: `src-tauri/target/release/bundle/nsis/TOG 5 VMS_0.1.0_x64-setup.exe`
+- Installer artifact: `src-tauri/target/release/bundle/nsis/TOG 5 VMS_0.2.0_x64-setup.exe`
 - Package type: Windows NSIS installer, current-user install mode
 
 ## Test Environment Assumptions
@@ -156,41 +156,41 @@ This plan guides client/release smoke testing for the local-only Windows MVP. It
 
 ## Pass/Fail Checklist
 
-| ID | Check | Pass/Fail | Notes |
-|---:|---|---|---|
-| 1 | Dashboard opens and overview cards load |  |  |
-| 2 | Dashboard has no duplicate quick actions |  |  |
-| 3 | Vehicles list opens |  |  |
-| 4 | Add vehicle with required photo |  |  |
-| 5 | Vehicle photo displays after restart |  |  |
-| 6 | Edit vehicle |  |  |
-| 7 | Archive vehicle |  |  |
-| 8 | Maintenance opens |  |  |
-| 9 | Add/update a maintenance reminder |  |  |
-| 10 | Log maintenance and update next due values when applicable |  |  |
-| 11 | Service History shows completed service |  |  |
-| 12 | Alerts page opens and active alerts/dismissal work |  |  |
-| 13 | Fuel Logs opens |  |  |
-| 14 | Add partial tank |  |  |
-| 15 | Add full-tank logs and confirm official km/L behavior |  |  |
-| 16 | Attach a fuel receipt |  |  |
-| 17 | Expenses opens |  |  |
-| 18 | Add/edit/archive manual expense |  |  |
-| 19 | Reports opens and reflects costs |  |  |
-| 20 | Backup & Restore opens |  |  |
-| 21 | Create and validate backup |  |  |
-| 22 | Restore is clearly confirmation-gated |  |  |
-| 23 | Settings opens |  |  |
-| 24 | Update/reset settings |  |  |
-| 25 | Currency display remains consistent |  |  |
-| 26 | Release app launches without dev server/port 1420 |  |  |
-| 27 | Installer launches |  |  |
-| 28 | Install completes on test machine |  |  |
-| 29 | App launches from Start Menu/shortcut if installed |  |  |
-| 30 | Uninstall behavior is recorded |  |  |
-| 31 | No user app-data is bundled into installer |  |  |
-| 32 | Local photos/receipts still display in installed app |  |  |
-| 33 | No obvious debug/scaffold text remains |  |  |
+|  ID | Check                                                      | Pass/Fail | Notes |
+| --: | ---------------------------------------------------------- | --------- | ----- |
+|   1 | Dashboard opens and overview cards load                    |           |       |
+|   2 | Dashboard has no duplicate quick actions                   |           |       |
+|   3 | Vehicles list opens                                        |           |       |
+|   4 | Add vehicle with required photo                            |           |       |
+|   5 | Vehicle photo displays after restart                       |           |       |
+|   6 | Edit vehicle                                               |           |       |
+|   7 | Archive vehicle                                            |           |       |
+|   8 | Maintenance opens                                          |           |       |
+|   9 | Add/update a maintenance reminder                          |           |       |
+|  10 | Log maintenance and update next due values when applicable |           |       |
+|  11 | Service History shows completed service                    |           |       |
+|  12 | Alerts page opens and active alerts/dismissal work         |           |       |
+|  13 | Fuel Logs opens                                            |           |       |
+|  14 | Add partial tank                                           |           |       |
+|  15 | Add full-tank logs and confirm official km/L behavior      |           |       |
+|  16 | Attach a fuel receipt                                      |           |       |
+|  17 | Expenses opens                                             |           |       |
+|  18 | Add/edit/archive manual expense                            |           |       |
+|  19 | Reports opens and reflects costs                           |           |       |
+|  20 | Backup & Restore opens                                     |           |       |
+|  21 | Create and validate backup                                 |           |       |
+|  22 | Restore is clearly confirmation-gated                      |           |       |
+|  23 | Settings opens                                             |           |       |
+|  24 | Update/reset settings                                      |           |       |
+|  25 | Currency display remains consistent                        |           |       |
+|  26 | Release app launches without dev server/port 1420          |           |       |
+|  27 | Installer launches                                         |           |       |
+|  28 | Install completes on test machine                          |           |       |
+|  29 | App launches from Start Menu/shortcut if installed         |           |       |
+|  30 | Uninstall behavior is recorded                             |           |       |
+|  31 | No user app-data is bundled into installer                 |           |       |
+|  32 | Local photos/receipts still display in installed app       |           |       |
+|  33 | No obvious debug/scaffold text remains                     |           |       |
 
 ## Bug Severity Definitions
 

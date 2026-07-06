@@ -6592,3 +6592,118 @@ Not run for this targeted permission fix. Manual runtime confirmation is still n
 ### Suggested Next Step
 
 Rerun the Reports export check in the desktop app, then rebuild/package once confirmed.
+
+---
+
+## Update 2026-07-06 14:13 +08:00 - Client Handoff Version Bump and User Manual
+
+### Summary
+
+Prepared the app for client handoff by bumping the local MVP version from `0.1.0` to `0.2.0`, creating an end-user manual, refreshing handoff/testing docs, and building a fresh Windows installer.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Version / Metadata Changes
+
+- Updated app/package version to `0.2.0` in Node, Rust, and Tauri metadata.
+- Kept the app name `TOG 5 VMS`.
+- Kept the app identifier `com.tog5.vms` unchanged so existing app-data paths are not disrupted.
+- Generated a new `0.2.0` NSIS installer.
+
+### Manual / Handoff Documentation
+
+- Created `docs/TOG5-VMS-user-manual-v0.2.0.md`.
+- Updated the Phase 14 client smoke-test plan and bug triage log to reference version `0.2.0`.
+- Updated the Windows release checklist with current Trips, Reports export/print, and handoff expectations.
+
+### Files Created
+
+- `docs/TOG5-VMS-user-manual-v0.2.0.md`
+
+### Files Modified
+
+- `package.json`
+- `package-lock.json`
+- `src-tauri/Cargo.toml`
+- `src-tauri/Cargo.lock`
+- `src-tauri/tauri.conf.json`
+- `docs/release/phase-13-windows-release-checklist.md`
+- `docs/testing/phase-14-bug-triage-log.md`
+- `docs/testing/phase-14-client-smoke-test-plan.md`
+- `specs/live-update.md`
+
+### Commands Run
+
+```bash
+Get-Location
+git status --short --untracked-files=all
+rg -n '0\.1\.0|0\.2\.0|productName|identifier|version' package.json package-lock.json src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/tauri.conf.json docs specs/live-update.md
+npm.cmd run test
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+cargo fmt --manifest-path src-tauri/Cargo.toml --check
+cargo check --manifest-path src-tauri/Cargo.toml
+cargo fmt --manifest-path src-tauri/Cargo.toml
+cargo test --manifest-path src-tauri/Cargo.toml
+npm.cmd run tauri:build
+Get-Item "src-tauri\target\release\bundle\nsis\TOG 5 VMS_0.2.0_x64-setup.exe"
+npm.cmd exec prettier -- --check docs/TOG5-VMS-user-manual-v0.2.0.md docs/release/phase-13-windows-release-checklist.md docs/testing/phase-14-bug-triage-log.md docs/testing/phase-14-client-smoke-test-plan.md
+npm.cmd exec prettier -- --write docs/testing/phase-14-bug-triage-log.md docs/testing/phase-14-client-smoke-test-plan.md
+```
+
+### Command Results
+
+- Project root check: confirmed.
+- Version search: app metadata now references `0.2.0`; remaining `0.1.0` hits are third-party dependency versions or historical `v0.1.0` release notes.
+- Frontend tests: passed, 12 tests.
+- Typecheck: passed.
+- Lint: passed.
+- Format check: passed.
+- Frontend production build: passed.
+- Rust format check: passed.
+- Cargo check: passed.
+- Cargo format: passed.
+- Rust tests: passed, 76 tests.
+- Tauri production build: passed.
+- Docs Prettier check initially reported wrapping differences in two testing docs; Prettier write fixed them.
+- Final docs Prettier check: passed.
+
+### Packaging Result
+
+- Release binary built at `src-tauri/target/release/tog5-vms.exe`.
+- NSIS installer built at `src-tauri/target/release/bundle/nsis/TOG 5 VMS_0.2.0_x64-setup.exe`.
+- Installer size observed: 3,224,683 bytes.
+
+### Tauri Launch
+
+Tauri dev launch was not run for this documentation/versioning task. The production build and installer generation completed successfully; human installer/window confirmation is still recommended before sending the final package.
+
+### Manual Visual Checks Still Needed
+
+1. Run `TOG 5 VMS_0.2.0_x64-setup.exe` on the target Windows machine.
+2. Confirm the app installs and launches.
+3. Confirm Dashboard, Vehicles, Fuel Logs, Trips, Maintenance, Service History, Expenses, Reports, Alerts, Backup & Restore, and Settings open.
+4. Confirm report export `Show file` works after the permission fix.
+5. Confirm the user manual matches the delivered build.
+
+### Decisions Made
+
+- Used `0.2.0` as the client handoff version because the product has moved beyond the original `0.1.0` local MVP packaging baseline.
+- Did not change the Tauri identifier to avoid moving or orphaning existing app data.
+- Kept historical `v0.1.0` release notes in place as history instead of rewriting them.
+
+### Known Issues / Release Caveats
+
+- Installer is unsigned and may trigger Windows SmartScreen warnings.
+- Database encryption is not enabled.
+- Backups remain local `.tog5backup` folder packages.
+- Startup-on-boot preference is stored as a setting but does not register with Windows startup yet.
+- Human visual smoke testing is still recommended before final client delivery.
+
+### Suggested Next Step
+
+Give the client the `TOG 5 VMS_0.2.0_x64-setup.exe` installer together with `docs/TOG5-VMS-user-manual-v0.2.0.md` and, if helpful, the client smoke-test plan.

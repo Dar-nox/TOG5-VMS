@@ -63,9 +63,10 @@ Generated release artifacts stay under `src-tauri/target/`, which is ignored by 
 - Vehicles opens and a saved vehicle photo displays.
 - Maintenance opens with the simplified log-maintenance workflow, vehicle reminders, and needs-attention list.
 - Fuel Logs opens and receipt indicators still work.
+- Trips opens and a trip can be started/ended.
 - Service History opens and attachment indicators still work.
 - Expenses opens.
-- Reports opens.
+- Reports opens, CSV export works, `Show file` reveals the export, and print actions open.
 - Backup & Restore opens.
 - Alerts opens.
 - Settings opens and local-only data safety copy remains visible.
@@ -77,15 +78,15 @@ Generated release artifacts stay under `src-tauri/target/`, which is ignored by 
 - Database encryption is not enabled.
 - Backup packages are local folder-style `.tog5backup` packages, not zip files.
 - No auto-updater is configured.
-- No cloud sync, online account, native notification, OCR, or report export is included.
+- No cloud sync, online account, native notification, OCR, or automatic updater is included.
 
 ## Artifact Naming Guidance
 
 Use clear names when sharing release artifacts manually, for example:
 
 ```text
-TOG5-VMS_0.1.0_windows_x64_setup.exe
-TOG5-VMS_0.1.0_windows_x64_portable.exe
+TOG5-VMS_0.2.0_windows_x64_setup.exe
+TOG5-VMS_0.2.0_windows_x64_portable.exe
 ```
 
 Keep generated binaries and installers out of Git unless a future release policy explicitly says otherwise.
