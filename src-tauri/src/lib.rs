@@ -5,6 +5,7 @@ pub mod domain;
 mod expenses;
 mod fuel;
 mod maintenance;
+mod reports;
 mod settings;
 mod trips;
 mod vehicles;
@@ -69,6 +70,7 @@ pub fn run() {
             maintenance::commands::get_maintenance_log,
             maintenance::commands::store_maintenance_receipt,
             maintenance::commands::store_maintenance_photo,
+            reports::commands::export_report_csv,
             settings::commands::get_app_settings,
             settings::commands::update_app_settings,
             settings::commands::reset_app_settings,

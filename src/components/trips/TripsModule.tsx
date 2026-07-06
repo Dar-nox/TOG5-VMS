@@ -46,6 +46,8 @@ export function TripsModule() {
   const [form, setForm] = useState<TripFormState>(() => emptyTripForm());
   const [endTripForm, setEndTripForm] = useState<EndTripFormState>(() => emptyEndTripForm());
   const [endingTripId, setEndingTripId] = useState<string | null>(null);
+  const [archiveConfirmTripId, setArchiveConfirmTripId] = useState<string | null>(null);
+  const [archivingTripId, setArchivingTripId] = useState<string | null>(null);
   const [vehicleFilter, setVehicleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "completed">("completed");
   const [startDate, setStartDate] = useState("");
@@ -76,10 +78,14 @@ export function TripsModule() {
       ...baseFilter,
       status: statusFilter === "all" ? undefined : statusFilter,
     };
+    const openFilter: TripListFilter = {
+      vehicleId: baseFilter.vehicleId,
+      status: "open",
+    };
 
     try {
       const [openRecords, tripRecords] = await Promise.all([
-        listTrips({ ...baseFilter, status: "open" }),
+        listTrips(openFilter),
         listTrips(historyFilter),
       ]);
       setOpenTrips(openRecords);
@@ -173,19 +179,18 @@ export function TripsModule() {
   }
 
   async function handleArchiveTrip(id: string) {
-    const confirmed = window.confirm("Archive this trip log? This hides it from trip history.");
-    if (!confirmed) {
-      return;
-    }
-
     setErrorMessage(null);
     setSuccessMessage(null);
+    setArchivingTripId(id);
     try {
       await archiveTrip(id);
       setSuccessMessage("Trip log archived.");
+      setArchiveConfirmTripId(null);
       await loadTrips();
     } catch (error) {
       setErrorMessage(messageFromError(error));
+    } finally {
+      setArchivingTripId(null);
     }
   }
 
@@ -376,11 +381,15 @@ export function TripsModule() {
                   {openTrips.map((trip) => (
                     <TripCard
                       key={trip.id}
+                      archiveConfirming={archiveConfirmTripId === trip.id}
+                      archiving={archivingTripId === trip.id}
                       ending={ending}
                       endingTripForm={endTripForm}
                       endingTripId={endingTripId}
                       errorMessage={endTripError}
                       onArchive={() => void handleArchiveTrip(trip.id)}
+                      onArchiveCancel={() => setArchiveConfirmTripId(null)}
+                      onArchiveRequest={() => setArchiveConfirmTripId(trip.id)}
                       onCancelEnd={() => setEndingTripId(null)}
                       onChangeEndForm={setEndTripForm}
                       onEndSubmit={handleEndTrip}
@@ -396,7 +405,7 @@ export function TripsModule() {
               <div className="trip-panel-heading">
                 <div>
                   <h3>Past trips</h3>
-                  <p>Completed and archived operational trip records.</p>
+                  <p>Completed operational trip records.</p>
                 </div>
                 <span className="status-pill">{historyTrips.length} shown</span>
               </div>
@@ -408,7 +417,11 @@ export function TripsModule() {
                   {historyTrips.map((trip) => (
                     <TripCard
                       key={trip.id}
+                      archiveConfirming={archiveConfirmTripId === trip.id}
+                      archiving={archivingTripId === trip.id}
                       onArchive={() => void handleArchiveTrip(trip.id)}
+                      onArchiveCancel={() => setArchiveConfirmTripId(null)}
+                      onArchiveRequest={() => setArchiveConfirmTripId(trip.id)}
                       trip={trip}
                     />
                   ))}
@@ -488,22 +501,30 @@ function RepeatableTextFields({
 }
 
 function TripCard({
+  archiveConfirming = false,
+  archiving = false,
   ending = false,
   endingTripForm,
   endingTripId,
   errorMessage,
   onArchive,
+  onArchiveCancel,
+  onArchiveRequest,
   onCancelEnd,
   onChangeEndForm,
   onEndSubmit,
   onStartEnd,
   trip,
 }: {
+  archiveConfirming?: boolean;
+  archiving?: boolean;
   ending?: boolean;
   endingTripForm?: EndTripFormState;
   endingTripId?: string | null;
   errorMessage?: string | null;
   onArchive: () => void;
+  onArchiveCancel?: () => void;
+  onArchiveRequest?: () => void;
   onCancelEnd?: () => void;
   onChangeEndForm?: (form: EndTripFormState) => void;
   onEndSubmit?: (event: FormEvent<HTMLFormElement>) => void;
@@ -579,14 +600,40 @@ function TripCard({
       ) : null}
 
       <div className="trip-card-actions">
-        {trip.status === "open" && onStartEnd ? (
-          <button className="primary-button" onClick={onStartEnd} type="button">
-            End trip
-          </button>
-        ) : null}
-        <button className="secondary-button" onClick={onArchive} type="button">
-          Archive
-        </button>
+        {archiveConfirming ? (
+          <div className="inline-confirmation">
+            <span>Archive this trip log? It will be hidden from trip history.</span>
+            <div className="inline-confirmation-actions">
+              <button
+                className="secondary-button"
+                disabled={archiving}
+                type="button"
+                onClick={onArchiveCancel}
+              >
+                Cancel
+              </button>
+              <button
+                className="danger-button"
+                disabled={archiving}
+                type="button"
+                onClick={onArchive}
+              >
+                {archiving ? "Archiving..." : "Confirm archive"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {trip.status === "open" && onStartEnd ? (
+              <button className="primary-button" onClick={onStartEnd} type="button">
+                End trip
+              </button>
+            ) : null}
+            <button className="secondary-button" onClick={onArchiveRequest} type="button">
+              Archive
+            </button>
+          </>
+        )}
       </div>
     </article>
   );

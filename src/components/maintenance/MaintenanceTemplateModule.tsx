@@ -68,6 +68,7 @@ export function MaintenanceTemplateModule() {
   const [itemForm, setItemForm] = useState<MaintenanceItemFormState>(() =>
     emptyMaintenanceItemForm(),
   );
+  const [archiveTemplateConfirmId, setArchiveTemplateConfirmId] = useState<string | null>(null);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [beforePhotoFile, setBeforePhotoFile] = useState<File | null>(null);
   const [afterPhotoFile, setAfterPhotoFile] = useState<File | null>(null);
@@ -320,20 +321,13 @@ export function MaintenanceTemplateModule() {
       setItemForm(emptyMaintenanceItemForm(template, reminder));
       setItemIssues([]);
       setMessage("Maintenance item loaded for editing.");
+      setArchiveTemplateConfirmId(null);
     },
     [reminders],
   );
 
   const handleArchiveMaintenanceItem = useCallback(
     async (template: MaintenanceTemplateRecord) => {
-      const confirmed = window.confirm(
-        `Remove "${template.name}" from maintenance items? Existing service history stays saved, but active reminders for this item will be disabled.`,
-      );
-
-      if (!confirmed) {
-        return;
-      }
-
       setItemLoading(true);
       setErrorMessage(null);
       setMessage(null);
@@ -352,6 +346,7 @@ export function MaintenanceTemplateModule() {
           currentForm.templateId === template.id ? emptyMaintenanceItemForm() : currentForm,
         );
         setItemIssues([]);
+        setArchiveTemplateConfirmId(null);
         setMessage(`${template.name} was removed. Existing service history was kept.`);
       } catch (error) {
         setErrorMessage(messageFromError(error));
@@ -453,17 +448,20 @@ export function MaintenanceTemplateModule() {
               />
 
               <MaintenanceItemsPanel
+                archiveConfirmTemplateId={archiveTemplateConfirmId}
                 form={itemForm}
                 issues={itemIssues}
                 loading={itemLoading}
                 remindersByTemplateId={remindersByTemplateId}
                 templates={templatesSorted}
                 onArchiveItem={(template) => void handleArchiveMaintenanceItem(template)}
+                onArchiveRequest={setArchiveTemplateConfirmId}
                 onEditItem={handleEditMaintenanceItem}
                 onFieldChange={handleItemFieldChange}
                 onResetForm={() => {
                   setItemForm(emptyMaintenanceItemForm());
                   setItemIssues([]);
+                  setArchiveTemplateConfirmId(null);
                 }}
                 onSubmit={() => void handleSaveMaintenanceItem()}
               />
@@ -769,12 +767,14 @@ function MaintenanceTemplateOptions(props: { templates: MaintenanceTemplateRecor
 }
 
 function MaintenanceItemsPanel(props: {
+  archiveConfirmTemplateId: string | null;
   form: MaintenanceItemFormState;
   issues: string[];
   loading: boolean;
   remindersByTemplateId: Map<string, VehicleMaintenanceSettingRecord>;
   templates: MaintenanceTemplateRecord[];
   onArchiveItem: (template: MaintenanceTemplateRecord) => void;
+  onArchiveRequest: (templateId: string | null) => void;
   onEditItem: (template: MaintenanceTemplateRecord) => void;
   onFieldChange: <Field extends keyof MaintenanceItemFormState>(
     field: Field,
@@ -929,20 +929,46 @@ function MaintenanceItemsPanel(props: {
               />
             </div>
             <div className="maintenance-card-actions">
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={() => props.onEditItem(template)}
-              >
-                Edit
-              </button>
-              <button
-                className="secondary-button danger-text"
-                type="button"
-                onClick={() => props.onArchiveItem(template)}
-              >
-                Remove
-              </button>
+              {props.archiveConfirmTemplateId === template.id ? (
+                <div className="inline-confirmation">
+                  <span>Remove this item? Service history stays saved.</span>
+                  <div className="inline-confirmation-actions">
+                    <button
+                      className="secondary-button"
+                      disabled={props.loading}
+                      type="button"
+                      onClick={() => props.onArchiveRequest(null)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className="danger-button"
+                      disabled={props.loading}
+                      type="button"
+                      onClick={() => props.onArchiveItem(template)}
+                    >
+                      {props.loading ? "Removing..." : "Confirm remove"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={() => props.onEditItem(template)}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="secondary-button danger-text"
+                    type="button"
+                    onClick={() => props.onArchiveRequest(template.id)}
+                  >
+                    Remove
+                  </button>
+                </>
+              )}
             </div>
           </article>
         ))}

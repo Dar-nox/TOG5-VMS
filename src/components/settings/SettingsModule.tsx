@@ -557,7 +557,7 @@ function ClearLocalDataSection(props: {
         <h3>Clear Local Product Data</h3>
         <p>
           Use this only when you need to remove test records from this device. This clears vehicles,
-          fuel logs, maintenance records, reminders, expenses, alerts, and app-managed
+          trip logs, fuel logs, maintenance records, reminders, expenses, alerts, and app-managed
           photos/receipts. Settings, the local user profile, maintenance item suggestions, and
           backup packages are kept.
         </p>

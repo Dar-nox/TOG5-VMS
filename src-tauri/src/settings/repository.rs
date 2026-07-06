@@ -36,6 +36,10 @@ const PRODUCT_DATA_TABLES: &[&str] = &[
     "fuel_logs",
     "maintenance_schedules",
     "vehicle_maintenance_settings",
+    "trip_drivers",
+    "trip_passengers",
+    "trip_destinations",
+    "trips",
     "vehicle_features",
     "vehicle_documents",
     "vehicles",
@@ -985,6 +989,40 @@ mod tests {
                 )
                 VALUES ('feature-1', 'vehicle-1', 'turbo', 1);
 
+                INSERT INTO trips (
+                  id,
+                  vehicle_id,
+                  departure_time,
+                  return_time,
+                  reason,
+                  status
+                )
+                VALUES ('trip-1', 'vehicle-1', '2026-07-01 08:00:00', '2026-07-01 10:00:00', 'Client visit', 'completed');
+
+                INSERT INTO trip_drivers (
+                  id,
+                  trip_id,
+                  driver_name,
+                  sort_order
+                )
+                VALUES ('trip-driver-1', 'trip-1', 'Driver One', 0);
+
+                INSERT INTO trip_passengers (
+                  id,
+                  trip_id,
+                  passenger_name,
+                  sort_order
+                )
+                VALUES ('trip-passenger-1', 'trip-1', 'Passenger One', 0);
+
+                INSERT INTO trip_destinations (
+                  id,
+                  trip_id,
+                  destination_name,
+                  sort_order
+                )
+                VALUES ('trip-destination-1', 'trip-1', 'Warehouse', 0);
+
                 INSERT INTO fuel_logs (
                   id,
                   vehicle_id,
@@ -1119,6 +1157,10 @@ mod tests {
             .tables_cleared
             .iter()
             .any(|table| table.table_name == "vehicles" && table.rows_deleted == 1));
+        assert!(cleared
+            .tables_cleared
+            .iter()
+            .any(|table| table.table_name == "trips" && table.rows_deleted == 1));
 
         for table_name in PRODUCT_DATA_TABLES {
             assert_eq!(count_rows(&connection, table_name), 0, "{table_name}");

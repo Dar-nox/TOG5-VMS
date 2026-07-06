@@ -6331,3 +6331,264 @@ npm.cmd run build
 ### Suggested Next Step
 
 Run the Reports export/print manual checks, then continue with the next client feedback item.
+
+---
+
+## Update 2026-07-06 04:08 +08:00 - Phase 14: Final QA Findings Cleanup
+
+### Summary
+
+Implemented the high-signal findings from the final QA pass without changing database schema or broad product behavior.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Changes Made
+
+- Added Trips tables to Settings clear-data product cleanup so trip logs, drivers, passengers, and destinations are explicitly cleared instead of relying on vehicle cascade behavior.
+- Expanded the clear-data Rust test fixture to include a completed trip and related driver/passenger/destination rows.
+- Updated Settings danger-zone copy to mention trip logs.
+- Changed Trips so the `Currently out` list ignores history date/status filters while still respecting the vehicle filter.
+- Updated Trips history copy to avoid saying archived trips are shown in the normal history list.
+- Updated stale Reports wording from `Service` to `Maintenance` in visible copy and CSV export rows.
+- Updated stale Vehicle form copy that still referenced future/later phases.
+- Updated the Reports navigation description now that printable/exportable summaries exist.
+- Replaced remaining native browser confirmation dialogs in Vehicles, Maintenance, and Trips with inline app-styled confirmation controls.
+
+### Files Modified
+
+- `src-tauri/src/settings/repository.rs`
+- `src/components/settings/SettingsModule.tsx`
+- `src/components/trips/TripsModule.tsx`
+- `src/components/reports/ReportsModule.tsx`
+- `src/components/vehicles/VehicleModule.tsx`
+- `src/types/navigation.ts`
+- `src/styles.css`
+- `specs/live-update.md`
+
+### Commands Run
+
+```bash
+npm.cmd exec prettier -- --write src/components/trips/TripsModule.tsx src/components/reports/ReportsModule.tsx src/components/vehicles/VehicleModule.tsx src/components/settings/SettingsModule.tsx src/types/navigation.ts
+cargo fmt --manifest-path src-tauri/Cargo.toml
+npm.cmd run test
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+cargo fmt --manifest-path src-tauri/Cargo.toml --check
+cargo check --manifest-path src-tauri/Cargo.toml
+cargo test --manifest-path src-tauri/Cargo.toml
+npm.cmd exec prettier -- --write src/components/vehicles/VehicleModule.tsx src/components/maintenance/MaintenanceTemplateModule.tsx src/components/trips/TripsModule.tsx src/styles.css
+npm.cmd run test
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run format:check
+npm.cmd run build
+cargo fmt --manifest-path src-tauri/Cargo.toml --check
+cargo check --manifest-path src-tauri/Cargo.toml
+cargo test --manifest-path src-tauri/Cargo.toml
+```
+
+### Command Results
+
+- Prettier write: passed; files were already formatted.
+- Rust format: passed.
+- Frontend tests: passed, 12 tests on both validation runs.
+- Typecheck: passed on both validation runs.
+- Lint: passed on both validation runs.
+- Format check: passed on both validation runs.
+- Frontend build: passed on both validation runs.
+- Rust format check: passed on both validation runs.
+- Cargo check: passed on both validation runs.
+- Rust tests: passed, 74 tests on both validation runs.
+
+### Tauri Launch
+
+Not run for this cleanup pass. Changes were covered by automated frontend/Rust validation; human visual confirmation is still recommended for the Trips current-trip filter and the updated copy.
+
+### Issues Encountered
+
+- One initial grep command had PowerShell quoting trouble; reran with safer quoting and confirmed the stale QA phrases were removed from active source files.
+
+### Decisions Made
+
+- Kept open/current trips visible regardless of date range so active operational trips do not disappear when history filters are changed.
+- Kept the vehicle filter on current trips because selecting one vehicle should still focus that page.
+- Used inline confirmation rows instead of native browser confirmation dialogs so archive/remove actions stay consistent with the rest of the app.
+
+### Manual Visual Checks Still Needed
+
+1. Open Settings and confirm Clear Local Product Data copy mentions trip logs.
+2. Create or view an open trip, change date filters, and confirm it stays visible in `Currently out`.
+3. Confirm Trips history copy reads cleanly.
+4. Open Reports and confirm visible labels say Maintenance rather than Service.
+5. Export a Maintenance CSV and confirm the summary row uses Maintenance.
+6. Open Vehicles add/edit form and confirm the helper copy no longer mentions later phases.
+7. Confirm archive/remove actions in Vehicles, Maintenance, and Trips show inline confirmation controls.
+
+### Suggested Next Step
+
+Run the manual visual checks above, then package or hand off the updated build to the client if no new feedback appears.
+
+---
+
+## Update 2026-07-06 13:11 +08:00 - Reports CSV Export Feedback and Reliability
+
+### Summary
+
+Fixed Reports CSV export so it no longer depends on a silent browser-style download. Reports now save CSV files through a Tauri backend command and show a clear success message with the saved local path.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Root Cause
+
+- Reports export previously created a `Blob`, clicked a hidden `<a download>`, and immediately revoked the object URL.
+- This provided no success/failure feedback, and in the desktop WebView it could look like nothing happened even when the click handler ran.
+
+### Changes Made
+
+- Added a dedicated Rust `reports` module for local CSV export.
+- Added `export_report_csv` Tauri command.
+- CSV exports now save to the app-data `report-exports/` folder.
+- Export filenames are sanitized and duplicate exports receive `-2`, `-3`, etc. instead of overwriting.
+- Added a 20 MB report export size guard.
+- Added a typed frontend `src/services/api/reports.ts` wrapper.
+- Reports page now shows:
+  - `Exporting...` while saving.
+  - `CSV exported.` after success.
+  - the saved local file path.
+  - `Show file`, using the existing Tauri opener plugin to reveal the exported CSV.
+- Removed the old hidden-link `Blob` download helper.
+
+### Files Created
+
+- `src-tauri/src/reports/mod.rs`
+- `src-tauri/src/reports/models.rs`
+- `src-tauri/src/reports/export.rs`
+- `src-tauri/src/reports/commands.rs`
+- `src/services/api/reports.ts`
+
+### Files Modified
+
+- `src-tauri/src/lib.rs`
+- `src/components/reports/ReportsModule.tsx`
+- `src/styles.css`
+- `specs/live-update.md`
+
+### Commands Run
+
+```bash
+npm.cmd exec prettier -- --write src/components/reports/ReportsModule.tsx src/services/api/reports.ts src/styles.css
+cargo fmt --manifest-path src-tauri/Cargo.toml
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run build
+cargo check --manifest-path src-tauri/Cargo.toml
+cargo test --manifest-path src-tauri/Cargo.toml
+npm.cmd run test
+npm.cmd run format:check
+cargo fmt --manifest-path src-tauri/Cargo.toml --check
+```
+
+### Command Results
+
+- Prettier write: passed.
+- Rust format: passed.
+- Typecheck: passed.
+- Lint: passed.
+- Frontend build: passed.
+- Cargo check: passed.
+- Rust tests: passed, 76 tests.
+- Frontend tests: passed, 12 tests.
+- Format check: passed.
+- Rust format check: passed.
+
+### Tauri Launch
+
+Not run for this export fix. The backend command is covered by `cargo check`/`cargo test`; manual click testing is still needed.
+
+### Manual Visual Checks Still Needed
+
+1. Open Reports.
+2. Click `Export maintenance CSV`.
+3. Confirm `CSV exported.` appears with a local path.
+4. Click `Show file` and confirm File Explorer reveals the CSV.
+5. Switch to Trips and repeat `Export trips CSV`.
+6. Confirm repeated exports do not overwrite older files.
+
+### Suggested Next Step
+
+Run the manual export checks above, then rebuild/package the client handoff if the export behavior is confirmed.
+
+---
+
+## Update 2026-07-06 13:31 +08:00 - Reports Show File Permission Fix
+
+### Summary
+
+Fixed the Reports `Show file` action after CSV export. The export itself worked, but Tauri blocked `revealItemInDir` because the app did not explicitly allow the opener reveal permission.
+
+### Confirmed Project Root
+
+`C:\Development Projects\TOG5-VMS`
+
+### Root Cause
+
+- The Reports page uses the Tauri opener plugin to reveal the exported CSV in File Explorer.
+- Tauri v2 requires the `opener:allow-reveal-item-in-dir` permission for that command.
+- The project did not have a capabilities file granting that permission.
+
+### Fix Made
+
+- Added `src-tauri/capabilities/default.json`.
+- Granted:
+  - `core:default`
+  - `opener:default`
+  - `opener:allow-reveal-item-in-dir`
+
+### Files Created
+
+- `src-tauri/capabilities/default.json`
+
+### Files Modified
+
+- `specs/live-update.md`
+
+### Commands Run
+
+```bash
+npm.cmd run format:check
+cargo check --manifest-path src-tauri/Cargo.toml
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run build
+cargo fmt --manifest-path src-tauri/Cargo.toml --check
+```
+
+### Command Results
+
+- Format check: passed.
+- Cargo check: passed.
+- Typecheck: passed.
+- Lint: passed.
+- Frontend build: passed.
+- Rust format check: passed.
+
+### Tauri Launch
+
+Not run for this targeted permission fix. Manual runtime confirmation is still needed because the issue only appears when clicking `Show file` in the desktop app.
+
+### Manual Visual Checks Still Needed
+
+1. Open Reports.
+2. Export a Maintenance or Trips CSV.
+3. Click `Show file`.
+4. Confirm File Explorer opens/reveals the exported CSV without a permission error.
+
+### Suggested Next Step
+
+Rerun the Reports export check in the desktop app, then rebuild/package once confirmed.

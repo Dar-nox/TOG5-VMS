@@ -260,14 +260,6 @@ export function VehicleModule() {
   }
 
   async function handleArchive(vehicle: VehicleRecord) {
-    const confirmed = window.confirm(
-      `Archive ${vehicle.vehicleName}? It will be hidden from the normal vehicle list.`,
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
     setArchiveSaving(true);
     setErrorMessage(null);
 
@@ -387,8 +379,8 @@ function VehicleForm(props: {
       <div className="section-heading">
         <h2>{mode === "create" ? "Add vehicle" : "Edit vehicle"}</h2>
         <p>
-          Save the basics first. Fuel logs, maintenance schedules, documents, and alerts come in
-          later phases.
+          Save the vehicle basics here. Fuel, trips, maintenance, alerts, and reports will use this
+          record.
         </p>
       </div>
 
@@ -580,6 +572,11 @@ function VehicleProfile(props: {
   onEdit: () => void;
 }) {
   const { archiveSaving, vehicle } = props;
+  const [archiveConfirming, setArchiveConfirming] = useState(false);
+
+  useEffect(() => {
+    setArchiveConfirming(false);
+  }, [vehicle.id]);
 
   return (
     <div className="vehicle-profile">
@@ -637,14 +634,38 @@ function VehicleProfile(props: {
         <button className="secondary-button" type="button" onClick={props.onEdit}>
           Edit vehicle
         </button>
-        <button
-          className="danger-button"
-          disabled={archiveSaving}
-          type="button"
-          onClick={props.onArchive}
-        >
-          {archiveSaving ? "Archiving..." : "Archive vehicle"}
-        </button>
+        {archiveConfirming ? (
+          <div className="inline-confirmation">
+            <span>Archive this vehicle? It will be hidden from the normal vehicle list.</span>
+            <div className="inline-confirmation-actions">
+              <button
+                className="secondary-button"
+                disabled={archiveSaving}
+                type="button"
+                onClick={() => setArchiveConfirming(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="danger-button"
+                disabled={archiveSaving}
+                type="button"
+                onClick={props.onArchive}
+              >
+                {archiveSaving ? "Archiving..." : "Confirm archive"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            className="danger-button"
+            disabled={archiveSaving}
+            type="button"
+            onClick={() => setArchiveConfirming(true)}
+          >
+            Archive vehicle
+          </button>
+        )}
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import {
   getReportsOverview,
   getVehicleCostReport,
@@ -9,6 +10,7 @@ import {
   type VehicleCostReport,
   type VehicleCostSummaryRecord,
 } from "../../services/api/expenses";
+import { exportReportCsv, type ExportReportCsvResponse } from "../../services/api/reports";
 import { getAppSettings } from "../../services/api/settings";
 import {
   getTripReportsOverview,
@@ -31,6 +33,9 @@ export function ReportsModule() {
   const [loading, setLoading] = useState(true);
   const [reportsLoading, setReportsLoading] = useState(false);
   const [tripReportsLoading, setTripReportsLoading] = useState(false);
+  const [exportingReport, setExportingReport] = useState<"maintenance" | "trips" | null>(null);
+  const [exportResult, setExportResult] = useState<ExportReportCsvResponse | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const filter = useMemo(
@@ -118,8 +123,9 @@ export function ReportsModule() {
     [endDate, startDate, vehicleFilter, vehicles],
   );
 
-  function handleExportMaintenanceReport() {
-    downloadCsv(
+  async function handleExportMaintenanceReport() {
+    await exportCsvFile(
+      "maintenance",
       `tog5-maintenance-report-${dateStamp()}.csv`,
       maintenanceCsvRows({
         currency,
@@ -142,8 +148,9 @@ export function ReportsModule() {
     );
   }
 
-  function handleExportTripsReport() {
-    downloadCsv(
+  async function handleExportTripsReport() {
+    await exportCsvFile(
+      "trips",
       `tog5-trips-report-${dateStamp()}.csv`,
       tripsCsvRows({
         filterLabel,
@@ -160,6 +167,40 @@ export function ReportsModule() {
         overview: tripOverview,
       }),
     );
+  }
+
+  async function exportCsvFile(
+    reportType: "maintenance" | "trips",
+    filename: string,
+    rows: CsvRow[],
+  ) {
+    setExportingReport(reportType);
+    setExportResult(null);
+    setExportError(null);
+
+    try {
+      const result = await exportReportCsv({
+        filename,
+        csvContents: csvContent(rows),
+      });
+      setExportResult(result);
+    } catch (error) {
+      setExportError(messageFromError(error));
+    } finally {
+      setExportingReport(null);
+    }
+  }
+
+  async function handleRevealExport() {
+    if (!exportResult) {
+      return;
+    }
+
+    try {
+      await revealItemInDir(exportResult.filePath);
+    } catch (error) {
+      setExportError(messageFromError(error));
+    }
   }
 
   return (
@@ -241,11 +282,11 @@ export function ReportsModule() {
               <>
                 <button
                   className="secondary-button"
-                  disabled={reportsLoading}
-                  onClick={handleExportMaintenanceReport}
+                  disabled={reportsLoading || exportingReport !== null}
+                  onClick={() => void handleExportMaintenanceReport()}
                   type="button"
                 >
-                  Export maintenance CSV
+                  {exportingReport === "maintenance" ? "Exporting..." : "Export maintenance CSV"}
                 </button>
                 <button
                   className="secondary-button"
@@ -260,11 +301,11 @@ export function ReportsModule() {
               <>
                 <button
                   className="secondary-button"
-                  disabled={tripReportsLoading}
-                  onClick={handleExportTripsReport}
+                  disabled={tripReportsLoading || exportingReport !== null}
+                  onClick={() => void handleExportTripsReport()}
                   type="button"
                 >
-                  Export trips CSV
+                  {exportingReport === "trips" ? "Exporting..." : "Export trips CSV"}
                 </button>
                 <button
                   className="secondary-button"
@@ -278,6 +319,23 @@ export function ReportsModule() {
             )}
           </div>
         </div>
+
+        {exportResult ? (
+          <div className="report-export-status">
+            <div>
+              <strong>CSV exported.</strong>
+              <span>{exportResult.filePath}</span>
+            </div>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => void handleRevealExport()}
+            >
+              Show file
+            </button>
+          </div>
+        ) : null}
+        {exportError ? <div className="inline-error compact">{exportError}</div> : null}
 
         {activeTab === "costs" ? (
           <>
@@ -497,7 +555,7 @@ function VehicleSummaryList({
   if (summaries.length === 0) {
     return (
       <div className="maintenance-empty-note">
-        No vehicle costs match this filter yet. Fuel, service, repairs, and manual expenses will
+        No vehicle costs match this filter yet. Fuel, maintenance, repairs, and manual expenses will
         appear here as records are added.
       </div>
     );
@@ -623,7 +681,7 @@ function maintenanceCsvRows({
     ["Report", "Maintenance", filterLabel || "All records", "", "", "", "", "TOG 5 VMS"],
     ["Summary", "Total tracked cost", "", "", "", "", overview?.totalTrackedCost ?? 0, currency],
     ["Summary", "Fuel", "", "", "", "", overview?.fuelTotal ?? 0, currency],
-    ["Summary", "Service", "", "", "", "", overview?.maintenanceTotal ?? 0, currency],
+    ["Summary", "Maintenance", "", "", "", "", overview?.maintenanceTotal ?? 0, currency],
     ["Summary", "Repairs", "", "", "", "", overview?.repairTotal ?? 0, currency],
     ["Summary", "Manual expenses", "", "", "", "", overview?.manualExpenseTotal ?? 0, currency],
     [
@@ -773,17 +831,8 @@ function tripsPrintHtml({
   });
 }
 
-function downloadCsv(filename: string, rows: CsvRow[]) {
-  const csv = rows.map(csvLine).join("\r\n");
-  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+function csvContent(rows: CsvRow[]) {
+  return `\uFEFF${rows.map(csvLine).join("\r\n")}`;
 }
 
 function csvLine(row: CsvRow) {

@@ -65,7 +65,7 @@ export const navigationItems: NavigationItem[] = [
     id: "reports",
     label: "Reports",
     shortLabel: "Reports",
-    description: "Printable summaries and exports later",
+    description: "Printable maintenance, cost, and trip summaries",
   },
   {
     id: "alerts",

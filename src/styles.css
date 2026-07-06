@@ -1074,6 +1074,27 @@ h1 {
   gap: 10px;
 }
 
+.inline-confirmation {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #f0c6bf;
+  border-radius: 8px;
+  background: #fff8f6;
+  color: #71302b;
+  padding: 10px 12px;
+}
+
+.inline-confirmation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .primary-button,
 .secondary-button,
 .danger-button {
@@ -2471,6 +2492,33 @@ h1 {
   gap: 10px;
 }
 
+.report-export-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #cfe1d8;
+  border-radius: 8px;
+  background: #f6fbf8;
+  padding: 12px;
+}
+
+.report-export-status div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.report-export-status strong {
+  color: #174936;
+}
+
+.report-export-status span {
+  color: #52636a;
+  font-size: 0.88rem;
+  overflow-wrap: anywhere;
+}
+
 .trip-report-summary {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
@@ -3283,7 +3331,8 @@ h1 {
   }
 
   .report-action-bar,
-  .report-action-bar > div:last-child {
+  .report-action-bar > div:last-child,
+  .report-export-status {
     align-items: stretch;
     flex-direction: column;
   }
