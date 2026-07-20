@@ -6901,3 +6901,85 @@ cargo test
 Tell the client to copy the entire folder ending in `.tog5backup`, not the database file inside
 it. Their data is intact and no repair is needed. Then run the Rust test suite on the build
 machine and fold these changes into the next build.
+
+## 2026-07-20 — Backup Validation Reporting v0.3.0: Windows Build Verification
+
+### Phase / Milestone
+
+Post-v0.2.0 client support fix, continued. First compile/build of the `database_file_selected`
+backup validation change on a machine with a real Rust toolchain, closing out the "Not Yet
+Verified" item from the entry above. Branch `fix/backup-validation-reporting-v0.3.0`.
+
+### Background
+
+The Rust side of this change was written in WSL with no `cargo`/`rustc` available, so
+`src-tauri/src/backup/service.rs` had never been compiled. This session ran on a Windows
+machine that also had no Rust toolchain installed (`cargo`, `rustc`, `rustup` all absent from
+both Git Bash and PowerShell), so `rustup` (stable-x86_64-pc-windows-msvc) was installed via
+`winget install --id Rustlang.Rustup -e` before any Rust command could run. MSVC Build Tools
+and the WebView2 runtime were already present on the machine, so no other prerequisites were
+needed.
+
+### Files Changed
+
+- `specs/live-update.md` (this entry only; no source changes were needed)
+
+### Commands Run
+
+- `winget install --id Rustlang.Rustup -e --source winget` — installed
+  `stable-x86_64-pc-windows-msvc` (cargo 1.97.1, rustc 1.97.1).
+- `npm install` — passed, 203 packages, 0 vulnerabilities.
+- `npm run typecheck` — passed.
+- `npm run lint` — passed.
+- `npm test` — passed, 12 tests.
+- `cargo fmt --check` (src-tauri) — passed, no diff.
+- `cargo clippy --all-targets --all-features` (src-tauri) — passed, exit 0. 5 pre-existing
+  warnings (`manual_inspect` x3, `too_many_arguments` x1) in `maintenance/commands.rs`,
+  `maintenance/seeds.rs`, and `vehicles/commands.rs` — unrelated to this change, left as-is.
+  None of the new backup validation code triggered a warning.
+- `cargo test` (src-tauri) — passed, 78 passed; 0 failed. Both new tests confirmed:
+  `backup_validation_explains_when_only_the_database_file_was_copied` and
+  `backup_validation_reports_a_damaged_manifest_rather_than_a_loose_database`.
+- `npm run tauri:build` — passed. Release binary and NSIS installer built successfully.
+
+### Test/Build Results
+
+- The const-sized header array (`[0_u8; SQLITE_FILE_HEADER.len()]`) and the nested
+  `.flatten().flatten()` chain in `looks_like_sqlite_file` / `is_loose_database_folder`
+  (`src-tauri/src/backup/service.rs`) both compiled without changes on current stable Rust
+  (1.97.1) and needed no fixes.
+- No compile errors anywhere in `src-tauri`. No source changes were required this session.
+
+### Packaging Result
+
+- Release binary: `src-tauri/target/release/tog5-vms.exe`.
+- NSIS installer: `src-tauri/target/release/bundle/nsis/TOG 5 VMS_0.3.0_x64-setup.exe`.
+- Installer size: 3,252,296 bytes.
+
+### Errors Encountered
+
+None.
+
+### Decisions Made
+
+- Installed `rustup` via `winget` rather than asking the user to do it manually, per their
+  explicit go-ahead, since it was the only way to actually run the compile/test/build steps
+  this task required.
+- Did not touch the two deferred findings noted in the entry above
+  (`validate_database_snapshot` schema strictness, unused `db::database_status` command) or the
+  unrelated pre-existing clippy warnings — out of scope for this verification pass.
+
+### Remaining Issues
+
+- Manual check still needed: point the path field at a bare `.sqlite3` file, validate, and
+  confirm the message appears in the red box with the `database_file_selected` code (carried
+  over from the entry above; still not done since it requires running the built app).
+- The two deferred findings from the previous entry (old-schema restore blocking,
+  unused `database_status` command) remain open.
+
+### Suggested Next Step
+
+Manually smoke-test the built installer (`TOG 5 VMS_0.3.0_x64-setup.exe`) — install it, then
+exercise the "select a bare .sqlite3 file" and "select a folder with just the database" paths
+in Backup & Restore to confirm the red error box and diagnostic copy button render as expected.
+Once confirmed, this branch is ready to merge to `main`.
