@@ -1,6 +1,6 @@
 [package]
 name = "tog5-vms"
-version = "0.2.0"
+version = "0.3.0"
 description = "TOG 5 VMS local desktop vehicle maintenance system"
 authors = ["TOG 5 VMS"]
 edition = "2021"

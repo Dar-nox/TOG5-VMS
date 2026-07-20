@@ -81,11 +81,12 @@ export function BackupRestoreModule() {
     try {
       const result = await validateBackupFile(selectedBackupPath);
       setValidation(result);
-      setSuccessMessage(
-        result.valid
-          ? "Backup validation passed. Review the details before restoring."
-          : "Backup validation found issues. Restore is disabled until they are fixed.",
-      );
+
+      if (result.valid) {
+        setSuccessMessage("Backup validation passed. Review the details before restoring.");
+      } else {
+        setErrorMessage(validationFailureSummary(result));
+      }
     } catch (error) {
       setErrorMessage(messageFromError(error));
     } finally {
@@ -338,6 +339,17 @@ function RestorePanel(props: {
 }
 
 function ValidationResultCard({ validation }: { validation: BackupValidationResult }) {
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+
+  const handleCopyReport = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(validation, null, 2));
+      setCopyState("copied");
+    } catch {
+      setCopyState("failed");
+    }
+  }, [validation]);
+
   return (
     <div className={validation.valid ? "backup-success-note" : "inline-error"}>
       <strong>{validation.valid ? "Backup is valid" : "Backup needs attention"}</strong>
@@ -348,6 +360,15 @@ function ValidationResultCard({ validation }: { validation: BackupValidationResu
         </span>
       ) : null}
       <IssueList issues={validation.issues} emptyText="No validation issues found." />
+
+      <div className="backup-action-row">
+        <button className="secondary-button" type="button" onClick={() => void handleCopyReport()}>
+          {copyState === "copied" ? "Diagnostic report copied" : "Copy diagnostic report"}
+        </button>
+        {copyState === "failed" ? (
+          <span>Could not copy the report. Select the details above and copy them manually.</span>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -405,6 +426,7 @@ function IssueList({ issues, emptyText }: { issues: FileIntegrityIssue[]; emptyT
       {issues.map((issue) => (
         <div className={`backup-issue ${issue.severity}`} key={`${issue.code}-${issue.path ?? ""}`}>
           <strong>{issue.message}</strong>
+          <code className="backup-issue-code">{issue.code}</code>
           {issue.path ? <span>{issue.path}</span> : null}
         </div>
       ))}
@@ -437,4 +459,13 @@ function labelFromKey(value: string) {
 
 function messageFromError(error: unknown) {
   return error instanceof Error ? error.message : String(error);
+}
+
+function validationFailureSummary(validation: BackupValidationResult) {
+  const errors = validation.issues.filter((issue) => issue.severity === "error");
+  const codes = [...new Set(errors.map((issue) => issue.code))].join(", ");
+  const countLabel = errors.length === 1 ? "1 issue" : `${errors.length} issues`;
+  const subject = errors.length === 1 ? "it is" : "they are";
+
+  return `Backup validation found ${countLabel} (${codes}). Restore is disabled until ${subject} fixed.`;
 }

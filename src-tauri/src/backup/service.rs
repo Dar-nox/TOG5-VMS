@@ -21,6 +21,8 @@ const BACKUP_FORMAT_VERSION: i64 = 1;
 const CHECKSUM_ALGORITHM: &str = "fnv1a64";
 const MANIFEST_FILE_NAME: &str = "manifest.json";
 const BACKUP_FOLDER_NAME: &str = "backups";
+const SQLITE_FILE_HEADER: &[u8; 16] = b"SQLite format 3\0";
+const DATABASE_FILE_SELECTED_MESSAGE: &str = "This is the database file from inside a backup, not the backup itself. On the device you backed up from, copy the whole folder ending in .tog5backup, including its manifest.json file and its database and files folders.";
 const DATABASE_PACKAGE_PATH: &str = "database/tog5-vms.sqlite3";
 const MANAGED_FOLDERS: &[&str] = &[
     "vehicle-photos",
@@ -151,10 +153,30 @@ pub fn validate_backup_package(package_path: &Path) -> BackupValidationResult {
     }
 
     if !package_path.is_dir() {
+        let (code, message) = if looks_like_sqlite_file(package_path) {
+            ("database_file_selected", DATABASE_FILE_SELECTED_MESSAGE)
+        } else {
+            (
+                "package_not_folder",
+                "A backup is a folder ending in .tog5backup, not a single file. If the backup arrived as a .zip, extract it first and then select the extracted .tog5backup folder.",
+            )
+        };
+
+        issues.push(issue("error", code, message, Some(package_path)));
+        return BackupValidationResult {
+            backup_path,
+            valid: false,
+            manifest: None,
+            issues,
+        };
+    }
+
+    let manifest_path = package_path.join(MANIFEST_FILE_NAME);
+    if !manifest_path.exists() && is_loose_database_folder(package_path) {
         issues.push(issue(
             "error",
-            "package_not_folder",
-            "This backup format must be a .tog5backup folder.",
+            "database_file_selected",
+            DATABASE_FILE_SELECTED_MESSAGE,
             Some(package_path),
         ));
         return BackupValidationResult {
@@ -165,7 +187,6 @@ pub fn validate_backup_package(package_path: &Path) -> BackupValidationResult {
         };
     }
 
-    let manifest_path = package_path.join(MANIFEST_FILE_NAME);
     let manifest = match read_manifest(&manifest_path) {
         Ok(manifest) => manifest,
         Err(error) => {
@@ -548,9 +569,11 @@ fn write_manifest(package_dir: &Path, manifest: &BackupManifest) -> Result<(), S
 }
 
 fn read_manifest(path: &Path) -> Result<BackupManifest, String> {
-    let bytes =
-        fs::read(path).map_err(|_| "Backup manifest is missing or unreadable.".to_string())?;
-    serde_json::from_slice(&bytes).map_err(|_| "Backup manifest is not valid JSON.".to_string())
+    let bytes = fs::read(path).map_err(|_| {
+        "The manifest.json file is missing from the top level of this .tog5backup folder, so the package is incomplete. Copy the whole .tog5backup folder again from the device you backed up from.".to_string()
+    })?;
+    serde_json::from_slice(&bytes)
+        .map_err(|_| "The manifest.json file in this .tog5backup folder is damaged and could not be read. Copy the whole .tog5backup folder again from the device you backed up from.".to_string())
 }
 
 fn collect_manifest_files(package_dir: &Path) -> Result<Vec<BackupManifestFile>, String> {
@@ -603,7 +626,7 @@ fn validate_manifest_file(
         return Err(issue(
             "error",
             "manifest_file_missing",
-            "A file listed in the backup manifest is missing.",
+            "A file listed in the backup manifest is missing, so only part of the .tog5backup folder was copied. Copy the whole folder again, and if it is stored in a cloud-synced folder make sure every file is downloaded first.",
             Some(&path),
         ));
     }
@@ -621,7 +644,11 @@ fn validate_manifest_file(
         return Err(issue(
             "error",
             "size_mismatch",
-            "A backup file size does not match the manifest.",
+            &format!(
+                "A backup file does not match the manifest: expected {} bytes but found {} bytes. This usually means the .tog5backup folder was copied only partially, or a cloud storage placeholder was copied instead of the real file.",
+                file.size_bytes,
+                metadata.len()
+            ),
             Some(&path),
         ));
     }
@@ -841,6 +868,47 @@ fn normalize_relative_path(path: &Path) -> Result<String, String> {
         })
         .collect::<Vec<_>>()
         .join("/"))
+}
+
+/// Detects a SQLite database file by extension, falling back to the file header so a
+/// renamed copy of the backup database is still recognised.
+fn looks_like_sqlite_file(path: &Path) -> bool {
+    if !path.is_file() {
+        return false;
+    }
+
+    let extension = path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(|extension| extension.to_ascii_lowercase());
+
+    if matches!(extension.as_deref(), Some("sqlite3" | "sqlite" | "db")) {
+        return true;
+    }
+
+    let Ok(mut file) = fs::File::open(path) else {
+        return false;
+    };
+
+    let mut header = [0_u8; SQLITE_FILE_HEADER.len()];
+    file.read_exact(&mut header).is_ok() && header == *SQLITE_FILE_HEADER
+}
+
+/// True when a folder holds a loose database file instead of a real package, which is what
+/// happens when only the database is copied out of a .tog5backup folder. A genuine package
+/// with a damaged manifest still has its `files` folder, so it is reported as a manifest
+/// problem rather than being mistaken for this.
+fn is_loose_database_folder(path: &Path) -> bool {
+    if path.join("files").is_dir() {
+        return false;
+    }
+
+    [path.to_path_buf(), path.join("database")]
+        .iter()
+        .filter_map(|directory| fs::read_dir(directory).ok())
+        .flatten()
+        .flatten()
+        .any(|entry| looks_like_sqlite_file(&entry.path()))
 }
 
 fn is_safe_relative_path(path: &Path) -> bool {
@@ -1069,6 +1137,67 @@ mod tests {
             .issues
             .iter()
             .any(|issue| issue.code == "size_mismatch" || issue.code == "checksum_mismatch"));
+    }
+
+    #[test]
+    fn backup_validation_explains_when_only_the_database_file_was_copied() {
+        let (_temp_dir, context) = setup_context();
+        seed_backup_data(&context);
+        let backup = create_backup(&context).expect("backup should create");
+        let package = PathBuf::from(&backup.backup_path);
+        let source_database = package.join(DATABASE_PACKAGE_PATH);
+        let transferred = context.app_data_dir.join("transferred");
+        fs::create_dir_all(&transferred).expect("transfer folder should create");
+
+        // The database file copied out of the package on its own.
+        let loose_database = transferred.join(DATABASE_FILE_NAME);
+        fs::copy(&source_database, &loose_database).expect("database should copy");
+        assert!(validate_backup_package(&loose_database)
+            .issues
+            .iter()
+            .any(|issue| issue.code == "database_file_selected"));
+
+        // The same file renamed, so only the header identifies it.
+        let renamed_database = transferred.join("my-backup");
+        fs::copy(&source_database, &renamed_database).expect("database should copy");
+        assert!(validate_backup_package(&renamed_database)
+            .issues
+            .iter()
+            .any(|issue| issue.code == "database_file_selected"));
+
+        // The database file dropped into a folder of its own.
+        let database_folder = transferred.join("backup-folder");
+        fs::create_dir_all(&database_folder).expect("folder should create");
+        fs::copy(&source_database, database_folder.join(DATABASE_FILE_NAME))
+            .expect("database should copy");
+        let folder_result = validate_backup_package(&database_folder);
+        assert!(!folder_result.valid);
+        assert!(folder_result
+            .issues
+            .iter()
+            .any(|issue| issue.code == "database_file_selected"));
+    }
+
+    #[test]
+    fn backup_validation_reports_a_damaged_manifest_rather_than_a_loose_database() {
+        let (_temp_dir, context) = setup_context();
+        seed_backup_data(&context);
+        let backup = create_backup(&context).expect("backup should create");
+        let package = PathBuf::from(&backup.backup_path);
+        fs::remove_file(package.join(MANIFEST_FILE_NAME)).expect("manifest should remove");
+
+        // A real package keeps its files folder, so a missing manifest must not be
+        // misreported as somebody copying the database file on its own.
+        let result = validate_backup_package(&package);
+        assert!(!result.valid);
+        assert!(result
+            .issues
+            .iter()
+            .any(|issue| issue.code == "manifest_invalid"));
+        assert!(!result
+            .issues
+            .iter()
+            .any(|issue| issue.code == "database_file_selected"));
     }
 
     #[test]

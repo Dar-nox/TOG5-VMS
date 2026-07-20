@@ -348,11 +348,30 @@ Backups do not depend on original user-selected file paths.
 3. Wait for the success message.
 4. Note the backup path.
 
+### Moving a Backup to Another Computer
+
+A backup is a **folder** whose name ends in `.tog5backup`. It is not a single file.
+
+Inside that folder are a `manifest.json` file, a `database` folder, and a `files` folder. All of them are needed together.
+
+1. On the computer you backed up from, find the folder ending in `.tog5backup`.
+2. Copy that **whole folder**, not the files inside it.
+3. Move it to the other computer with a USB drive, or compress the folder to a `.zip`, transfer it, and extract it on the other computer.
+4. On the other computer, select the `.tog5backup` folder itself in `Backup & Restore`.
+
+Common mistakes that stop a restore:
+
+- Copying only the `tog5-vms.sqlite3` database file from inside the backup. That single file is not a usable backup on its own.
+- Selecting a `.zip` file without extracting it first.
+- Copying from a cloud storage folder before all files have finished downloading. Files that are still online-only copy across empty.
+
 ### Validate Backup
 
 1. Select a backup package.
 2. Click validate.
 3. Confirm the app reports that the backup is valid before restoring.
+
+If validation reports a problem, the app lists each problem with a short code such as `database_file_selected`. Read the message, which explains what to do. Use `Copy diagnostic report` to copy the full details if you need to send them for support.
 
 ### Restore Backup
 

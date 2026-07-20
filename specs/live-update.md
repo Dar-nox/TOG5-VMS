@@ -6799,3 +6799,105 @@ Tauri dev launch was not run for this icon-only update. The production installer
 ### Suggested Next Step
 
 Use the refreshed `TOG 5 VMS_0.2.0_x64-setup.exe` installer for the client handoff after a quick visual icon check.
+
+## 2026-07-20 — Backup Validation Error Reporting
+
+### Phase / Milestone
+
+Post-v0.2.0 client support fix. Backup & Restore validation reporting.
+
+### Background
+
+A client backed up on one computer, moved the backup to a new computer, and could not restore.
+Validation reported "Backup validation found issues. Restore is disabled until they are fixed."
+with no indication of the cause or the fix.
+
+Root cause was a user mistake, not a defect: only the `tog5-vms.sqlite3` file from inside the
+`.tog5backup` folder was copied, rather than the whole package folder. Validation correctly
+refused it, but reported it as `package_not_folder` / `manifest_invalid`, which does not tell a
+non-technical user what to do. The failure text was also written to `successMessage`, so a
+failed validation rendered inside the green success box.
+
+### Files Changed
+
+- `src-tauri/src/backup/service.rs`
+- `src/components/backup/BackupRestoreModule.tsx`
+- `src/styles.css`
+- `docs/TOG5-VMS-user-manual-v0.2.0.md`
+- `specs/live-update.md`
+
+### Summary of Changes
+
+1. New validation issue code `database_file_selected`. Raised when the selected path is a SQLite
+   database file (detected by `.sqlite3` / `.sqlite` / `.db` extension, or by the
+   `SQLite format 3` file header so a renamed copy is still caught), or when the selected folder
+   holds a loose database file with no `manifest.json` and no `files` folder. The message tells
+   the user to copy the whole `.tog5backup` folder from the source computer.
+2. A genuine package with a missing or damaged manifest still reports `manifest_invalid`. The
+   `files` folder check keeps the two cases apart.
+3. Rewrote `package_not_folder`, `manifest_invalid`, `manifest_file_missing` and `size_mismatch`
+   messages to state the fix. `size_mismatch` now includes expected and actual byte counts.
+   Partial copies and cloud storage placeholder files are called out explicitly.
+4. Failed validation now routes to `errorMessage` instead of `successMessage`, so it renders in
+   the red error box. The summary names the issue count and codes.
+5. Issue codes are now rendered in `IssueList`, and `ValidationResultCard` gained a
+   `Copy diagnostic report` button that copies the full validation result as JSON.
+6. User manual gained a "Moving a Backup to Another Computer" section.
+
+### Tests Added
+
+- `backup_validation_explains_when_only_the_database_file_was_copied` — covers the loose database
+  file, the same file renamed to remove its extension, and the file placed in its own folder.
+- `backup_validation_reports_a_damaged_manifest_rather_than_a_loose_database` — regression guard
+  ensuring a real package with a removed manifest is not misreported as the above.
+
+### Commands Run
+
+- `npm install` — dependencies were not previously installed in this environment.
+- `npm run typecheck` — passed.
+- `npm run lint` — passed.
+- `npm test` — passed, 12 tests.
+
+### Errors Encountered
+
+None in the frontend checks.
+
+### Not Yet Verified
+
+**The Rust changes are unverified.** No Rust toolchain is installed in this WSL environment
+(`cargo` not found, `rustc` not installed), and the Tauri system build dependencies are likely
+absent as well. `cargo test`, `cargo fmt` and `cargo clippy` were NOT run, so the two new tests
+have never executed and `src-tauri/src/backup/service.rs` has not been compiled.
+
+Run the following on the Windows build machine before releasing:
+
+```
+cargo fmt --check
+cargo clippy
+cargo test
+```
+
+### Decisions Made
+
+- Kept scope to the reporting dead end. Two unrelated findings were deliberately left out:
+  1. `validate_database_snapshot` hard-fails when a backup's schema is older than the current
+     build, which blocks legitimate old-computer to new-computer restores. Startup already runs
+     migrations, so this check is stricter than necessary. Worth a separate change.
+  2. `db::database_status` is registered in `lib.rs` but has no frontend caller. Surfacing app
+     version, database path and applied migrations in Settings would help diagnose version gaps.
+- Did not add a native folder picker. The backup path is still a free text input, which is what
+  allowed the wrong path to be entered. Adding `tauri-plugin-dialog` would remove this error
+  class outright but adds a dependency. Deferred until clearer messaging is shown to be
+  insufficient.
+
+### Remaining Issues
+
+- Rust build, format, lint and tests must be run on a machine with the toolchain.
+- Manual check still needed: point the path field at a bare `.sqlite3` file, validate, and
+  confirm the message appears in the red box with the `database_file_selected` code.
+
+### Suggested Next Step
+
+Tell the client to copy the entire folder ending in `.tog5backup`, not the database file inside
+it. Their data is intact and no repair is needed. Then run the Rust test suite on the build
+machine and fold these changes into the next build.
