@@ -659,7 +659,10 @@ fn first_active_user(connection: &Connection) -> Result<Option<LocalUserRecord>,
         .map_err(|_| "Could not read the active local user.".to_string())
 }
 
-fn get_user(connection: &Connection, id: &str) -> Result<Option<LocalUserRecord>, String> {
+pub(crate) fn get_user(
+    connection: &Connection,
+    id: &str,
+) -> Result<Option<LocalUserRecord>, String> {
     connection
         .query_row(
             "
@@ -675,7 +678,7 @@ fn get_user(connection: &Connection, id: &str) -> Result<Option<LocalUserRecord>
         .map_err(|_| "Could not read the local user profile.".to_string())
 }
 
-fn user_from_row(row: &Row<'_>) -> rusqlite::Result<LocalUserRecord> {
+pub(crate) fn user_from_row(row: &Row<'_>) -> rusqlite::Result<LocalUserRecord> {
     Ok(LocalUserRecord {
         id: row.get(0)?,
         display_name: row.get(1)?,

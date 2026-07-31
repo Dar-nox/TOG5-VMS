@@ -65,6 +65,8 @@ pub struct AppSettingsResponse {
     pub data_safety: LocalDataSafetyInfo,
 }
 
+pub const OWNER_ROLE: &str = "owner";
+
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LocalUserRecord {
@@ -75,6 +77,15 @@ pub struct LocalUserRecord {
     pub status: String,
     pub created_at: String,
     pub updated_at: String,
+}
+
+impl LocalUserRecord {
+    /// Owners are the only accounts allowed to run the destructive
+    /// operations: wiping app data, restoring a backup, resetting settings,
+    /// and editing user profiles.
+    pub fn is_owner(&self) -> bool {
+        self.role == OWNER_ROLE
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
