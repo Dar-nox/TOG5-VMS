@@ -7,6 +7,8 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
+pub mod audit;
+
 pub const DATABASE_FILE_NAME: &str = "tog5-vms.sqlite3";
 
 pub const MIGRATIONS: &[Migration] = &[
@@ -29,6 +31,11 @@ pub const MIGRATIONS: &[Migration] = &[
         version: 4,
         name: "trip_logs",
         sql: include_str!("../../migrations/004_trip_logs.sql"),
+    },
+    Migration {
+        version: 5,
+        name: "online_multi_user",
+        sql: include_str!("../../migrations/005_online_multi_user.sql"),
     },
 ];
 
@@ -229,6 +236,7 @@ mod tests {
         assert_eq!(second_status.applied_migrations[1].version, 2);
         assert_eq!(second_status.applied_migrations[2].version, 3);
         assert_eq!(second_status.applied_migrations[3].version, 4);
+        assert_eq!(second_status.applied_migrations[4].version, 5);
     }
 
     #[test]
@@ -271,11 +279,47 @@ mod tests {
             "trip_drivers",
             "trip_passengers",
             "trip_destinations",
+            "sessions",
         ] {
             assert!(
                 table_names.iter().any(|name| name == table),
                 "missing table {table}"
             );
+        }
+    }
+
+    #[test]
+    fn online_migration_adds_attribution_columns() {
+        let temp_dir = tempfile::tempdir().expect("temp dir should be created");
+        let database_path = temp_dir.path().join("attribution.sqlite3");
+        initialize_database_at_path(&database_path).expect("init should succeed");
+
+        let connection = Connection::open(database_path).expect("database should open");
+
+        for table in [
+            "vehicles",
+            "vehicle_documents",
+            "fuel_logs",
+            "trips",
+            "maintenance_logs",
+            "repair_records",
+            "expenses",
+        ] {
+            let mut statement = connection
+                .prepare(&format!("PRAGMA table_info({table})"))
+                .expect("table info should prepare");
+            let column_names = statement
+                .query_map([], |row| row.get::<_, String>(1))
+                .expect("table info should query")
+                .collect::<Result<Vec<_>, _>>()
+                .expect("column names should parse");
+
+            for column in ["created_by", "updated_by"] {
+                assert!(
+                    column_names.iter().any(|name| name == column),
+                    "missing {column} on {table}"
+                );
+            }
         }
     }
 }
