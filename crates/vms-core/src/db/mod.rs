@@ -3,9 +3,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use r2d2::{Pool, PooledConnection};
+use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
-use tauri::{AppHandle, Manager};
+
+use crate::paths::AppPaths;
 
 pub mod audit;
 
@@ -59,22 +62,50 @@ pub struct AppliedMigration {
     pub applied_at: String,
 }
 
-pub fn database_path(app: &AppHandle) -> Result<PathBuf, String> {
-    app.path()
-        .app_data_dir()
-        .map(|dir| dir.join(DATABASE_FILE_NAME))
-        .map_err(|error| format!("Could not resolve app data directory: {error}"))
+pub type PooledSqlite = PooledConnection<SqliteConnectionManager>;
+
+/// A pooled handle to the application database.
+///
+/// Migrations run exactly once, when the pool is built at startup — callers
+/// take a connection per request rather than reopening and re-migrating the
+/// file on every operation.
+#[derive(Clone)]
+pub struct Database {
+    pool: Pool<SqliteConnectionManager>,
+    path: PathBuf,
 }
 
-pub fn initialize_app_database(app: &AppHandle) -> Result<DatabaseStatus, String> {
-    let path = database_path(app)?;
-    initialize_database_at_path(&path)
-}
+impl Database {
+    pub fn initialize(paths: &AppPaths) -> Result<Self, String> {
+        let path = paths.database_path();
+        initialize_database_at_path(&path)?;
 
-pub fn open_app_connection(app: &AppHandle) -> Result<Connection, String> {
-    let path = database_path(app)?;
-    initialize_database_at_path(&path)?;
-    open_database_at_path(&path)
+        let manager = SqliteConnectionManager::file(&path).with_init(apply_connection_pragmas);
+        let pool = Pool::builder()
+            .build(manager)
+            .map_err(|error| format!("Could not prepare the database connections: {error}"))?;
+
+        Ok(Self { pool, path })
+    }
+
+    pub fn connection(&self) -> Result<PooledSqlite, String> {
+        self.pool
+            .get()
+            .map_err(|_| "The database is busy right now. Please try again in a moment.".to_string())
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    pub fn status(&self) -> Result<DatabaseStatus, String> {
+        let connection = self.connection()?;
+
+        Ok(DatabaseStatus {
+            database_path: self.path.display().to_string(),
+            applied_migrations: applied_migrations(&connection)?,
+        })
+    }
 }
 
 pub fn open_database_at_path(path: &Path) -> Result<Connection, String> {
@@ -115,6 +146,16 @@ pub fn initialize_database_at_path(path: &Path) -> Result<DatabaseStatus, String
         database_path: path.display().to_string(),
         applied_migrations,
     })
+}
+
+fn apply_connection_pragmas(connection: &mut Connection) -> rusqlite::Result<()> {
+    connection.execute_batch(
+        "
+        PRAGMA foreign_keys = ON;
+        PRAGMA journal_mode = WAL;
+        PRAGMA busy_timeout = 5000;
+        ",
+    )
 }
 
 pub(crate) fn configure_connection(connection: &Connection) -> Result<(), String> {
@@ -208,11 +249,6 @@ fn applied_migrations(connection: &Connection) -> Result<Vec<AppliedMigration>, 
 
     rows.collect::<Result<Vec<_>, _>>()
         .map_err(|error| format!("Could not parse migration status: {error}"))
-}
-
-#[tauri::command]
-pub fn database_status(app: AppHandle) -> Result<DatabaseStatus, String> {
-    initialize_app_database(&app)
 }
 
 #[cfg(test)]

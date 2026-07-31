@@ -1,0 +1,16 @@
+[package]
+name = "vms-core"
+description = "TOG 5 VMS domain rules, persistence, and managed file storage"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+r2d2.workspace = true
+r2d2_sqlite.workspace = true
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

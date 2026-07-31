@@ -1,9 +1,4 @@
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
-
-use tauri::{AppHandle, Manager};
+use std::{fs, path::Path};
 
 use crate::vehicles::photo_storage::generate_local_id;
 
@@ -13,20 +8,6 @@ use super::models::{
 };
 
 const MAX_MAINTENANCE_FILE_BYTES: usize = 10 * 1024 * 1024;
-
-pub fn maintenance_receipts_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    app.path()
-        .app_data_dir()
-        .map(|dir| dir.join("maintenance-receipts"))
-        .map_err(|_| "Could not find the app data folder for maintenance receipts.".to_string())
-}
-
-pub fn maintenance_photos_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    app.path()
-        .app_data_dir()
-        .map(|dir| dir.join("maintenance-photos"))
-        .map_err(|_| "Could not find the app data folder for maintenance photos.".to_string())
-}
 
 pub fn prepare_maintenance_receipt(
     receipts_dir: &Path,

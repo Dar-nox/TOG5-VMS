@@ -1,22 +1,10 @@
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
-
-use tauri::{AppHandle, Manager};
+use std::{fs, path::Path};
 
 use crate::vehicles::photo_storage::generate_local_id;
 
 use super::models::{NewFuelReceipt, StoreFuelReceiptRequest};
 
 const MAX_RECEIPT_BYTES: usize = 10 * 1024 * 1024;
-
-pub fn fuel_receipts_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    app.path()
-        .app_data_dir()
-        .map(|dir| dir.join("fuel-receipts"))
-        .map_err(|_| "Could not find the app data folder for fuel receipts.".to_string())
-}
 
 pub fn prepare_fuel_receipt(
     receipts_dir: &Path,

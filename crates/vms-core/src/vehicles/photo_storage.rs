@@ -1,23 +1,14 @@
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::Path,
     sync::atomic::{AtomicU64, Ordering},
     time::{SystemTime, UNIX_EPOCH},
 };
-
-use tauri::{AppHandle, Manager};
 
 use super::models::{NewVehiclePhoto, StoreVehiclePhotoRequest};
 
 const MAX_PHOTO_BYTES: usize = 10 * 1024 * 1024;
 static NEXT_ID_SUFFIX: AtomicU64 = AtomicU64::new(1);
-
-pub fn vehicle_photos_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    app.path()
-        .app_data_dir()
-        .map(|dir| dir.join("vehicle-photos"))
-        .map_err(|_| "Could not find the app data folder for vehicle photos.".to_string())
-}
 
 pub fn prepare_vehicle_photo(
     photos_dir: &Path,
