@@ -3675,7 +3675,7 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tog5-vms"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -4130,7 +4130,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "vms-core"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "argon2",
  "r2d2",
@@ -4145,7 +4145,7 @@ dependencies = [
 
 [[package]]
 name = "vms-server"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "axum",
  "axum-extra",

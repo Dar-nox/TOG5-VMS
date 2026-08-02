@@ -1,35 +1,62 @@
 # TOG 5 VMS User Manual
 
-> Superseded by [`TOG5-VMS-user-manual-v0.4.0.md`](TOG5-VMS-user-manual-v0.4.0.md). This one
-> describes the offline desktop-only version and is kept for anyone still running it.
-
-Version: 0.2.0  
-Audience: TOG 5 VMS operators and administrators  
-Platform: Windows desktop
+- Version: 0.4.0
+- Audience: TOG 5 VMS operators and administrators
+- Platform: Windows desktop, plus any phone, tablet, or laptop with a browser
 
 ## 1. What TOG 5 VMS Is
 
-TOG 5 VMS is a local desktop Vehicle Maintenance System. It helps record vehicles, trips, fuel logs, maintenance work, service history, expenses, alerts, reports, backups, and basic settings.
+TOG 5 VMS is a Vehicle Maintenance System for the TOG 5 fleet. It helps record vehicles, trips, fuel logs, maintenance work, service history, expenses, alerts, reports, backups, and settings.
 
-The app is local-only. Records are stored on the computer where the app is installed. There is no cloud sync, online account, remote upload, telemetry, GPS tracking, or OCR.
+From version 0.4.0 the app runs on one computer in the office, and everybody else reaches it over the internet with their own account. Several people can work in it at the same time, and every change records who made it.
+
+The records themselves never leave the company. They stay on the office computer, on a system the company owns. There is no third-party cloud service holding the data, no telemetry, no GPS tracking, and no OCR.
 
 ## 2. Important Data Safety Notes
 
-- The app stores data locally in a SQLite database under the Windows app-data folder.
-- Vehicle photos, fuel receipts, and maintenance receipts/photos are copied into app-managed local folders.
-- The original selected file is not required after the app saves its own local copy.
-- Backups are local `.tog5backup` folder packages.
-- Database encryption is not enabled in this build.
-- Create backups regularly, especially before clearing data, restoring data, uninstalling, or moving to another computer.
+- All data lives on the office computer that runs TOG 5 VMS, in a SQLite database and app-managed folders.
+- Vehicle photos, fuel receipts, and maintenance receipts/photos are copied to that computer. The original file you picked is not needed afterwards.
+- Everybody signs in. There is no shared password and no default password.
+- Backups are `.tog5backup` folder packages, and one is made automatically every night.
+- The database file itself is not encrypted, so keep the office computer and its backups physically secure.
+- The connection between your device and the app is encrypted, so it is safe to use over mobile data.
+- If the office computer is switched off, nobody can use the app. It is the one thing that has to stay on.
 
 ## 3. First-Time Setup
 
-1. Install and open TOG 5 VMS.
-2. Open `Settings`.
-3. Check the default local owner profile.
-4. Set the display name if needed.
-5. Confirm preferred currency, distance unit, and alert preferences.
-6. Open `Backup & Restore` and create an initial backup once setup data is entered.
+The first person to open a brand-new TOG 5 VMS is asked to choose the owner password. This happens once and cannot be repeated.
+
+1. Open the app address in a browser.
+2. Choose a password of at least 10 characters, and write it down somewhere safe.
+3. Confirm it.
+
+**There is no way to recover a lost owner password.** The only way back in is restoring a backup from before it was changed. Store it the way you would store a safe combination.
+
+You are signed in straight afterwards. Then:
+
+1. Open `Settings` and add an account for each person who needs one.
+2. Confirm preferred currency, distance unit, and alert preferences.
+3. Open `Backup & Restore` and create a first backup once real data is entered.
+
+## 3a. Signing In Every Day
+
+Enter your username and password. The app remembers you on that device for 30 days unless you sign out.
+
+Sign out with the `Sign out` button at the bottom of the side menu. Do that on any device other people can pick up.
+
+After ten wrong passwords in five minutes the app stops accepting attempts from that device for a while. It clears on its own.
+
+## 3b. Putting TOG 5 VMS on Your Device
+
+Once installed, the app opens like any other app, with no address bar and no tabs.
+
+**Android phone or tablet.** Open the address in Chrome. It offers to install the app; accept, and the icon appears on your home screen.
+
+**iPhone or iPad.** Open the address in Safari, tap the Share button, then `Add to Home Screen`. Safari does not offer this by itself, so it is easy to miss.
+
+**Windows desktop.** Install the TOG 5 VMS desktop app from whoever set the system up. It opens straight into the app.
+
+**Any computer.** You can also simply open the address in a browser and use it there.
 
 ## 4. Navigation Overview
 
@@ -298,11 +325,9 @@ Reports can be filtered by:
 2. Choose `Maintenance` or `Trips`.
 3. Apply filters if needed.
 4. Click `Export maintenance CSV` or `Export trips CSV`.
-5. The app saves the file in the local app-data `report-exports` folder.
-6. A success message shows the file path.
-7. Click `Show file` to reveal the CSV in File Explorer.
+5. The file downloads to your device, and the app confirms the name it used.
 
-Repeated exports do not overwrite earlier files. The app adds `-2`, `-3`, and so on when needed.
+Open it with any spreadsheet program. The file is on the device you are using, not on the office computer.
 
 ### Print
 
@@ -383,7 +408,13 @@ If validation reports a problem, the app lists each problem with a short code su
 3. Read the warning.
 4. Confirm restore only when you are sure.
 
-Restore creates a pre-restore safety backup before replacing current app data. A restart may be required after restore.
+Only the owner account can restore a backup.
+
+Restore always creates a safety backup of the current data first, so a restore can itself be undone.
+
+The restore does not happen the instant you confirm it. TOG 5 VMS prepares it, then restarts itself and applies it while starting up, because replacing the data underneath people who are using it would damage it. In practice everybody is briefly disconnected, and five to ten seconds later the app comes back on the restored data. Tell people before you do it.
+
+If the computer loses power in the middle, nothing is lost. The prepared restore is still there and is applied the next time the computer starts.
 
 ## 15. Settings
 
@@ -400,7 +431,13 @@ Sections include:
 
 ### Profile & Access
 
-The app creates a default local owner user. This is local scaffolding only. There is no cloud login and no enforced login screen in this build.
+This is where accounts are managed.
+
+**Adding somebody.** Only the owner can do this. Give them a display name, a username, and a starting password of at least 10 characters. Usernames ignore capital letters, so `Maria` and `maria` are the same person and the second one is refused.
+
+**Changing a password.** Only the owner can do this. Changing somebody's password signs them out of every device they were using, which is exactly what you want if a phone goes missing.
+
+**What each account can do.** Everybody can do all the day-to-day work: vehicles, trips, fuel, maintenance, expenses, reports, and backups. Only the owner can clear all data, restore a backup, reset settings, or manage accounts. There is nothing to configure; the app already works this way.
 
 ### General Preferences
 
@@ -418,18 +455,13 @@ You can set default due-soon thresholds and alert preferences.
 
 Existing reminders keep their stored thresholds unless edited.
 
-### Backup & Local Data Safety
+### Backup & Data Safety
 
-Settings shows:
-
-- Database path.
-- App data folder path.
-- Backup package format.
-- Encryption status.
+Settings shows the database path, the data folder path, the backup format, and the encryption status. Those paths are on the office computer, not on the device you are reading them from.
 
 ### Startup Preference
 
-Startup preference is stored locally, but actual Windows startup registration is future packaging/startup work.
+The preference is stored here, but what actually starts TOG 5 VMS with the office computer is the Windows service installed on that machine.
 
 ### Clear Local Product Data
 
@@ -476,9 +508,21 @@ You must check the confirmation box before clearing data.
 
 ## 18. Common Questions
 
-### Does the app upload data online?
+### Does the app upload data to somebody else's cloud?
 
-No. TOG 5 VMS is local-only.
+No. The data stays on the office computer, which the company owns. The app is reachable over the internet so staff can use it from anywhere, but nothing is stored on a third-party service.
+
+### Can two people work in it at the same time?
+
+Yes, that is the point of this version. Each person signs in with their own account, and the app records who added or changed each record.
+
+### Does it work without internet?
+
+No. The app needs a connection to the office computer, so a driver with no signal cannot record a trip until they are back in range. Offline use is not part of this version.
+
+### What happens if the office computer is switched off?
+
+Nobody can use the app until it is back on. It should be set never to sleep, and left running.
 
 ### Is the database encrypted?
 
@@ -502,33 +546,37 @@ Usually no. Reports already include saved fuel logs and completed maintenance co
 
 ### Where are exported reports saved?
 
-Reports are saved in the app-data `report-exports` folder. After export, use `Show file` to reveal the CSV in File Explorer.
+Wherever your device normally puts downloads. The CSV is created on your own device, so you can open it straight away in a spreadsheet.
 
 ## 19. Known Limitations
 
-- No cloud sync.
-- No online accounts.
-- No remote database.
+- No offline use. Everything needs a connection to the office computer.
+- The office computer is a single point of failure. If it fails, the app is down until it is repaired or the data is restored somewhere else. This is why the nightly backup matters.
+- No database encryption. Keep the office computer and its backups physically secure.
+- A lost owner password cannot be recovered.
 - No OCR.
 - No GPS tracking.
-- No native Windows notifications.
-- No database encryption.
+- No push notifications. Alerts appear in the app.
 - No automatic manufacturer maintenance lookup.
-- Startup-on-boot setting is stored but not OS-registered yet.
+- Roles exist but there is no screen for them. Everybody can do the day-to-day work; only the owner can do the destructive things.
 
 ## 20. Support Handoff Checklist
 
 Before handing the app to a client, confirm:
 
+1. The owner password is set, staff accounts exist, and the app opens from a phone **on mobile data rather than office wifi**.
 1. Dashboard opens.
-2. Vehicles opens and vehicle photos display.
-3. Fuel Logs opens and a fuel log can be saved.
-4. Trips opens and trip start/end works.
-5. Maintenance opens and maintenance can be logged.
-6. Service History shows completed maintenance.
-7. Expenses opens and a manual expense can be saved.
-8. Reports opens, exports CSV, and prints.
-9. Alerts opens and refresh works.
-10. Backup & Restore creates a backup.
-11. Settings opens and preferences save.
-12. A backup has been created before handoff.
+1. Vehicles opens and vehicle photos display.
+1. Fuel Logs opens and a fuel log can be saved.
+1. Trips opens and trip start/end works.
+1. Maintenance opens and maintenance can be logged.
+1. Service History shows completed maintenance.
+1. Expenses opens and a manual expense can be saved.
+1. Reports opens, exports CSV, and prints.
+1. Alerts opens and refresh works.
+1. Backup & Restore creates a backup.
+1. Settings opens and preferences save.
+1. A second person can sign in on another device and see the same records.
+1. The nightly backup task has been run once by hand and produced a package.
+1. The office computer has been restarted, and both the app and its internet address came back on their own.
+1. A backup has been created before handoff.

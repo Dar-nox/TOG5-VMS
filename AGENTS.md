@@ -2,7 +2,8 @@
 
 ## Role
 
-You are the coding agent for **TOG 5 VMS**, a local desktop Vehicle Maintenance System.
+You are the coding agent for **TOG 5 VMS**, a self-hosted Vehicle Maintenance System: one Rust
+executable on a computer the client owns, reached from phones, desktops, and browsers.
 
 The goal is to implement the project incrementally, safely, and with minimal unnecessary rewrites. Prefer small, verifiable changes over broad speculative changes.
 
@@ -23,8 +24,8 @@ Before making code changes, read the relevant specification files in this reposi
 
 ## Development Rules
 
-1. Keep the app local-only. Do not add cloud sync, remote APIs, analytics, telemetry, or external data upload.
-2. Use SQLite for persistent local data unless explicitly instructed otherwise.
+1. Keep the client's data on the client's own hardware. Do not add analytics, telemetry, a managed database, an object store, or anything that bills monthly. Serving the app over the internet from the client's own machine is fine and is the point of v0.4.0; handing the data to somebody else's service is not.
+2. Use SQLite for persistent data unless explicitly instructed otherwise.
 3. Preserve user data and avoid destructive migrations.
 4. Do not hard-code universal maintenance schedules when templates/rules are appropriate.
 5. Do not make plate number required.
@@ -81,13 +82,13 @@ Do not remove useful history from `live-update.md`. Append new updates unless th
 
 Do not implement future/out-of-scope features unless requested, including:
 
-- Cloud sync
-- Online accounts
+- Offline use or any local caching of fleet data. This was dropped on purpose in v0.4.0: a stale odometer reading is worse than a screen saying it cannot reach the server. Bringing it back means conflict resolution, not a cache, and it is a project of its own.
+- A managed cloud database or object store
 - GPS tracking
 - Automatic manufacturer schedule lookup
 - Receipt OCR
-- Mobile app
-- Network database
+- Native mobile apps. Phones use the PWA; Android needs the full SDK toolchain and iOS needs a Mac plus a paid Apple Developer account.
+- Push notifications
 - Remote telemetry
 
 When uncertain, prefer adding a TODO note or asking for confirmation instead of inventing a large architecture.

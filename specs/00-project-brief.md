@@ -6,18 +6,27 @@
 
 ## Application Type
 
-Local desktop application for Windows 10/11.
+Self-hosted web application, served from one Windows 10/11 computer the client
+owns. Reached from a desktop shell, a phone, or a browser.
+
+Until v0.4.0 this was a single-seat offline desktop app. The client then needed
+several people to use it from anywhere, which the local-only design could not
+do. See `01-tech-stack-architecture.md` for what that changed and what it did
+not.
 
 ## Core Goal
 
-Build a private, offline, user-friendly desktop app that helps the client manage vehicles, fuel logs, maintenance schedules, service history, expenses, documents, and alerts.
+Build a private, user-friendly app that helps the client manage vehicles, fuel
+logs, maintenance schedules, service history, expenses, documents, and alerts —
+from wherever the work is happening, not only from one desk.
 
 ## Key Requirements
 
-1. Desktop app.
-2. Local-only data storage.
-3. No cloud dependency.
-4. Startup-on-boot capable.
+1. Reachable from anywhere, by several people at once, each with their own
+   sign-in.
+2. Data stays on hardware the client owns. No third-party service holds it.
+3. No paid subscriptions. A domain name is the only recurring cost.
+4. Starts with the computer it runs on.
 5. Vehicle name and uploaded vehicle picture are the main identifiers.
 6. Plate number is optional.
 7. Fuel logs must support receipt attachments and odometer readings.

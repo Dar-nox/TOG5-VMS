@@ -1,6 +1,11 @@
 # TOG 5 VMS — Codex Specification Pack
 
-This folder contains the working specification files for building **TOG 5 VMS**, a local-first desktop Vehicle Maintenance System.
+This folder contains the working specification files for building **TOG 5 VMS**, a self-hosted Vehicle Maintenance System.
+
+From v0.4.0 it runs as one Rust executable on a computer the client owns,
+reached from phones, desktops, and browsers over a Cloudflare Tunnel. It was a
+single-seat offline desktop app before that. To run it, see
+[`deploy/README.md`](deploy/README.md).
 
 These files are meant to be read by Codex before coding tasks. The human workflow is:
 
@@ -27,9 +32,9 @@ These files are meant to be read by Codex before coding tasks. The human workflo
 
 TOG 5 VMS must be:
 
-- Local-only
-- Private
-- Desktop-first
+- Self-hosted on hardware the client owns, with no third-party service holding the data
+- Reachable from anywhere, by several people at once, each signed in as themselves
+- Free of subscriptions
 - Startup-on-boot capable
 - User-friendly
 - Maintenance-template driven

@@ -6983,3 +6983,147 @@ Manually smoke-test the built installer (`TOG 5 VMS_0.3.0_x64-setup.exe`) — in
 exercise the "select a bare .sqlite3 file" and "select a folder with just the database" paths
 in Backup & Restore to confirm the red error box and diagnostic copy button render as expected.
 Once confirmed, this branch is ready to merge to `main`.
+
+---
+
+## 2026-08-02 — v0.4.0 Online Migration (Phases 1–8)
+
+### Phase / Milestone
+
+The whole v0.4.0 migration, on `feat/online-migration-v0.4.0`: TOG 5 VMS goes from a
+single-seat offline desktop app to a self-hosted multi-user web app the client's staff can
+reach from anywhere.
+
+### Why
+
+The client asked for the app to be usable by several people from anywhere, without paying for
+a subscription. That is flatly incompatible with the local-only rule the project had held
+since v0.1.0, so the rule changed rather than the request. The data still never leaves
+hardware the client owns.
+
+### What Changed
+
+**Schema (migration 005).** Added `sessions`, `last_login_at`/`password_updated_at` on users,
+and nullable `created_by`/`updated_by` on the seven transactional tables. `audit_logs` existed
+and was indexed but nothing had ever written to it; it does now.
+
+**crates/vms-core.** The domain, persistence, and file-storage code moved out of `src-tauri`
+and became Tauri-free. `AppHandle` was replaced by an `AppPaths` value — the entire Tauri
+coupling in the backend turned out to be `AppHandle → app_data_dir: PathBuf`. Per-call
+`open_app_connection` (which re-ran every migration on every call) became an r2d2 pool built
+once at startup.
+
+**Authentication.** Argon2 hashing, server-side sessions storing only a SHA-256 of the token,
+a one-time setup route that refuses once any account has a password, and `create_user` so
+"multiple users" is actually reachable. Sign-in gives the same message for an unknown username
+and a wrong password, and spends the same time on both.
+
+**crates/vms-server.** Axum. All 66 commands at `POST /api/rpc/{command}`, taking the same
+JSON object the desktop build passed to `invoke`. Vehicle photos and receipts moved from
+Tauri's asset protocol to `GET /api/files/{kind}/{name}`. Six destructive commands are
+owner-only. Database and file work runs on `spawn_blocking`.
+
+**Frontend.** One new `client.ts` exporting an `invoke`-shaped `fetch`; ten changed import
+lines; zero changed call sites. Sign-in screen, auth gate, sign-out in the sidebar. CSV export
+now downloads through the browser instead of writing to the server's disk.
+
+**Clients.** PWA with `display: "standalone"` for phones; `src-tauri` stripped to a webview
+shell that reads a server URL from `vms-shell.json`, checks `/healthz`, and shows a plain
+retry screen when the office computer is not answering. Neither shows browser chrome.
+
+**Deployment.** `deploy/` holds WinSW service definitions for the server and the Cloudflare
+Tunnel, a nightly backup task, and a runbook.
+
+**Attribution.** Every command that changes something stamps `created_by`/`updated_by` and
+writes an activity history entry naming the account that did it. This hooks into the dispatch
+layer, not the repositories, so the domain rules and their tests stayed unaware of sign-in.
+
+### Files Changed
+
+Too many to list individually; see the eight commits on the branch. The shape of it:
+
+- New: `Cargo.toml` (workspace), `crates/vms-core/**`, `crates/vms-server/**`, `deploy/**`,
+  `public/**`, `src/services/api/{client,auth}.ts`, `src/components/auth/**`,
+  `src/app/providers/**`, `src-tauri/shell/index.html`
+- Rewritten: `src-tauri/src/lib.rs`, `src-tauri/tauri.conf.json`, `src/app/App.tsx`,
+  `src/components/common/SidebarNav.tsx`, `src/services/api/reports.ts`
+- Deleted: `src-tauri/src/commands/**` (the 64 Tauri shims)
+- Docs: `README.md`, `AGENTS.md`, `specs/00-project-brief.md`,
+  `specs/01-tech-stack-architecture.md`, `docs/TOG5-VMS-user-manual-v0.4.0.md`
+
+### Commands Run
+
+- `cargo test --workspace` — passed. 101 in `vms-core`, 8 + 12 in `vms-server`.
+- `cargo clippy --workspace --all-targets` — one pre-existing warning
+  (`too_many_arguments` in `maintenance/seeds.rs`), unrelated and left alone.
+- `cargo fmt --all --check` — clean.
+- `npm run typecheck`, `npm run lint`, `npm run test` — all pass; 20 frontend tests.
+- `npm run build` — PWA generated, 15 precached entries.
+- Manual end-to-end against a running server: setup, sign-in, RPC, photo upload and read-back
+  through `/api/files`, owner gate, backup while serving, and a full restore cycle.
+
+### Test/Build Results
+
+All green. Notable new coverage:
+
+- `vms-server/tests/api.rs` runs against the real router: sign-in, the owner gate, path
+  traversal on `/api/files`, every command in `COMMANDS` reaching a handler, and attribution
+  landing in the database.
+- Restore verified end to end: staged, server exits 75, next start applies it and clears the
+  staging folder.
+
+### Errors Encountered
+
+- **Restore would have corrupted the database.** The pool keeps SQLite handles open for the
+  life of the process, so the old restore — which overwrote the database file in place — was
+  no longer safe. Restores are now staged and applied at startup before anything opens the
+  database. This is the most important change in the migration and it was not in the original
+  plan.
+- **`WinSW` restarts on failure, not on a clean exit.** A staged restore would therefore have
+  stopped the service and left it stopped. The server now exits 75 to ask for a restart.
+- **`&context.connection()?` would not coerce.** Binding the pooled connection to a variable
+  first fixes it and reads better anyway.
+- **`#[serde(default)]` on a generic `Option<T>` field** made serde demand `T: Default`. Fixed
+  with an explicit `bound(deserialize = ...)`.
+
+### Decisions Made
+
+- **SQLite stays.** A fleet writes a few dozen rows a day. No Postgres port, no data
+  migration, no `sqlx` rewrite.
+- **RPC routes, not REST.** Mirrors `invoke(name, args)` almost exactly, so translating 66
+  commands was mechanical and no frontend call site changed shape. Trade-off accepted:
+  everything is `POST`, no HTTP-level caching.
+- **Offline support dropped, deliberately.** A stale odometer reading is worse than a screen
+  that says it cannot reach the server. The service worker caches the app shell and never
+  caches data.
+- **`sessions` is not in `PRODUCT_DATA_TABLES`.** That list excludes `users` on purpose;
+  adding sessions would sign everybody out when somebody clears fleet data.
+- **Attribution hooks into dispatch, not the repositories.** Keeps the domain rules and their
+  tests unaware of sign-in. The cost is that it is written just after the row rather than in
+  the same statement.
+- **Roles exist but have no UI**, per the client: everybody does the day-to-day work, only the
+  owner does the destructive things.
+- **Historical documents were not rewritten.** `live-update.md` entries and the v0.1.0/v0.2.0
+  release notes describe what was true when written. Only the living specs changed.
+
+### Remaining Issues
+
+- The cutover itself has not happened. Copying the client's data to the server machine, buying
+  the domain, creating the tunnel, setting the owner password, and smoke-testing from a phone
+  on mobile data are all steps for whoever runs the deployment. `deploy/README.md` is the
+  runbook.
+- The UI overhaul is still a separate piece of work and was deliberately kept out of this
+  branch.
+- TanStack Query was listed as optional Phase 5b and was not done. Every module still
+  hand-rolls `useEffect` + `useState`, which will feel slower over a network than it did
+  against local IPC. Worth doing, not required for correctness.
+- `export_report_csv` still exists on the server and is still tested, but the web app no
+  longer calls it.
+- The office PC remains a single point of failure. Accepted for now; the nightly backup is the
+  mitigation and a VPS is a recompile away.
+
+### Suggested Next Step
+
+Review the branch, then deploy to a test machine and walk `deploy/README.md` end to end before
+merging to `main` — the runbook has never been followed on a machine that was not this
+development one.
