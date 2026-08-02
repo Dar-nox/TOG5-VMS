@@ -26,7 +26,7 @@ const KEY_STARTUP_ON_BOOT_ENABLED: &str = "startup_on_boot_enabled";
 const VALID_DISTANCE_UNITS: &[&str] = &["km", "mi"];
 const VALID_FUEL_EFFICIENCY_UNITS: &[&str] = &["km_per_liter", "liters_per_100km"];
 const VALID_DATE_DISPLAY_PREFERENCES: &[&str] = &["yyyy_mm_dd", "dd_mm_yyyy", "mm_dd_yyyy"];
-const VALID_ROLES: &[&str] = &["owner", "manager", "viewer"];
+pub const VALID_ROLES: &[&str] = &["owner", "manager", "viewer"];
 const PRODUCT_DATA_TABLES: &[&str] = &[
     "audit_logs",
     "alerts",
@@ -277,16 +277,32 @@ pub fn update_local_user(
     get_user(connection, &id)?.ok_or_else(|| "Could not read the updated user profile.".to_string())
 }
 
-pub fn access_summary(connection: &Connection) -> Result<AccessSummary, String> {
-    let active_user = ensure_default_owner_user(connection)?;
+pub fn access_summary(
+    connection: &Connection,
+    active_user: LocalUserRecord,
+) -> Result<AccessSummary, String> {
+    let signed_in_count: i64 = connection
+        .query_row(
+            "
+            SELECT COUNT(*)
+            FROM sessions
+            WHERE revoked_at IS NULL
+              AND expires_at > datetime('now')
+            ",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|_| "Could not read the current sign-in sessions.".to_string())?;
 
     Ok(AccessSummary {
         active_user,
         roles: role_records(),
-        permissions_enforced: false,
-        app_lock_status: "Not enabled".to_string(),
+        permissions_enforced: true,
+        app_lock_status: "Password sign-in required".to_string(),
         encryption_status: "Not enabled".to_string(),
-        security_note: "Local role scaffolding is ready, but there is no login screen, app lock, or database encryption yet. Treat this as convenience access setup, not strong data security.".to_string(),
+        security_note: format!(
+            "Every request needs a signed-in account, and owner accounts are the only ones allowed to clear data, restore a backup, reset settings, or manage users. There are {signed_in_count} active sign-in sessions. The database file itself is still not encrypted, so keep the server machine and its backups physically secure."
+        ),
     })
 }
 
@@ -723,19 +739,23 @@ fn role_records() -> Vec<LocalRoleRecord> {
         LocalRoleRecord {
             key: "owner".to_string(),
             label: "Owner".to_string(),
-            description: "Full local admin role scaffold. Permission enforcement comes later."
-                .to_string(),
+            description:
+                "Can do everything, including clearing data, restoring backups, resetting settings, and managing user accounts."
+                    .to_string(),
         },
         LocalRoleRecord {
             key: "manager".to_string(),
             label: "Manager".to_string(),
-            description: "Can be used later for day-to-day vehicle and maintenance work."
-                .to_string(),
+            description:
+                "Full day-to-day access to vehicles, trips, fuel, maintenance, and reports."
+                    .to_string(),
         },
         LocalRoleRecord {
             key: "viewer".to_string(),
             label: "Viewer".to_string(),
-            description: "Read-only role scaffold for future access controls.".to_string(),
+            description:
+                "Same day-to-day access as a manager for now; kept for future read-only limits."
+                    .to_string(),
         },
     ]
 }

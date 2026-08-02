@@ -72,9 +72,18 @@ mod tests {
     fn resolves_every_managed_location_under_the_data_dir() {
         let paths = AppPaths::new(PathBuf::from("/data/tog5"), "0.3.0");
 
-        assert_eq!(paths.database_path(), Path::new("/data/tog5/tog5-vms.sqlite3"));
-        assert_eq!(paths.vehicle_photos_dir(), Path::new("/data/tog5/vehicle-photos"));
-        assert_eq!(paths.fuel_receipts_dir(), Path::new("/data/tog5/fuel-receipts"));
+        assert_eq!(
+            paths.database_path(),
+            Path::new("/data/tog5/tog5-vms.sqlite3")
+        );
+        assert_eq!(
+            paths.vehicle_photos_dir(),
+            Path::new("/data/tog5/vehicle-photos")
+        );
+        assert_eq!(
+            paths.fuel_receipts_dir(),
+            Path::new("/data/tog5/fuel-receipts")
+        );
         assert_eq!(paths.app_version(), "0.3.0");
         assert_eq!(paths.managed_file_dirs().len(), MANAGED_FILE_DIRS.len());
     }

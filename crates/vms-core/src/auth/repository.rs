@@ -4,13 +4,20 @@ use sha2::{Digest, Sha256};
 
 use crate::settings::{
     models::LocalUserRecord,
-    repository::{ensure_default_owner_user, get_user, user_from_row},
+    repository::{ensure_default_owner_user, get_user, user_from_row, VALID_ROLES},
 };
 use crate::vehicles::photo_storage::generate_local_id;
 
+use super::models::CreateLocalUserRequest;
 use super::passwords::{hash_password, spend_verification_time, verify_password};
 
 pub const SESSION_LIFETIME_DAYS: i64 = 30;
+pub const MINIMUM_USERNAME_LENGTH: usize = 3;
+
+/// New accounts land on `manager`, which today has the same day-to-day access
+/// as every other non-owner role. Owner stays reserved for the account created
+/// during first-run setup.
+const DEFAULT_NEW_USER_ROLE: &str = "manager";
 
 const TOKEN_BYTES: usize = 32;
 const SIGN_IN_FAILED: &str = "That username and password combination did not work.";
@@ -58,6 +65,52 @@ pub fn set_initial_owner_password(
         .ok_or_else(|| "Could not read the owner profile after setup.".to_string())
 }
 
+/// Adds a second (or third, or tenth) account that can sign in. This is the
+/// only way to get more than one user, so it validates the username the same
+/// way sign-in reads it: trimmed and lower-cased, so "Maria" and "maria"
+/// cannot become two different accounts.
+pub fn create_user(
+    connection: &Connection,
+    request: CreateLocalUserRequest,
+) -> Result<LocalUserRecord, String> {
+    let display_name = request.display_name.trim().to_string();
+    if display_name.is_empty() {
+        return Err("Enter a name for the new user.".to_string());
+    }
+
+    let username = normalize_username(&request.username)?;
+    let role = match request.role {
+        Some(role) => normalize_role(&role)?,
+        None => DEFAULT_NEW_USER_ROLE.to_string(),
+    };
+    let password_hash = hash_password(&request.password)?;
+
+    if username_is_taken(connection, &username)? {
+        return Err("That username is already in use. Choose another one.".to_string());
+    }
+
+    let id = generate_local_id("user");
+    connection
+        .execute(
+            "
+            INSERT INTO users (
+              id,
+              display_name,
+              username,
+              role,
+              status,
+              password_hash,
+              password_updated_at
+            )
+            VALUES (?1, ?2, ?3, ?4, 'active', ?5, datetime('now'))
+            ",
+            params![id, display_name, username, role, password_hash],
+        )
+        .map_err(|_| "Could not create that user.".to_string())?;
+
+    get_user(connection, &id)?.ok_or_else(|| "Could not read the new user profile.".to_string())
+}
+
 pub fn set_user_password(
     connection: &Connection,
     user_id: &str,
@@ -94,7 +147,7 @@ pub fn authenticate(
     username: &str,
     password: &str,
 ) -> Result<LocalUserRecord, String> {
-    let username = username.trim();
+    let username = username.trim().to_ascii_lowercase();
 
     let candidate = connection
         .query_row(
@@ -258,6 +311,50 @@ pub fn purge_expired_sessions(connection: &Connection) -> Result<usize, String> 
         .map_err(|_| "Could not clear expired sign-in sessions.".to_string())
 }
 
+fn normalize_username(username: &str) -> Result<String, String> {
+    let normalized = username.trim().to_ascii_lowercase();
+
+    if normalized.chars().count() < MINIMUM_USERNAME_LENGTH {
+        return Err(format!(
+            "Usernames need at least {MINIMUM_USERNAME_LENGTH} characters."
+        ));
+    }
+
+    let allowed = normalized
+        .chars()
+        .all(|character| character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-'));
+
+    if !allowed {
+        return Err(
+            "Usernames can only use letters, numbers, dots, underscores, and dashes.".to_string(),
+        );
+    }
+
+    Ok(normalized)
+}
+
+fn normalize_role(role: &str) -> Result<String, String> {
+    let normalized = role.trim().to_ascii_lowercase();
+
+    VALID_ROLES
+        .contains(&normalized.as_str())
+        .then_some(normalized)
+        .ok_or_else(|| "Choose a valid role.".to_string())
+}
+
+fn username_is_taken(connection: &Connection, username: &str) -> Result<bool, String> {
+    let existing: Option<String> = connection
+        .query_row(
+            "SELECT id FROM users WHERE username = ?1",
+            params![username],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|_| "Could not check whether that username is free.".to_string())?;
+
+    Ok(existing.is_some())
+}
+
 fn generate_token() -> String {
     let mut bytes = [0u8; TOKEN_BYTES];
     OsRng.fill_bytes(&mut bytes);
@@ -354,8 +451,13 @@ mod tests {
         let (_temp_dir, connection) = test_connection();
         let owner = set_up_owner(&connection);
 
-        let session = start_session(&connection, &owner.id, Some("test-agent"), Some("127.0.0.1"))
-            .expect("session should start");
+        let session = start_session(
+            &connection,
+            &owner.id,
+            Some("test-agent"),
+            Some("127.0.0.1"),
+        )
+        .expect("session should start");
 
         let resolved = user_for_token(&connection, &session.token)
             .expect("lookup should succeed")
@@ -424,7 +526,8 @@ mod tests {
         let session =
             start_session(&connection, &owner.id, None, None).expect("session should start");
 
-        set_user_password(&connection, &owner.id, "brand-new-password").expect("password should set");
+        set_user_password(&connection, &owner.id, "brand-new-password")
+            .expect("password should set");
 
         assert!(
             user_for_token(&connection, &session.token)
@@ -433,6 +536,50 @@ mod tests {
             "a password change must invalidate sessions opened with the old one"
         );
         assert!(authenticate(&connection, "owner", "brand-new-password").is_ok());
+    }
+
+    fn new_user_request(username: &str) -> CreateLocalUserRequest {
+        CreateLocalUserRequest {
+            display_name: "Maria Santos".to_string(),
+            username: username.to_string(),
+            password: GOOD_PASSWORD.to_string(),
+            role: None,
+        }
+    }
+
+    #[test]
+    fn a_created_user_can_sign_in_and_is_not_an_owner() {
+        let (_temp_dir, connection) = test_connection();
+        set_up_owner(&connection);
+
+        let created =
+            create_user(&connection, new_user_request("Maria")).expect("user should be created");
+
+        assert_eq!(created.username.as_deref(), Some("maria"));
+        assert!(!created.is_owner());
+        assert!(authenticate(&connection, "  MARIA ", GOOD_PASSWORD).is_ok());
+    }
+
+    #[test]
+    fn creating_a_user_rejects_duplicates_and_unusable_details() {
+        let (_temp_dir, connection) = test_connection();
+        set_up_owner(&connection);
+
+        create_user(&connection, new_user_request("maria")).expect("user should be created");
+
+        assert!(
+            create_user(&connection, new_user_request("Maria")).is_err(),
+            "the same username in different letter cases must not create two accounts"
+        );
+        assert!(create_user(&connection, new_user_request("owner")).is_err());
+        assert!(create_user(&connection, new_user_request("ma")).is_err());
+        assert!(create_user(&connection, new_user_request("maria santos")).is_err());
+
+        let short_password = CreateLocalUserRequest {
+            password: "short".to_string(),
+            ..new_user_request("carlos")
+        };
+        assert!(create_user(&connection, short_password).is_err());
     }
 
     #[test]

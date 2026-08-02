@@ -21,6 +21,8 @@ const BACKUP_FORMAT_VERSION: i64 = 1;
 const CHECKSUM_ALGORITHM: &str = "fnv1a64";
 const MANIFEST_FILE_NAME: &str = "manifest.json";
 const BACKUP_FOLDER_NAME: &str = "backups";
+const PENDING_RESTORE_DIR_NAME: &str = "pending-restore";
+const RESTORE_SOURCE_FILE_NAME: &str = "restored-from.txt";
 const SQLITE_FILE_HEADER: &[u8; 16] = b"SQLite format 3\0";
 const DATABASE_FILE_SELECTED_MESSAGE: &str = "This is the database file from inside a backup, not the backup itself. On the device you backed up from, copy the whole folder ending in .tog5backup, including its manifest.json file and its database and files folders.";
 const DATABASE_PACKAGE_PATH: &str = "database/tog5-vms.sqlite3";
@@ -266,6 +268,15 @@ pub fn validate_backup_package(package_path: &Path) -> BackupValidationResult {
     }
 }
 
+/// Validates a backup package, takes a safety backup, and stages the payload
+/// for the next start. It deliberately does **not** replace the live database.
+///
+/// The server keeps pooled SQLite connections open for the whole time it is
+/// running, so overwriting the database file underneath them would corrupt
+/// both the file and whatever request happened to be mid-transaction.
+/// `apply_pending_restore` finishes the job at startup, before anything opens
+/// the database. A crash between the two steps is safe: the staged payload is
+/// still there and is applied on the following start.
 pub fn restore_backup(
     context: &BackupContext,
     request: RestoreBackupRequest,
@@ -281,9 +292,7 @@ pub fn restore_backup(
     }
 
     let restore_id = generate_local_id("restore");
-    let staging_dir = context
-        .app_data_dir
-        .join(format!("restore-staging-{restore_id}"));
+    let staging_dir = pending_restore_dir(context);
     if staging_dir.exists() {
         fs::remove_dir_all(&staging_dir)
             .map_err(|_| "Could not prepare restore staging.".to_string())?;
@@ -298,29 +307,68 @@ pub fn restore_backup(
     )?;
 
     copy_restore_payload_to_staging(&package_path, &staging_dir)?;
-    apply_staged_restore(context, &staging_dir)?;
-    let _ = fs::remove_dir_all(&staging_dir);
+    fs::write(
+        staging_dir.join(RESTORE_SOURCE_FILE_NAME),
+        package_path.display().to_string(),
+    )
+    .map_err(|_| "Could not record where the restore came from.".to_string())?;
 
     record_backup_history(
         &context.database_path,
         &restore_id,
         &package_path,
-        "restored",
+        "restore_staged",
         validation
             .manifest
             .as_ref()
             .map(|manifest| manifest.total_size_bytes as i64),
-        "Restore applied from a validated local backup package. Restart required.",
+        "Restore staged from a validated local backup package. It is applied on the next start.",
         true,
     )?;
 
     Ok(RestoreBackupResponse {
-        restored: true,
+        restored: false,
         restart_required: true,
         restored_from: package_path.display().to_string(),
         safety_backup_path: safety_backup.backup_path,
-        message: "Restore completed. Restart TOG 5 VMS before continuing to work.".to_string(),
+        message: "Restore is ready. TOG 5 VMS applies it the moment it restarts, so close and reopen the app now.".to_string(),
     })
+}
+
+/// Applies whatever `restore_backup` staged. Call this at startup, before the
+/// database is opened. Returns the backup the data came from when a restore
+/// was waiting, and `None` when there was nothing to do.
+pub fn apply_pending_restore(context: &BackupContext) -> Result<Option<String>, String> {
+    let staging_dir = pending_restore_dir(context);
+    if !staging_dir.exists() {
+        return Ok(None);
+    }
+
+    let restored_from = fs::read_to_string(staging_dir.join(RESTORE_SOURCE_FILE_NAME))
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+
+    apply_staged_restore(context, &staging_dir)?;
+    fs::remove_dir_all(&staging_dir).map_err(|_| {
+        "Restore finished, but the staging folder could not be cleared.".to_string()
+    })?;
+
+    record_backup_history(
+        &context.database_path,
+        &generate_local_id("restore"),
+        Path::new(&restored_from),
+        "restored",
+        None,
+        "Restore applied from a validated local backup package during startup.",
+        true,
+    )?;
+
+    Ok(Some(restored_from))
+}
+
+fn pending_restore_dir(context: &BackupContext) -> PathBuf {
+    context.app_data_dir.join(PENDING_RESTORE_DIR_NAME)
 }
 
 pub fn list_backup_history(database_path: &Path) -> Result<Vec<BackupHistoryRecord>, String> {
@@ -1255,10 +1303,29 @@ mod tests {
                 confirm_restore: true,
             },
         )
-        .expect("restore should apply");
+        .expect("restore should stage");
 
         assert!(response.restart_required);
+        assert!(
+            !response.restored,
+            "staging must not touch the live data yet"
+        );
         assert!(Path::new(&response.safety_backup_path).exists());
+
+        let staged_still_has_old_data = db::open_database_at_path(&target_context.database_path)
+            .expect("target still opens")
+            .query_row(
+                "SELECT vehicle_name FROM vehicles WHERE id = 'old-vehicle'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .expect("old vehicle is untouched until restart");
+        assert_eq!(staged_still_has_old_data, "Old Data");
+
+        let restored_from =
+            apply_pending_restore(&target_context).expect("staged restore should apply");
+        assert_eq!(restored_from.as_deref(), Some(backup.backup_path.as_str()));
+        assert!(!target_context.app_data_dir.join("pending-restore").exists());
         assert!(target_context
             .app_data_dir
             .join("vehicle-photos/front.jpg")
@@ -1274,6 +1341,13 @@ mod tests {
             )
             .expect("restored vehicle exists");
         assert_eq!(restored_name, "Backup Van");
+
+        assert!(
+            apply_pending_restore(&target_context)
+                .expect("a second startup should succeed")
+                .is_none(),
+            "an applied restore must not be replayed on every start"
+        );
     }
 
     #[test]

@@ -89,9 +89,9 @@ impl Database {
     }
 
     pub fn connection(&self) -> Result<PooledSqlite, String> {
-        self.pool
-            .get()
-            .map_err(|_| "The database is busy right now. Please try again in a moment.".to_string())
+        self.pool.get().map_err(|_| {
+            "The database is busy right now. Please try again in a moment.".to_string()
+        })
     }
 
     pub fn path(&self) -> &Path {
