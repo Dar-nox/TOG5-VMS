@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  WinSW service definition for the Cloudflare Tunnel.
+
+  Same pattern as the server: put WinSW.exe beside this file, rename the pair
+  to cloudflared-service.exe / cloudflared-service.xml, then install and start.
+
+  Using WinSW for both services means there is one tool to learn and one place
+  to look when something has not come back after a reboot.
+-->
+<service>
+  <id>tog5-vms-tunnel</id>
+  <name>TOG 5 VMS Tunnel</name>
+  <description>Publishes TOG 5 VMS on its public address through Cloudflare.</description>
+
+  <executable>%BASE%\cloudflared.exe</executable>
+  <arguments>--config "%BASE%\cloudflared-config.yml" --no-autoupdate tunnel run</arguments>
+  <workingdirectory>%BASE%</workingdirectory>
+
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+
+  <onfailure action="restart" delay="10 sec" />
+  <resetfailure>1 hour</resetfailure>
+
+  <log mode="roll-by-time">
+    <pattern>yyyyMMdd</pattern>
+  </log>
+</service>

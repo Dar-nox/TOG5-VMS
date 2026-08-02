@@ -1,0 +1,17 @@
+# Cloudflare Tunnel configuration for TOG 5 VMS.
+#
+# Replace the tunnel id, the credentials path, and the hostname with the real
+# values from `cloudflared tunnel create tog5-vms`. See deploy/README.md.
+
+tunnel: REPLACE-WITH-TUNNEL-ID
+credentials-file: C:\ProgramData\TOG5 VMS\tunnel\REPLACE-WITH-TUNNEL-ID.json
+
+# A named tunnel keeps the same address across restarts. A quick tunnel does
+# not, which would break every phone that has the app on its home screen.
+ingress:
+  - hostname: REPLACE-WITH-YOUR-HOSTNAME
+    service: http://127.0.0.1:8787
+
+  # Anything that is not the app gets a flat refusal rather than a hint that
+  # something is running here.
+  - service: http_status:404

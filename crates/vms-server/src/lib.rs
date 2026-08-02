@@ -6,12 +6,12 @@ pub mod rpc;
 pub mod session;
 pub mod state;
 
-use std::{fs, net::SocketAddr, time::Duration};
+use std::{fs, net::SocketAddr, path::Path, time::Duration};
 
 use tokio::net::TcpListener;
 use vms_core::{
     auth::repository::purge_expired_sessions,
-    backup::service::{apply_pending_restore, BackupContext},
+    backup::service::{apply_pending_restore, create_backup_with_note, BackupContext},
     maintenance, settings, AppPaths, Database,
 };
 
@@ -21,7 +21,17 @@ use crate::{config::ServerConfig, error::ApiError, state::AppState};
 /// the browser gets the "restore is ready" response before the socket closes.
 const RESTART_GRACE: Duration = Duration::from_millis(500);
 
-pub async fn run() -> Result<(), String> {
+/// Why the server stopped, so the caller can tell the service manager whether
+/// to bring it back.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Shutdown {
+    /// Somebody asked it to stop. Stay stopped.
+    Requested,
+    /// A restore is staged and needs a fresh start to be applied.
+    Restart,
+}
+
+pub async fn run() -> Result<Shutdown, String> {
     start_logging();
 
     let config = ServerConfig::from_environment()?;
@@ -45,9 +55,40 @@ pub async fn run() -> Result<(), String> {
         listener,
         app.into_make_service_with_connect_info::<SocketAddr>(),
     )
-    .with_graceful_shutdown(shutdown_signal(state))
+    .with_graceful_shutdown(shutdown_signal(state.clone()))
     .await
-    .map_err(|error| format!("The server stopped unexpectedly: {error}"))
+    .map_err(|error| format!("The server stopped unexpectedly: {error}"))?;
+
+    Ok(if state.restart_was_requested() {
+        Shutdown::Restart
+    } else {
+        Shutdown::Requested
+    })
+}
+
+/// Creates a backup package without starting the server.
+///
+/// This is what the nightly scheduled task runs. It reuses the same code the
+/// Backup screen uses — `VACUUM INTO` for a consistent copy of a database that
+/// is being written to, plus the photos and receipts — so a scheduled backup
+/// and a hand-made one are the same thing, and either can be restored.
+pub fn run_backup(destination: Option<&Path>) -> Result<String, String> {
+    let config = ServerConfig::from_environment()?;
+    let paths = AppPaths::new(&config.data_dir, env!("CARGO_PKG_VERSION"));
+
+    let mut context = BackupContext::new(
+        paths.data_dir().to_path_buf(),
+        paths.database_path(),
+        paths.app_version().to_string(),
+    );
+
+    if let Some(destination) = destination {
+        context.backup_root_dir = destination.to_path_buf();
+    }
+
+    let package = create_backup_with_note(&context, "Scheduled backup.")?;
+
+    Ok(package.backup_path)
 }
 
 /// Opens the app data folder, finishes anything the last run left half-done,

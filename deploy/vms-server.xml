@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  WinSW service definition for the TOG 5 VMS server.
+
+  Put WinSW.exe in this folder, rename it to vms-server-service.exe, keep this
+  file beside it as vms-server-service.xml, then:
+
+      vms-server-service.exe install
+      vms-server-service.exe start
+
+  %BASE% is the folder this file lives in.
+-->
+<service>
+  <id>tog5-vms-server</id>
+  <name>TOG 5 VMS Server</name>
+  <description>Serves TOG 5 VMS to the office and to staff phones.</description>
+
+  <executable>%BASE%\vms-server.exe</executable>
+  <workingdirectory>%BASE%</workingdirectory>
+
+  <!-- Where the fleet data lives. Back this folder up; it is the whole app. -->
+  <env name="VMS_DATA_DIR" value="C:\ProgramData\TOG5 VMS" />
+
+  <!-- Loopback only. Cloudflare Tunnel is what makes it reachable from
+       outside, so nothing needs to be opened on the router or firewall. -->
+  <env name="VMS_BIND_ADDRESS" value="127.0.0.1:8787" />
+
+  <env name="VMS_WEB_DIR" value="%BASE%\dist" />
+  <env name="VMS_SECURE_COOKIES" value="true" />
+  <env name="VMS_LOG" value="info" />
+
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+
+  <!-- The server exits 75 when a restore is staged and needs a fresh start to
+       be applied. Restarting on failure is what finishes the restore.
+       A genuine startup problem exits 1 and will also be retried, so if the
+       service keeps bouncing, read the log below before assuming a restore. -->
+  <onfailure action="restart" delay="5 sec" />
+  <resetfailure>1 hour</resetfailure>
+
+  <stoptimeout>20 sec</stoptimeout>
+
+  <log mode="roll-by-time">
+    <pattern>yyyyMMdd</pattern>
+  </log>
+</service>

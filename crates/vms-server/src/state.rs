@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 
 use tokio::sync::Notify;
 use vms_core::{
@@ -18,6 +21,7 @@ pub struct AppState {
     config: Arc<ServerConfig>,
     login_limiter: Arc<LoginRateLimiter>,
     restart_requested: Arc<Notify>,
+    restarting: Arc<AtomicBool>,
 }
 
 impl AppState {
@@ -28,6 +32,7 @@ impl AppState {
             config: Arc::new(config),
             login_limiter: Arc::new(LoginRateLimiter::new()),
             restart_requested: Arc::new(Notify::new()),
+            restarting: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -63,10 +68,15 @@ impl AppState {
     /// A staged restore only takes effect on the next start, so the server has
     /// to bow out for the service manager to bring it back on the new data.
     pub fn request_restart(&self) {
+        self.restarting.store(true, Ordering::SeqCst);
         self.restart_requested.notify_one();
     }
 
     pub async fn wait_for_restart_request(&self) {
         self.restart_requested.notified().await;
+    }
+
+    pub fn restart_was_requested(&self) -> bool {
+        self.restarting.load(Ordering::SeqCst)
     }
 }
