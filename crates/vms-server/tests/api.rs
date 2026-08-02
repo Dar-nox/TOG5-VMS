@@ -10,6 +10,7 @@ use axum::{
     http::{header, Request, Response, StatusCode},
     Router,
 };
+use rusqlite::Connection;
 use serde_json::{json, Value};
 use tempfile::TempDir;
 use tower::ServiceExt;
@@ -20,7 +21,7 @@ const OTHER_PASSWORD: &str = "driver-password-2026";
 const BODY_LIMIT: usize = 32 * 1024 * 1024;
 
 struct TestServer {
-    _data_dir: TempDir,
+    data_dir: TempDir,
     router: Router,
 }
 
@@ -36,9 +37,16 @@ impl TestServer {
         let state = vms_server::build_state(config).expect("server state should build");
 
         Self {
-            _data_dir: data_dir,
+            data_dir,
             router: routes::router(state),
         }
+    }
+
+    /// Opens the database directly. Attribution and the activity history have
+    /// no screens yet, so this is the only way to prove they are written.
+    fn database(&self) -> Connection {
+        Connection::open(self.data_dir.path().join("tog5-vms.sqlite3"))
+            .expect("the database should open")
     }
 
     async fn send(&self, request: Request<Body>) -> Response<Body> {
@@ -388,6 +396,137 @@ async fn managed_files_cannot_be_used_to_read_the_rest_of_the_disk() {
             "{path} should not serve a file"
         );
     }
+}
+
+#[tokio::test]
+async fn changes_record_who_made_them() {
+    let server = TestServer::start();
+    let owner = server.sign_up_owner().await;
+
+    let maria = body_json(
+        server
+            .post(
+                "/api/rpc/create_local_user",
+                json!({
+                    "request": {
+                        "displayName": "Maria Santos",
+                        "username": "maria",
+                        "password": OTHER_PASSWORD,
+                    }
+                }),
+                Some(&owner),
+            )
+            .await,
+    )
+    .await;
+    let maria_id = maria["id"]
+        .as_str()
+        .expect("new user has an id")
+        .to_string();
+    let maria_session = session_cookie(&server.sign_in("maria", OTHER_PASSWORD).await);
+
+    let photo_id = upload_photo(&server, &maria_session).await.0;
+    let vehicle = body_json(
+        server
+            .post(
+                "/api/rpc/create_vehicle",
+                json!({
+                    "request": {
+                        "vehicleName": "Service Van 1",
+                        "primaryPhotoId": photo_id,
+                        "vehicleType": "van",
+                        "fuelType": "diesel",
+                        "currentOdometer": 1200,
+                    }
+                }),
+                Some(&maria_session),
+            )
+            .await,
+    )
+    .await;
+    let vehicle_id = vehicle["id"]
+        .as_str()
+        .expect("vehicle has an id")
+        .to_string();
+
+    let database = server.database();
+    let (created_by, updated_by): (Option<String>, Option<String>) = database
+        .query_row(
+            "SELECT created_by, updated_by FROM vehicles WHERE id = ?1",
+            [&vehicle_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .expect("the vehicle should be readable");
+
+    assert_eq!(created_by.as_deref(), Some(maria_id.as_str()));
+    assert_eq!(updated_by.as_deref(), Some(maria_id.as_str()));
+
+    let (action, entity, audit_user): (String, String, String) = database
+        .query_row(
+            "
+            SELECT action, entity_type, user_id
+            FROM audit_logs
+            WHERE entity_id = ?1
+            ORDER BY created_at DESC
+            LIMIT 1
+            ",
+            [&vehicle_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .expect("the change should be in the history");
+
+    assert_eq!(action, "create");
+    assert_eq!(entity, "vehicle");
+    assert_eq!(audit_user, maria_id);
+
+    // The owner archives what Maria added. Who added it must not change.
+    let owner_id = body_json(server.get("/api/auth/status", Some(&owner)).await).await["user"]
+        ["id"]
+        .as_str()
+        .expect("the owner has an id")
+        .to_string();
+
+    server
+        .post(
+            "/api/rpc/archive_vehicle",
+            json!({ "id": vehicle_id }),
+            Some(&owner),
+        )
+        .await;
+
+    let (created_by, updated_by): (Option<String>, Option<String>) = database
+        .query_row(
+            "SELECT created_by, updated_by FROM vehicles WHERE id = ?1",
+            [&vehicle_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .expect("the vehicle should still be readable");
+
+    assert_eq!(
+        created_by.as_deref(),
+        Some(maria_id.as_str()),
+        "archiving must not rewrite who originally added the vehicle"
+    );
+    assert_eq!(updated_by.as_deref(), Some(owner_id.as_str()));
+}
+
+#[tokio::test]
+async fn looking_things_up_leaves_no_history_behind() {
+    let server = TestServer::start();
+    let owner = server.sign_up_owner().await;
+
+    for command in ["list_vehicles", "list_alerts", "get_dashboard_overview"] {
+        server
+            .post(&format!("/api/rpc/{command}"), json!({}), Some(&owner))
+            .await;
+    }
+
+    let entries: i64 = server
+        .database()
+        .query_row("SELECT COUNT(*) FROM audit_logs", [], |row| row.get(0))
+        .expect("the history should be readable");
+
+    assert_eq!(entries, 0, "reading is not a change and must not be logged");
 }
 
 #[tokio::test]

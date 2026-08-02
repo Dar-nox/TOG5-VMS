@@ -4,6 +4,7 @@ mod dashboard;
 mod database;
 mod expenses;
 mod fuel;
+mod history;
 mod maintenance;
 mod reports;
 mod settings;
@@ -147,9 +148,16 @@ impl RpcContext {
 }
 
 pub fn dispatch(context: &RpcContext, command: &str, args: &mut Value) -> Result<Value, ApiError> {
+    // Read before the command runs: archiving answers with nothing, so this is
+    // the only chance to learn which record it was.
+    let id_from_args = history::entity_id_from_args(args);
+
     for dispatcher in DISPATCHERS {
         if let Some(result) = dispatcher(context, command, args) {
-            return result.map_err(ApiError::bad_request);
+            let response = result.map_err(ApiError::bad_request)?;
+            history::record(context, command, &response, id_from_args.as_deref());
+
+            return Ok(response);
         }
     }
 
