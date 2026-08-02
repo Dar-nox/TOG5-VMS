@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TOG 5 VMS</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+
+      body {
+        display: grid;
+        min-height: 100vh;
+        margin: 0;
+        place-items: center;
+        background: #102833;
+        color: #f8fbfa;
+        font-family:
+          Inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          sans-serif;
+        padding: 24px;
+      }
+
+      main {
+        width: 100%;
+        max-width: 420px;
+        text-align: center;
+      }
+
+      .brand-mark {
+        display: grid;
+        width: 56px;
+        height: 56px;
+        margin: 0 auto 20px;
+        place-items: center;
+        border-radius: 10px;
+        background: #f1c75b;
+        color: #102833;
+        font-size: 0.95rem;
+        font-weight: 800;
+      }
+
+      h1 {
+        margin: 0 0 10px;
+        font-size: 1.5rem;
+      }
+
+      p {
+        margin: 0 0 10px;
+        color: #cfe0dc;
+        line-height: 1.55;
+      }
+
+      code {
+        color: #f1c75b;
+        font-size: 0.9rem;
+        overflow-wrap: anywhere;
+      }
+
+      button {
+        min-height: 44px;
+        margin-top: 18px;
+        border: 1px solid #3d5f6b;
+        border-radius: 8px;
+        background: #173844;
+        color: #f8fbfa;
+        padding: 10px 20px;
+        font: inherit;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      button:hover {
+        border-color: #f1c75b;
+        color: #f1c75b;
+      }
+
+      [hidden] {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="brand-mark" aria-hidden="true">VMS</div>
+
+      <div id="connecting">
+        <h1>Opening TOG 5 VMS</h1>
+        <p>Connecting to <code id="connecting-url"></code></p>
+      </div>
+
+      <div id="problem" hidden>
+        <h1>TOG 5 VMS is not answering</h1>
+        <p>Could not reach <code id="problem-url"></code>.</p>
+        <p>
+          Check this computer's internet connection. If it is fine, the computer that runs TOG 5 VMS
+          may be switched off or restarting.
+        </p>
+        <button id="retry" type="button">Try again</button>
+      </div>
+    </main>
+
+    <script>
+      // This page is the whole desktop shell. It confirms the server is
+      // answering and then hands the window over to the app, so nobody ever
+      // sees a raw browser error page.
+      const serverUrl = (window.__VMS_SERVER_URL__ || "").replace(/\/+$/, "");
+
+      const connecting = document.getElementById("connecting");
+      const problem = document.getElementById("problem");
+      const retry = document.getElementById("retry");
+
+      document.getElementById("connecting-url").textContent = serverUrl || "(not configured)";
+      document.getElementById("problem-url").textContent = serverUrl || "(not configured)";
+
+      async function connect() {
+        if (!serverUrl) {
+          show(problem);
+          return;
+        }
+
+        show(connecting);
+
+        try {
+          // `no-cors` is enough: an opaque response still means the server
+          // answered, and reading the body is not the point.
+          await fetch(`${serverUrl}/healthz`, { mode: "no-cors", cache: "no-store" });
+          window.location.replace(serverUrl);
+        } catch {
+          show(problem);
+        }
+      }
+
+      function show(panel) {
+        connecting.hidden = panel !== connecting;
+        problem.hidden = panel !== problem;
+      }
+
+      retry.addEventListener("click", () => void connect());
+      void connect();
+    </script>
+  </body>
+</html>

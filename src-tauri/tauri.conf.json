@@ -4,31 +4,11 @@
   "version": "0.3.0",
   "identifier": "com.tog5.vms",
   "build": {
-    "beforeDevCommand": "npm.cmd run dev",
-    "devUrl": "http://127.0.0.1:1420",
-    "beforeBuildCommand": "npm.cmd run build",
-    "frontendDist": "../dist"
+    "frontendDist": "shell"
   },
   "app": {
-    "windows": [
-      {
-        "title": "TOG 5 VMS",
-        "width": 1200,
-        "height": 800,
-        "minWidth": 1024,
-        "minHeight": 700
-      }
-    ],
+    "windows": [],
     "security": {
-      "assetProtocol": {
-        "enable": true,
-        "scope": [
-          "$APPDATA/vehicle-photos/**",
-          "$APPDATA/fuel-receipts/**",
-          "$APPDATA/maintenance-receipts/**",
-          "$APPDATA/maintenance-photos/**"
-        ]
-      },
       "csp": null
     }
   },

@@ -1,6 +1,5 @@
 [workspace]
-members = ["crates/vms-core", "crates/vms-server"]
-exclude = ["src-tauri"]
+members = ["crates/vms-core", "crates/vms-server", "src-tauri"]
 resolver = "2"
 
 [workspace.package]

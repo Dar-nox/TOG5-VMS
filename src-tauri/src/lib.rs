@@ -1,97 +1,94 @@
-mod backup;
-mod dashboard;
-mod db;
-pub mod domain;
-mod expenses;
-mod fuel;
-mod maintenance;
-mod reports;
-mod settings;
-mod trips;
-mod vehicles;
+//! The TOG 5 VMS desktop shell.
+//!
+//! It is a window and nothing else. The app itself lives on the server and is
+//! loaded over HTTPS, so this crate has no database, no commands, and no IPC —
+//! only the job of opening TOG 5 VMS without a browser's address bar, tabs, or
+//! menus in the way.
+
+use std::{env, fs, path::PathBuf};
+
+use serde::{Deserialize, Serialize};
+use tauri::{WebviewUrl, WebviewWindowBuilder};
+
+const CONFIG_FILE_NAME: &str = "vms-shell.json";
+
+/// Where a fresh install points until somebody edits the config file. This is
+/// right on the machine that runs the server and wrong everywhere else, which
+/// is the safer way round: it never silently points at a stranger's address.
+const DEFAULT_SERVER_URL: &str = "http://127.0.0.1:8787";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ShellConfig {
+    server_url: String,
+}
+
+impl Default for ShellConfig {
+    fn default() -> Self {
+        Self {
+            server_url: DEFAULT_SERVER_URL.to_string(),
+        }
+    }
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let config = load_config();
+
     tauri::Builder::default()
-        .setup(|app| {
-            db::initialize_app_database(app.handle()).map_err(std::io::Error::other)?;
-            let mut connection =
-                db::open_app_connection(app.handle()).map_err(std::io::Error::other)?;
-            maintenance::repository::seed_default_templates(&mut connection)
-                .map_err(std::io::Error::other)?;
-            settings::repository::ensure_default_settings(&connection)
-                .map_err(std::io::Error::other)?;
-            settings::repository::ensure_default_owner_user(&connection)
-                .map_err(std::io::Error::other)?;
+        .setup(move |app| {
+            let window =
+                WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
+                    .title("TOG 5 VMS")
+                    .inner_size(1200.0, 800.0)
+                    .min_inner_size(1024.0, 700.0)
+                    // The launcher page reads this, checks the server is up,
+                    // and then hands the window over to the app.
+                    .initialization_script(format!(
+                        "window.__VMS_SERVER_URL__ = {};",
+                        serde_json::to_string(&config.server_url)
+                            .unwrap_or_else(|_| "\"\"".to_string())
+                    ))
+                    .build()?;
+
+            let _ = window.set_focus();
+
             Ok(())
         })
-        .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![
-            db::database_status,
-            backup::commands::create_backup,
-            backup::commands::validate_backup_file,
-            backup::commands::restore_backup,
-            backup::commands::list_backups,
-            backup::commands::get_local_file_safety_summary,
-            dashboard::commands::get_dashboard_overview,
-            expenses::commands::list_expenses,
-            expenses::commands::list_expenses_for_vehicle,
-            expenses::commands::get_expense,
-            expenses::commands::create_expense,
-            expenses::commands::update_expense,
-            expenses::commands::archive_expense,
-            expenses::commands::get_expense_summary,
-            expenses::commands::get_vehicle_cost_report,
-            expenses::commands::get_reports_overview,
-            fuel::commands::list_fuel_logs_for_vehicle,
-            fuel::commands::get_fuel_log,
-            fuel::commands::create_fuel_log,
-            fuel::commands::update_fuel_log,
-            fuel::commands::archive_fuel_log,
-            fuel::commands::store_fuel_receipt,
-            fuel::commands::get_fuel_efficiency_summary_for_vehicle,
-            maintenance::commands::list_maintenance_templates,
-            maintenance::commands::get_applicable_maintenance_templates_for_vehicle,
-            maintenance::commands::seed_maintenance_templates,
-            maintenance::commands::create_maintenance_template,
-            maintenance::commands::update_maintenance_template,
-            maintenance::commands::archive_maintenance_template,
-            maintenance::commands::list_maintenance_schedules_for_vehicle,
-            maintenance::commands::sync_maintenance_schedules_for_vehicle,
-            maintenance::commands::list_vehicle_maintenance_settings,
-            maintenance::commands::upsert_vehicle_maintenance_setting,
-            maintenance::commands::archive_vehicle_maintenance_setting,
-            maintenance::commands::refresh_maintenance_alerts_for_vehicle,
-            maintenance::commands::list_alerts,
-            maintenance::commands::dismiss_alert,
-            maintenance::commands::complete_maintenance_schedule,
-            maintenance::commands::log_maintenance,
-            maintenance::commands::list_service_history_for_vehicle,
-            maintenance::commands::get_maintenance_log,
-            maintenance::commands::store_maintenance_receipt,
-            maintenance::commands::store_maintenance_photo,
-            reports::commands::export_report_csv,
-            settings::commands::get_app_settings,
-            settings::commands::update_app_settings,
-            settings::commands::reset_app_settings,
-            settings::commands::list_local_users,
-            settings::commands::update_local_user,
-            settings::commands::get_access_summary,
-            settings::commands::clear_app_data,
-            trips::commands::list_trips,
-            trips::commands::list_open_trips,
-            trips::commands::get_trip,
-            trips::commands::start_trip,
-            trips::commands::complete_trip,
-            trips::commands::archive_trip,
-            trips::commands::get_trip_reports_overview,
-            vehicles::commands::list_vehicles,
-            vehicles::commands::get_vehicle,
-            vehicles::commands::store_vehicle_photo,
-            vehicles::commands::create_vehicle,
-            vehicles::commands::update_vehicle,
-            vehicles::commands::archive_vehicle,
-        ])
         .run(tauri::generate_context!())
         .expect("error while running TOG 5 VMS");
+}
+
+/// Reads `vms-shell.json` from beside the executable, writing a starter file
+/// the first time so whoever installs this has something obvious to edit.
+fn load_config() -> ShellConfig {
+    let Some(path) = config_path() else {
+        return ShellConfig::default();
+    };
+
+    if let Ok(contents) = fs::read_to_string(&path) {
+        if let Ok(config) = serde_json::from_str::<ShellConfig>(&contents) {
+            return config;
+        }
+
+        eprintln!(
+            "{} could not be read. Using {DEFAULT_SERVER_URL} until it is fixed.",
+            path.display()
+        );
+
+        return ShellConfig::default();
+    }
+
+    let config = ShellConfig::default();
+    if let Ok(contents) = serde_json::to_string_pretty(&config) {
+        let _ = fs::write(&path, contents);
+    }
+
+    config
+}
+
+fn config_path() -> Option<PathBuf> {
+    let executable = env::current_exe().ok()?;
+
+    Some(executable.parent()?.join(CONFIG_FILE_NAME))
 }
