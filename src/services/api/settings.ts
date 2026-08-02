@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "./client";
 
 const settingsCommands = {
   get: "get_app_settings",

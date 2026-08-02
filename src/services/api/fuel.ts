@@ -1,4 +1,4 @@
-import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { invoke, managedFileUrl } from "./client";
 import type { FuelEfficiencyStatus, FuelLogFuelType } from "../../domain";
 
 const fuelCommands = {
@@ -120,5 +120,5 @@ export async function getFuelEfficiencySummaryForVehicle(
 }
 
 export function fuelReceiptUrl(filePath?: string | null): string | undefined {
-  return filePath ? convertFileSrc(filePath.replace(/\\/g, "/")) : undefined;
+  return managedFileUrl(filePath);
 }

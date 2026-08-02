@@ -1,4 +1,4 @@
-import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { invoke, managedFileUrl } from "./client";
 import type {
   Drivetrain,
   TransmissionType,
@@ -66,11 +66,7 @@ export type StoreVehiclePhotoRequest = {
 };
 
 export function vehiclePhotoUrl(filePath?: string | null): string | undefined {
-  return filePath ? convertFileSrc(normalizeFilePathForAssetProtocol(filePath)) : undefined;
-}
-
-function normalizeFilePathForAssetProtocol(filePath: string): string {
-  return filePath.replace(/\\/g, "/");
+  return managedFileUrl(filePath);
 }
 
 export async function listVehicles(): Promise<VehicleRecord[]> {

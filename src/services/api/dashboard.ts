@@ -1,4 +1,4 @@
-import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { invoke, managedFileUrl } from "./client";
 
 const dashboardCommands = {
   overview: "get_dashboard_overview",
@@ -118,5 +118,5 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
 }
 
 export function dashboardPhotoUrl(filePath?: string | null): string | undefined {
-  return filePath ? convertFileSrc(filePath.replace(/\\/g, "/")) : undefined;
+  return managedFileUrl(filePath);
 }

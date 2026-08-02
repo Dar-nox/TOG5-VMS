@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import {
   getReportsOverview,
   getVehicleCostReport,
@@ -10,7 +9,7 @@ import {
   type VehicleCostReport,
   type VehicleCostSummaryRecord,
 } from "../../services/api/expenses";
-import { exportReportCsv, type ExportReportCsvResponse } from "../../services/api/reports";
+import { downloadReportCsv } from "../../services/api/reports";
 import { getAppSettings } from "../../services/api/settings";
 import {
   getTripReportsOverview,
@@ -33,8 +32,7 @@ export function ReportsModule() {
   const [loading, setLoading] = useState(true);
   const [reportsLoading, setReportsLoading] = useState(false);
   const [tripReportsLoading, setTripReportsLoading] = useState(false);
-  const [exportingReport, setExportingReport] = useState<"maintenance" | "trips" | null>(null);
-  const [exportResult, setExportResult] = useState<ExportReportCsvResponse | null>(null);
+  const [exportedFilename, setExportedFilename] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -123,9 +121,8 @@ export function ReportsModule() {
     [endDate, startDate, vehicleFilter, vehicles],
   );
 
-  async function handleExportMaintenanceReport() {
-    await exportCsvFile(
-      "maintenance",
+  function handleExportMaintenanceReport() {
+    exportCsvFile(
       `tog5-maintenance-report-${dateStamp()}.csv`,
       maintenanceCsvRows({
         currency,
@@ -148,9 +145,8 @@ export function ReportsModule() {
     );
   }
 
-  async function handleExportTripsReport() {
-    await exportCsvFile(
-      "trips",
+  function handleExportTripsReport() {
+    exportCsvFile(
       `tog5-trips-report-${dateStamp()}.csv`,
       tripsCsvRows({
         filterLabel,
@@ -169,35 +165,13 @@ export function ReportsModule() {
     );
   }
 
-  async function exportCsvFile(
-    reportType: "maintenance" | "trips",
-    filename: string,
-    rows: CsvRow[],
-  ) {
-    setExportingReport(reportType);
-    setExportResult(null);
+  function exportCsvFile(filename: string, rows: CsvRow[]) {
+    setExportedFilename(null);
     setExportError(null);
 
     try {
-      const result = await exportReportCsv({
-        filename,
-        csvContents: csvContent(rows),
-      });
-      setExportResult(result);
-    } catch (error) {
-      setExportError(messageFromError(error));
-    } finally {
-      setExportingReport(null);
-    }
-  }
-
-  async function handleRevealExport() {
-    if (!exportResult) {
-      return;
-    }
-
-    try {
-      await revealItemInDir(exportResult.filePath);
+      downloadReportCsv({ filename, csvContents: csvContent(rows) });
+      setExportedFilename(filename);
     } catch (error) {
       setExportError(messageFromError(error));
     }
@@ -282,11 +256,11 @@ export function ReportsModule() {
               <>
                 <button
                   className="secondary-button"
-                  disabled={reportsLoading || exportingReport !== null}
-                  onClick={() => void handleExportMaintenanceReport()}
+                  disabled={reportsLoading}
+                  onClick={handleExportMaintenanceReport}
                   type="button"
                 >
-                  {exportingReport === "maintenance" ? "Exporting..." : "Export maintenance CSV"}
+                  Export maintenance CSV
                 </button>
                 <button
                   className="secondary-button"
@@ -301,11 +275,11 @@ export function ReportsModule() {
               <>
                 <button
                   className="secondary-button"
-                  disabled={tripReportsLoading || exportingReport !== null}
-                  onClick={() => void handleExportTripsReport()}
+                  disabled={tripReportsLoading}
+                  onClick={handleExportTripsReport}
                   type="button"
                 >
-                  {exportingReport === "trips" ? "Exporting..." : "Export trips CSV"}
+                  Export trips CSV
                 </button>
                 <button
                   className="secondary-button"
@@ -320,19 +294,12 @@ export function ReportsModule() {
           </div>
         </div>
 
-        {exportResult ? (
+        {exportedFilename ? (
           <div className="report-export-status">
             <div>
-              <strong>CSV exported.</strong>
-              <span>{exportResult.filePath}</span>
+              <strong>CSV downloaded.</strong>
+              <span>{exportedFilename} was saved with your other downloads.</span>
             </div>
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={() => void handleRevealExport()}
-            >
-              Show file
-            </button>
           </div>
         ) : null}
         {exportError ? <div className="inline-error compact">{exportError}</div> : null}

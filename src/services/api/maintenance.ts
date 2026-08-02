@@ -1,4 +1,4 @@
-import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { invoke, managedFileUrl } from "./client";
 import type {
   AlertPriority,
   AlertStatus,
@@ -400,5 +400,5 @@ export async function storeMaintenancePhoto(
 }
 
 export function maintenanceFileUrl(filePath?: string | null): string | undefined {
-  return filePath ? convertFileSrc(filePath.replace(/\\/g, "/")) : undefined;
+  return managedFileUrl(filePath);
 }
