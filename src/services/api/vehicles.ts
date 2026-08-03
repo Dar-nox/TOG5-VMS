@@ -1,4 +1,3 @@
-import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import type {
   Drivetrain,
   TransmissionType,
@@ -6,15 +5,8 @@ import type {
   VehicleStatus,
   VehicleType,
 } from "../../domain";
-
-const vehicleCommands = {
-  list: "list_vehicles",
-  get: "get_vehicle",
-  storePhoto: "store_vehicle_photo",
-  create: "create_vehicle",
-  update: "update_vehicle",
-  archive: "archive_vehicle",
-} as const;
+import { managedFileUrl, supabase, unwrap, unwrapVoid } from "./client";
+import { uploadManagedFile } from "./storage";
 
 export type VehicleRecord = {
   id: string;
@@ -38,7 +30,7 @@ export type VehicleRecord = {
 export type VehiclePhotoRecord = {
   id: string;
   vehicleId?: string | null;
-  filePath: string;
+  storagePath: string;
   originalFilename?: string | null;
   mimeType?: string | null;
   fileSizeBytes: number;
@@ -59,50 +51,100 @@ export type VehicleMutationRequest = {
   notes?: string;
 };
 
-export type StoreVehiclePhotoRequest = {
-  originalFilename?: string;
-  mimeType?: string;
-  bytes: number[];
-};
-
-export function vehiclePhotoUrl(filePath?: string | null): string | undefined {
-  return filePath ? convertFileSrc(normalizeFilePathForAssetProtocol(filePath)) : undefined;
-}
-
-function normalizeFilePathForAssetProtocol(filePath: string): string {
-  return filePath.replace(/\\/g, "/");
+/**
+ * A link to a stored photo. The buckets are private, so this is a signed URL
+ * that expires — which is why it is a promise where the desktop build could
+ * return a string.
+ */
+export function vehiclePhotoUrl(storagePath?: string | null): Promise<string | undefined> {
+  return managedFileUrl(storagePath);
 }
 
 export async function listVehicles(): Promise<VehicleRecord[]> {
-  return invoke<VehicleRecord[]>(vehicleCommands.list);
+  return unwrap(
+    await supabase
+      .from("vehicles_with_photo")
+      .select("*")
+      .neq("status", "archived")
+      .order("vehicle_name"),
+  );
 }
 
 export async function getVehicle(id: string): Promise<VehicleRecord> {
-  return invoke<VehicleRecord>(vehicleCommands.get, { id });
+  return unwrap(await supabase.from("vehicles_with_photo").select("*").eq("id", id).single());
 }
 
 export async function storeVehiclePhoto(file: File): Promise<VehiclePhotoRecord> {
-  const bytes = Array.from(new Uint8Array(await file.arrayBuffer()));
-  const request: StoreVehiclePhotoRequest = {
-    originalFilename: file.name,
-    mimeType: file.type || undefined,
-    bytes,
-  };
+  const storagePath = await uploadManagedFile("vehicle-photos", file);
 
-  return invoke<VehiclePhotoRecord>(vehicleCommands.storePhoto, { request });
+  // The photo is uploaded before the vehicle exists — the form needs an id to
+  // save against — so it starts unattached and is linked when the vehicle is
+  // created.
+  return unwrap(
+    await supabase
+      .from("vehicle_photos")
+      .insert({
+        storage_path: storagePath,
+        original_filename: file.name,
+        mime_type: file.type || null,
+        file_size_bytes: file.size,
+        is_primary: true,
+      })
+      .select("*")
+      .single(),
+  );
 }
 
 export async function createVehicle(request: VehicleMutationRequest): Promise<VehicleRecord> {
-  return invoke<VehicleRecord>(vehicleCommands.create, { request });
+  const created = unwrap<{ id: string }>(
+    await supabase.from("vehicles").insert(toRow(request)).select("id").single(),
+  );
+
+  await attachPhoto(request.primaryPhotoId, created.id);
+
+  return getVehicle(created.id);
 }
 
 export async function updateVehicle(
   id: string,
   request: VehicleMutationRequest,
 ): Promise<VehicleRecord> {
-  return invoke<VehicleRecord>(vehicleCommands.update, { id, request });
+  unwrapVoid(await supabase.from("vehicles").update(toRow(request)).eq("id", id));
+  await attachPhoto(request.primaryPhotoId, id);
+
+  return getVehicle(id);
 }
 
 export async function archiveVehicle(id: string): Promise<void> {
-  return invoke<void>(vehicleCommands.archive, { id });
+  unwrapVoid(
+    await supabase
+      .from("vehicles")
+      .update({ status: "archived", archived_at: new Date().toISOString() })
+      .eq("id", id),
+  );
+}
+
+async function attachPhoto(photoId: string | undefined, vehicleId: string): Promise<void> {
+  if (!photoId) {
+    return;
+  }
+
+  unwrapVoid(
+    await supabase.from("vehicle_photos").update({ vehicle_id: vehicleId }).eq("id", photoId),
+  );
+}
+
+function toRow(request: VehicleMutationRequest) {
+  return {
+    vehicle_name: request.vehicleName,
+    primary_photo_id: request.primaryPhotoId || null,
+    plate_number: request.plateNumber || null,
+    vehicle_type: request.vehicleType,
+    fuel_type: request.fuelType,
+    transmission_type: request.transmissionType,
+    drivetrain: request.drivetrain,
+    current_odometer: request.currentOdometer,
+    status: request.status,
+    notes: request.notes || null,
+  };
 }

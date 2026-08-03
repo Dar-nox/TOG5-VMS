@@ -73,13 +73,14 @@ declare
 begin
   -- Empty to begin with, and it must not fall over on an empty fleet.
   overview := public.dashboard_overview();
-  assert (overview->'vehicleSummary'->>'activeCount')::int = 0,
-    'a new system has no vehicles';
-  assert overview->'maintenanceSummary'->'upcoming' = '[]'::jsonb,
-    'and nothing upcoming';
-  assert (overview->'costSummary'->>'monthTotal')::numeric = 0,
-    'and nothing spent';
-  assert overview->>'currency' = 'PHP', 'the currency should come from settings';
+  assert (overview->'vehicleSummary'->>'totalCount')::int = 0, 'a new system has no vehicles';
+  assert overview->'maintenanceSummary'->'upcoming' = '[]'::jsonb, 'and nothing upcoming';
+  assert (overview->'costSummary'->>'totalTrackedCost')::numeric = 0, 'and nothing spent';
+  assert overview->>'preferredCurrency' = 'PHP', 'the currency should come from settings';
+  assert overview->'setupHints'->0->>'code' = 'add_first_vehicle',
+    'an empty system should suggest adding a vehicle first';
+  assert overview->'backupSummary'->>'message' like '%automatically%',
+    'the backup panel should explain that it is handled, not leave people wondering';
 
   insert into public.vehicles (vehicle_name, vehicle_type, fuel_type, current_odometer)
   values ('Dashboard Van', 'van', 'diesel', 5000) returning id into v;
@@ -99,14 +100,26 @@ begin
 
   overview := public.dashboard_overview();
   assert (overview->'vehicleSummary'->>'activeCount')::int = 1, 'one active vehicle';
+  assert overview->'vehicleSummary'->>'latestVehicleName' = 'Dashboard Van',
+    'the newest vehicle should be named';
   assert (overview->'maintenanceSummary'->>'overdueCount')::int = 1, 'one overdue item';
   assert jsonb_array_length(overview->'maintenanceSummary'->'upcoming') = 1,
     'the overdue item should be listed';
   assert overview->'maintenanceSummary'->'upcoming'->0->>'vehicleName' = 'Dashboard Van',
     'and should name the vehicle';
-  assert (overview->'alertSummary'->>'activeCount')::int = 1, 'one active alert';
+  assert overview->'maintenanceSummary'->'upcoming'->0->>'dueReason' like 'Overdue by%',
+    'and say why, got: '
+      || coalesce(overview->'maintenanceSummary'->'upcoming'->0->>'dueReason', 'null');
+  assert (overview->'alertsSummary'->>'activeCount')::int = 1, 'one active alert';
+  assert jsonb_array_length(overview->'alertsSummary'->'topAlerts') = 1,
+    'the alert should be listed';
+  assert overview->'alertsSummary'->'topAlerts'->0->>'vehicleName' = 'Dashboard Van',
+    'and name its vehicle';
   assert (overview->'costSummary'->>'fuelTotal')::numeric = 2000, 'fuel spend this month';
   assert jsonb_array_length(overview->'recentActivity') = 1, 'one recent thing happened';
+  assert overview->'fuelSummary'->>'message' = 'Not enough full-tank fuel logs yet.',
+    'one fill produces no official reading yet, got: '
+      || (overview->'fuelSummary'->>'message');
 
   -- The dashboard must not double count either.
   insert into public.expenses
@@ -116,9 +129,9 @@ begin
           (select id from public.fuel_logs where vehicle_id = v limit 1));
 
   overview := public.dashboard_overview();
-  assert (overview->'costSummary'->>'monthTotal')::numeric = 2000,
+  assert (overview->'costSummary'->>'totalTrackedCost')::numeric = 2000,
     'the dashboard must not count a mirrored expense twice, got '
-      || (overview->'costSummary'->>'monthTotal');
+      || (overview->'costSummary'->>'totalTrackedCost');
 end $$;
 
 select 'soft deletes reach the children and the dashboard adds up' as result;
