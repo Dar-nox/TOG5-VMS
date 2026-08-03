@@ -215,6 +215,11 @@ create table public.maintenance_templates (
 create table public.maintenance_template_rules (
   id uuid primary key default gen_random_uuid(),
   template_id uuid not null references public.maintenance_templates(id) on delete cascade,
+  -- Rules are evaluated in order, and the first one that matches supplies the
+  -- explanation shown to the user. SQLite got that order for free because the
+  -- ids were generated as name__01, name__02 and the query sorted by id.
+  -- Random uuids lose it, so the order is explicit here.
+  sort_order integer not null default 0,
   -- Every dimension is nullable, and null means "any". A rule with all six
   -- null therefore matches every vehicle.
   applies_to_vehicle_type text,
@@ -495,7 +500,8 @@ create unique index idx_maintenance_templates_template_key
   on public.maintenance_templates(template_key)
   where template_key is not null;
 
-create index idx_template_rules_template_id on public.maintenance_template_rules(template_id);
+create index idx_template_rules_template_id
+  on public.maintenance_template_rules(template_id, sort_order);
 create index idx_template_rules_applicability
   on public.maintenance_template_rules(
     applies_to_vehicle_type,
