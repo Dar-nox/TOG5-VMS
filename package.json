@@ -17,6 +17,7 @@
     "tauri:build": "tauri build"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.112.0",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-opener": "^2.0.0",
     "react": "^19.0.0",
