@@ -198,9 +198,9 @@ begin
   select jsonb_build_object(
            'currentMonth', to_char(current_date, 'YYYY-MM'),
            'totalTrackedCost', coalesce(sum(amount), 0),
-           'fuelTotal', coalesce(sum(amount) filter (where source_type = 'fuel'), 0),
-           'maintenanceTotal', coalesce(sum(amount) filter (where source_type = 'maintenance'), 0),
-           'repairTotal', coalesce(sum(amount) filter (where source_type = 'repair'), 0),
+           'fuelTotal', coalesce(sum(amount) filter (where source_type = 'fuel_log'), 0),
+           'maintenanceTotal', coalesce(sum(amount) filter (where source_type = 'maintenance_log'), 0),
+           'repairTotal', coalesce(sum(amount) filter (where source_type = 'repair_record'), 0),
            'manualExpenseTotal', coalesce(sum(amount) filter (where source_type = 'expense'), 0),
            'preferredCurrency', currency
          )
@@ -232,15 +232,15 @@ begin
     select jsonb_build_object(
              'id', c.source_id,
              'activityType', c.source_type,
-             'title', initcap(c.source_type),
+             'title', initcap(replace(c.source_type, '_', ' ')),
              'detail', c.description,
              'happenedAt', c.event_date,
              'vehicleName', c.vehicle_name,
              'amount', c.amount,
              'targetPage', case c.source_type
-                             when 'fuel' then 'fuel'
-                             when 'maintenance' then 'service-history'
-                             when 'repair' then 'service-history'
+                             when 'fuel_log' then 'fuel'
+                             when 'maintenance_log' then 'service-history'
+                             when 'repair_record' then 'service-history'
                              else 'expenses' end
            ) as item,
            c.event_date as happened_at

@@ -42,8 +42,8 @@ begin
   assert summary.maintenance_total = 3000, 'maintenance total wrong: '
     || summary.maintenance_total;
   assert summary.repair_total = 4000, 'repair total wrong: ' || summary.repair_total;
-  assert summary.expense_total = 500, 'expense total wrong: ' || summary.expense_total;
-  assert summary.grand_total = 10000, 'grand total wrong: ' || summary.grand_total;
+  assert summary.manual_expense_total = 500, 'expense total wrong: ' || summary.manual_expense_total;
+  assert summary.total_cost = 10000, 'grand total wrong: ' || summary.total_cost;
 
   -- ----------------------------------------------------------------------
   -- The same cost entered twice is only counted once
@@ -55,12 +55,12 @@ begin
           'fuel_log', fuel_id);
 
   select * into summary from public.vehicle_cost_summary() where vehicle_id = v;
-  assert summary.grand_total = 10000,
+  assert summary.total_cost = 10000,
     'an expense mirroring a fuel log must not be added on top, got '
-      || summary.grand_total;
-  assert summary.expense_total = 500,
+      || summary.total_cost;
+  assert summary.manual_expense_total = 500,
     'the mirrored expense must not appear in the expense column either, got '
-      || summary.expense_total;
+      || summary.manual_expense_total;
 
   -- An expense pointing at something else entirely still counts.
   insert into public.expenses
@@ -69,8 +69,8 @@ begin
   values (v, '2026-03-22', 'parking', 'Overnight parking', 200, 'other', null);
 
   select * into summary from public.vehicle_cost_summary() where vehicle_id = v;
-  assert summary.grand_total = 10200,
-    'an unrelated expense should still count, got ' || summary.grand_total;
+  assert summary.total_cost = 10200,
+    'an unrelated expense should still count, got ' || summary.total_cost;
 
   -- ----------------------------------------------------------------------
   -- Cost per kilometre
@@ -80,7 +80,7 @@ begin
     || coalesce(summary.distance_km::text, 'null');
   assert summary.cost_per_km = round(10200::numeric / 1000, 2),
     'cost per km wrong: ' || coalesce(summary.cost_per_km::text, 'null');
-  assert summary.cost_per_km_note is null, 'no note is needed when it can be worked out';
+  assert summary.cost_per_km_reason = '', 'no note is needed when it can be worked out';
 
   -- ----------------------------------------------------------------------
   -- One reading is not a distance
@@ -97,8 +97,8 @@ begin
     select * into summary from public.vehicle_cost_summary() where vehicle_id = lonely;
     assert summary.distance_km is null, 'a single reading spans no distance';
     assert summary.cost_per_km is null, 'so there is no cost per km';
-    assert summary.cost_per_km_note like 'Needs at least two%',
-      'and the report should explain why, got: ' || coalesce(summary.cost_per_km_note, 'null');
+    assert summary.cost_per_km_reason like 'Needs at least two%',
+      'and the report should explain why, got: ' || coalesce(summary.cost_per_km_reason, 'null');
   end;
 
   -- ----------------------------------------------------------------------
@@ -106,8 +106,8 @@ begin
   -- ----------------------------------------------------------------------
   select * into summary from public.vehicle_cost_summary('2026-03-01', '2026-03-10')
   where vehicle_id = v;
-  assert summary.grand_total = 5500,
-    'only the fuel and the maintenance fall in that window, got ' || summary.grand_total;
+  assert summary.total_cost = 5500,
+    'only the fuel and the maintenance fall in that window, got ' || summary.total_cost;
 
   -- ----------------------------------------------------------------------
   -- Grouping
