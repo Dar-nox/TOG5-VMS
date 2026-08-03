@@ -243,8 +243,10 @@ create table public.vehicle_maintenance_settings (
   id uuid primary key default gen_random_uuid(),
   vehicle_id uuid not null references public.vehicles(id) on delete cascade,
   template_id uuid not null references public.maintenance_templates(id) on delete cascade,
+  -- The client's data only uses active and disabled, but the app can produce
+  -- all four, so all four are allowed.
   status text not null default 'active'
-    check (status in ('active', 'disabled')),
+    check (status in ('active', 'manually_added', 'disabled', 'not_applicable')),
   custom_time_interval_days integer,
   custom_odometer_interval_km integer,
   custom_due_soon_days integer,
