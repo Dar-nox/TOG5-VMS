@@ -6,6 +6,7 @@ import {
 } from "../../services/api/maintenance";
 import { getAppSettings } from "../../services/api/settings";
 import { listVehicles, type VehicleRecord } from "../../services/api/vehicles";
+import { useManagedFileUrl } from "../../services/files/useManagedFileUrl";
 
 const DEFAULT_CURRENCY = "PHP";
 
@@ -144,9 +145,9 @@ export function ServiceHistoryModule() {
 }
 
 function ServiceHistoryCard({ currency, log }: { currency: string; log: MaintenanceLogRecord }) {
-  const receiptHref = maintenanceFileUrl(log.receiptFilePath);
-  const beforeHref = maintenanceFileUrl(log.beforePhotoPath);
-  const afterHref = maintenanceFileUrl(log.afterPhotoPath);
+  const receiptHref = useManagedFileUrl(log.receiptFilePath);
+  const beforeHref = useManagedFileUrl(log.beforePhotoPath);
+  const afterHref = useManagedFileUrl(log.afterPhotoPath);
 
   return (
     <article className="service-history-card">

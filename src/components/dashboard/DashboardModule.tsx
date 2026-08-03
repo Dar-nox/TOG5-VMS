@@ -10,6 +10,7 @@ import {
   type DashboardSetupHint,
 } from "../../services/api/dashboard";
 import type { PageId } from "../../types/navigation";
+import { useManagedFileUrl } from "../../services/files/useManagedFileUrl";
 
 type DashboardModuleProps = {
   onNavigate?: (page: PageId) => void;
@@ -100,7 +101,7 @@ export function DashboardModule({ onNavigate }: DashboardModuleProps) {
     ];
   }, [overview]);
 
-  const latestVehiclePhoto = dashboardPhotoUrl(overview?.vehicleSummary.latestVehiclePhotoPath);
+  const latestVehiclePhoto = useManagedFileUrl(overview?.vehicleSummary.latestVehiclePhotoPath);
 
   function navigate(targetPage?: string | null) {
     if (onNavigate && isPageId(targetPage)) {

@@ -1,18 +1,14 @@
-import { invoke } from "@tauri-apps/api/core";
-import {
-  refreshMaintenanceAlertsForVehicle,
-  type AlertRecord,
-  type RefreshMaintenanceAlertsResult,
-} from "./maintenance";
-import { listVehicles } from "./vehicles";
-
-const alertCommands = {
-  list: "list_alerts",
-  dismiss: "dismiss_alert",
-} as const;
+import { rpc, supabase, unwrap } from "./client";
+import type { AlertRecord } from "./maintenance";
 
 export async function listAlerts(): Promise<AlertRecord[]> {
-  return invoke<AlertRecord[]>(alertCommands.list);
+  return unwrap(
+    await supabase
+      .from("alerts_detailed")
+      .select("*")
+      .eq("status", "active")
+      .order("created_at", { ascending: false }),
+  );
 }
 
 export type RefreshActiveAlertsResult = {
@@ -23,29 +19,40 @@ export type RefreshActiveAlertsResult = {
   alerts: AlertRecord[];
 };
 
+/**
+ * Re-checks every vehicle's reminders.
+ *
+ * The desktop version listed the vehicles and then made one request each —
+ * fine over local IPC, one request per vehicle plus two over a network. The
+ * fan-out lives in the database now, so this is a single call.
+ */
 export async function refreshActiveAlerts(): Promise<RefreshActiveAlertsResult> {
-  const vehicles = await listVehicles();
-  const results = await Promise.all(
-    vehicles.map((vehicle) => refreshMaintenanceAlertsForVehicle(vehicle.id)),
-  );
-  const alerts = await listAlerts();
+  const result = await rpc<{
+    createdCount: number;
+    updatedCount: number;
+    resolvedCount: number;
+  }>("refresh_maintenance_alerts_for_all_vehicles");
+
+  const [alerts, vehicleCount] = await Promise.all([listAlerts(), countVehicles()]);
 
   return {
-    vehicleCount: vehicles.length,
-    createdCount: sumRefreshCounts(results, "createdCount"),
-    updatedCount: sumRefreshCounts(results, "updatedCount"),
-    resolvedCount: sumRefreshCounts(results, "resolvedCount"),
+    vehicleCount,
+    createdCount: result.createdCount,
+    updatedCount: result.updatedCount,
+    resolvedCount: result.resolvedCount,
     alerts,
   };
 }
 
 export async function dismissAlert(alertId: string): Promise<void> {
-  return invoke<void>(alertCommands.dismiss, { alertId });
+  await rpc<void>("dismiss_alert", { alert_id: alertId });
 }
 
-function sumRefreshCounts(
-  results: RefreshMaintenanceAlertsResult[],
-  field: "createdCount" | "updatedCount" | "resolvedCount",
-) {
-  return results.reduce((total, result) => total + result[field], 0);
+async function countVehicles(): Promise<number> {
+  const { count } = await supabase
+    .from("vehicles")
+    .select("id", { count: "exact", head: true })
+    .is("deleted_at", null);
+
+  return count ?? 0;
 }

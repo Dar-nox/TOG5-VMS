@@ -16,6 +16,7 @@ import {
 } from "../../services/api/fuel";
 import { getAppSettings } from "../../services/api/settings";
 import { listVehicles, type VehicleRecord } from "../../services/api/vehicles";
+import { useManagedFileUrl } from "../../services/files/useManagedFileUrl";
 
 type FuelFormState = {
   fuelDate: string;
@@ -594,7 +595,7 @@ function FuelLogCard(props: {
   onArchive: (logId: string) => void;
   onEdit: (log: FuelLogRecord) => void;
 }) {
-  const receiptHref = fuelReceiptUrl(props.log.receiptFilePath);
+  const receiptHref = useManagedFileUrl(props.log.receiptFilePath);
 
   return (
     <article className="fuel-log-card">

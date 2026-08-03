@@ -1,8 +1,4 @@
-import { convertFileSrc, invoke } from "@tauri-apps/api/core";
-
-const dashboardCommands = {
-  overview: "get_dashboard_overview",
-} as const;
+import { managedFileUrl, rpc } from "./client";
 
 export type VehicleDashboardSummary = {
   totalCount: number;
@@ -113,10 +109,11 @@ export type DashboardOverview = {
   setupHints: DashboardSetupHint[];
 };
 
+/** Eight summaries in one call, rather than eight round trips. */
 export async function getDashboardOverview(): Promise<DashboardOverview> {
-  return invoke<DashboardOverview>(dashboardCommands.overview);
+  return rpc<DashboardOverview>("dashboard_overview");
 }
 
-export function dashboardPhotoUrl(filePath?: string | null): string | undefined {
-  return filePath ? convertFileSrc(filePath.replace(/\\/g, "/")) : undefined;
+export function dashboardPhotoUrl(storagePath?: string | null): Promise<string | undefined> {
+  return managedFileUrl(storagePath);
 }

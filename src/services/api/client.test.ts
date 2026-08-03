@@ -31,9 +31,9 @@ describe("unwrap", () => {
     const written =
       "Completion odometer cannot be lower than the previous completed odometer (12000 km).";
 
-    expect(() => unwrap({ data: null, error: { code: "P0001", message: written } } as never)).toThrow(
-      written,
-    );
+    expect(() =>
+      unwrap({ data: null, error: { code: "P0001", message: written } } as never),
+    ).toThrow(written);
   });
 
   it("translates constraint codes into something worth reading", () => {
@@ -141,8 +141,8 @@ describe("column names", () => {
 
   it("leaves an already-camelCase payload untouched", () => {
     // dashboard_overview builds its JSON in the right shape already.
-    expect(
-      unwrap({ data: { vehicleSummary: { activeCount: 3 } }, error: null }),
-    ).toEqual({ vehicleSummary: { activeCount: 3 } });
+    expect(unwrap({ data: { vehicleSummary: { activeCount: 3 } }, error: null })).toEqual({
+      vehicleSummary: { activeCount: 3 },
+    });
   });
 });
