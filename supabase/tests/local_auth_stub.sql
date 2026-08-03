@@ -1,0 +1,32 @@
+-- Enough of Supabase's auth surface to test policies in a plain Postgres.
+--
+-- Real Supabase provides all of this. This file exists so the policy tests can
+-- run against `docker run postgres` in a few seconds, instead of needing the
+-- whole local stack up. It is never applied to a real project — note that it
+-- lives in tests/, not migrations/.
+--
+-- Apply order: this file, then the migrations, then local_grants.sql.
+
+create schema if not exists auth;
+
+create table if not exists auth.users (
+  id uuid primary key default gen_random_uuid(),
+  email text,
+  raw_user_meta_data jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+-- Supabase reads the signed-in user from the request's JWT. Here it comes from
+-- a session setting, which `set local` can change per transaction — that is
+-- what lets one test act as several different people.
+create or replace function auth.uid()
+returns uuid
+language sql
+stable
+as $$
+  select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid;
+$$;
+
+do $$ begin create role anon nologin; exception when duplicate_object then null; end $$;
+do $$ begin create role authenticated nologin; exception when duplicate_object then null; end $$;
+do $$ begin create role service_role nologin bypassrls; exception when duplicate_object then null; end $$;
