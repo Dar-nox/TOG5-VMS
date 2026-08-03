@@ -35,10 +35,7 @@ export async function compressImage(file: File): Promise<File> {
 
   try {
     const bitmap = await createImageBitmap(file);
-    const scale = Math.min(
-      1,
-      MAX_IMAGE_DIMENSION / Math.max(bitmap.width, bitmap.height),
-    );
+    const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(bitmap.width, bitmap.height));
 
     // Already small enough that re-encoding would only lose quality.
     if (scale === 1 && file.size <= 1024 * 1024) {

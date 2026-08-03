@@ -29,8 +29,7 @@ export const supabase = createClient(url, anonKey, {
   },
 });
 
-const OFFLINE_MESSAGE =
-  "Could not reach TOG 5 VMS. Check your internet connection and try again.";
+const OFFLINE_MESSAGE = "Could not reach TOG 5 VMS. Check your internet connection and try again.";
 
 const SIGNED_OUT_MESSAGE = "Your sign-in has expired. Please sign in again.";
 

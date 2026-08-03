@@ -1,7 +1,11 @@
 import { useMemo, useState } from "react";
+import { ConnectionProblemScreen } from "../components/auth/ConnectionProblemScreen";
+import { SignInScreen } from "../components/auth/SignInScreen";
 import { AppLayout } from "../components/common/AppLayout";
 import type { PageId } from "../types/navigation";
 import { navigationItems } from "../types/navigation";
+import { AuthProvider } from "./providers/AuthProvider";
+import { useAuth } from "./providers/authContext";
 import {
   AlertsPage,
   BackupPage,
@@ -17,6 +21,30 @@ import {
 } from "./routes/Pages";
 
 export function App() {
+  return (
+    <AuthProvider>
+      <AppGate />
+    </AuthProvider>
+  );
+}
+
+/** Nothing renders until we know who is using the app. */
+function AppGate() {
+  const { phase } = useAuth();
+
+  switch (phase) {
+    case "checking":
+      return <div className="app-loading">Loading TOG 5 VMS...</div>;
+    case "unreachable":
+      return <ConnectionProblemScreen />;
+    case "signed-out":
+      return <SignInScreen />;
+    case "signed-in":
+      return <Workspace />;
+  }
+}
+
+function Workspace() {
   const [activePage, setActivePage] = useState<PageId>("dashboard");
 
   const activeNavigationItem = useMemo(

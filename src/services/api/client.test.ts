@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 // The module reads configuration at import time, so it has to exist first.
 vi.stubEnv("VITE_SUPABASE_URL", "https://example.supabase.co");
