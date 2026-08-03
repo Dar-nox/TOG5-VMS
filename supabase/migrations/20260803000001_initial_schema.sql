@@ -449,7 +449,7 @@ create table public.settings (
   key text primary key,
   value text not null,
   value_type text not null default 'string'
-    check (value_type in ('string', 'number', 'boolean')),
+    check (value_type in ('string', 'integer', 'boolean')),
   description text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

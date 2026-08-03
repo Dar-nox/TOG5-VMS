@@ -98,7 +98,7 @@ begin;
     assert was_refused, 'a manager must not be able to create an account';
 
     begin
-      insert into public.settings (key, value) values ('preferred_currency', 'USD');
+      insert into public.settings (key, value) values ('rls_probe', 'x');
       was_refused := false;
     exception when insufficient_privilege then
       was_refused := true;
@@ -116,8 +116,8 @@ begin;
 
   do $$
   begin
-    insert into public.settings (key, value) values ('preferred_currency', 'PHP');
-    assert (select value from public.settings where key = 'preferred_currency') = 'PHP',
+    insert into public.settings (key, value) values ('rls_probe', 'x');
+    assert (select value from public.settings where key = 'rls_probe') = 'x',
       'an owner should be able to set app settings';
 
     insert into public.profiles (id, display_name, role)
