@@ -100,3 +100,49 @@ describe("unwrap", () => {
     expect(unwrap({ data: [], error: null })).toEqual([]);
   });
 });
+
+describe("column names", () => {
+  it("converts Postgres columns to the names the screens read", () => {
+    expect(
+      unwrap({
+        data: { vehicle_name: "Service Van 1", current_odometer: 1200 },
+        error: null,
+      }),
+    ).toEqual({ vehicleName: "Service Van 1", currentOdometer: 1200 });
+  });
+
+  it("handles the awkward ones", () => {
+    expect(
+      unwrap({
+        data: {
+          computed_km_per_liter: 10,
+          computed_l_per_100km: 10,
+          is_full_tank: true,
+        },
+        error: null,
+      }),
+    ).toEqual({ computedKmPerLiter: 10, computedLPer100km: 10, isFullTank: true });
+  });
+
+  it("reaches into lists and nested rows", () => {
+    expect(
+      unwrap({
+        data: [{ vehicle_id: "1", trip_drivers: [{ driver_name: "Maria Santos" }] }],
+        error: null,
+      }),
+    ).toEqual([{ vehicleId: "1", tripDrivers: [{ driverName: "Maria Santos" }] }]);
+  });
+
+  it("leaves values alone, only names", () => {
+    expect(
+      unwrap({ data: { notes: "changed_oil_and_filter", amount: null }, error: null }),
+    ).toEqual({ notes: "changed_oil_and_filter", amount: null });
+  });
+
+  it("leaves an already-camelCase payload untouched", () => {
+    // dashboard_overview builds its JSON in the right shape already.
+    expect(
+      unwrap({ data: { vehicleSummary: { activeCount: 3 } }, error: null }),
+    ).toEqual({ vehicleSummary: { activeCount: 3 } });
+  });
+});

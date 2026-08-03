@@ -103,10 +103,34 @@ function isSignedOutError(error: PostgrestError): boolean {
 }
 
 /**
+ * Postgres columns are snake_case and the app's types are camelCase. Converting
+ * once here beats aliasing every column in every query, or renaming the fields
+ * every screen already reads.
+ */
+function toCamelCase(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(toCamelCase);
+  }
+
+  if (value === null || typeof value !== "object" || value instanceof Date) {
+    return value;
+  }
+
+  const converted: Record<string, unknown> = {};
+
+  for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+    const camel = key.replace(/_([a-z0-9])/g, (_, character: string) => character.toUpperCase());
+    converted[camel] = toCamelCase(nested);
+  }
+
+  return converted;
+}
+
+/**
  * Unwraps a Supabase result, throwing on failure so that existing `try/catch`
  * blocks keep working. Every query in this folder goes through here.
  */
-export function unwrap<T>(result: { data: T | null; error: PostgrestError | null }): T {
+export function unwrap<T>(result: { data: unknown; error: PostgrestError | null }): T {
   if (result.error) {
     const signedOut = isSignedOutError(result.error);
 
@@ -119,7 +143,7 @@ export function unwrap<T>(result: { data: T | null; error: PostgrestError | null
 
   // A `.single()` that matched nothing surfaces as an error, so reaching here
   // with null means the caller asked for a list and got an empty one.
-  return result.data as T;
+  return toCamelCase(result.data) as T;
 }
 
 /** Same, for calls whose result is not used. */
@@ -132,7 +156,7 @@ export function unwrapVoid(result: { error: PostgrestError | null }): void {
  * writes go through one of these rather than a table update.
  */
 export async function rpc<T>(name: string, args: Record<string, unknown> = {}): Promise<T> {
-  return unwrap<T>((await supabase.rpc(name, args)) as { data: T | null; error: PostgrestError | null });
+  return unwrap<T>(await supabase.rpc(name, args));
 }
 
 const MANAGED_BUCKETS = [
