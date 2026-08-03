@@ -5,7 +5,6 @@ import { validateFuelLog } from "../../domain";
 import {
   archiveFuelLog,
   createFuelLog,
-  fuelReceiptUrl,
   getFuelEfficiencySummaryForVehicle,
   listFuelLogsForVehicle,
   storeFuelReceipt,

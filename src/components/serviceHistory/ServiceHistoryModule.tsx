@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   listServiceHistoryForVehicle,
-  maintenanceFileUrl,
   type MaintenanceLogRecord,
 } from "../../services/api/maintenance";
 import { getAppSettings } from "../../services/api/settings";

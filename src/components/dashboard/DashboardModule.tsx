@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { SummaryCard } from "../common/SummaryCard";
 import { refreshActiveAlerts } from "../../services/api/alerts";
 import {
-  dashboardPhotoUrl,
   getDashboardOverview,
   type DashboardActivityItem,
   type DashboardMaintenanceItem,
