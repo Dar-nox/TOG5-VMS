@@ -355,11 +355,7 @@ export async function upsertVehicleMaintenanceSetting(
   });
 
   return unwrap(
-    await supabase
-      .from("vehicle_maintenance_settings_detailed")
-      .select("*")
-      .eq("id", id)
-      .single(),
+    await supabase.from("vehicle_maintenance_settings_detailed").select("*").eq("id", id).single(),
   );
 }
 

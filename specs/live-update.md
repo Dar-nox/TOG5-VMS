@@ -6983,3 +6983,119 @@ Manually smoke-test the built installer (`TOG 5 VMS_0.3.0_x64-setup.exe`) — in
 exercise the "select a bare .sqlite3 file" and "select a folder with just the database" paths
 in Backup & Restore to confirm the red error box and diagnostic copy button render as expected.
 Once confirmed, this branch is ready to merge to `main`.
+
+---
+
+## 2026-08-05 — v0.4.0: from one desktop to a fleet online
+
+### Phase
+
+The whole migration: schema, business rules, frontend, accounts, storage, the
+client's real data, the three clients, and the documentation.
+
+### Summary
+
+TOG 5 VMS was a single-seat Windows app with a SQLite file on one machine. It
+is now a web app on hosted Postgres (Supabase) that several people use at once
+from phones and computers. Nothing of the client's stays switched on.
+
+An earlier attempt (`feat/online-migration-v0.4.0`, complete and still on
+GitHub) built this self-hosted, behind a Cloudflare Tunnel, needing a PC left
+running. It was abandoned because it rested on a misreading: "no Supabase
+subscription" was taken as "no Supabase", when the free tier had always been
+acceptable. Worth recording as the more expensive kind of mistake — the work
+was correct and the premise was not.
+
+### What was built
+
+**The database** (`supabase/migrations/`, 23 files). Twenty tables, UUID keys,
+real date and money types. Row level security everywhere, including
+`deleted_at is null` so a soft-deleted row does not exist for any client. The
+business rules that were 16,688 lines of Rust are now Postgres functions: due
+status, the five-state template applicability evaluator, service completion,
+reminder reconciliation, fuel efficiency, cost reporting, the dashboard.
+
+**Tests** (`supabase/tests/`). Twelve files against a throwaway Postgres, each
+in its own database cloned from a template — sharing one meant rows from one
+test changed what the next one saw. `mutate.sh` weakens one access rule at a
+time and confirms the suite notices; all eight mutations are caught.
+
+**The frontend.** Every API module rewritten against `supabase-js`. Component
+signatures unchanged, so no screen needed rewriting. Auth, an approval flow,
+storage with browser-side image compression, and a real export replacing the
+old backup system.
+
+**The clients.** PWA (add to home screen, updates itself), an Android APK via
+Capacitor, and the Tauri app reduced from 16,688 lines of Rust to a window.
+
+**The client's data.** All 1,304 rows and 12 files, rehearsed against a
+throwaway database before anything touched the live project.
+
+### Commands run
+
+`supabase/tests/run.sh` — OK.
+`supabase/tests/mutate.sh` — every weakened rule caught.
+`npm run lint`, `npm run typecheck`, `npm run test` (28 passing), `npm run build`.
+`cargo check` in `src-tauri`.
+`supabase/rehearse_migration.sh` against the real backup, then the live load.
+
+### Errors encountered
+
+Recorded because each one hid the same way — nothing failed, the wrong answer
+just looked like a normal one.
+
+1. **Fuel logs never moved the vehicle's odometer.** Ported everywhere except
+   the fuel path. Every kilometre-based reminder waited for a distance the
+   vehicle never appeared to travel: nothing came due, no alert was raised, and
+   the fleet looked healthy while its services fell behind. Found by the user
+   testing, not by the suite.
+2. **`vehicle_documents` had an `updated_at` trigger and no `updated_at`
+   column.** Attaching any receipt failed outright; saving without one worked
+   perfectly. Every test had saved without an attachment.
+3. **The dashboard claimed backups ran automatically.** Written believing
+   Supabase's managed backups applied; they do not on the free plan. A
+   reassuring message is exactly what stops somebody taking the export that
+   would have saved them.
+4. **Missing table grants.** Every request came back "permission denied" while
+   the whole suite passed — the harness applied its own grants, so it was
+   testing a differently-configured database.
+5. **Invented cost-event source names.** `fuel` instead of `fuel_log`. Every
+   report would have read zero while looking perfectly healthy.
+6. **Views without `security_invoker`.** A view runs as its owner; all nine
+   would have been a way straight around row level security.
+7. **Sign-up was the same as getting in.** The publishable key ships in the
+   app, so anyone who found the address could create an account and read the
+   whole fleet. New accounts now wait for an owner.
+
+### Decisions made
+
+- **Rules live in Postgres, not the client.** Four clients reach PostgREST
+  directly; a rule in TypeScript is not a rule.
+- **Consequences are triggers.** The odometer moving re-evaluates reminders,
+  regardless of which screen anybody has open.
+- **Online-only, failing visibly.** No cached fleet data. A stale odometer
+  reading with no way to tell it is stale is worse than a spinner.
+- **The APK and Windows app package the web build** rather than fetching it, so
+  a driver with no signal gets our own message instead of a browser error page.
+  Cost: shipping a change means a new APK.
+- **The client's 363 custom maintenance items were carried unchanged**,
+  including 51 archived-then-recreated pairs. They are history, not clutter.
+- **Dismissed alerts were migrated deliberately.** A dismissal permanently
+  suppresses that reminder, and the two in the file were the two schedules
+  still reading due_soon.
+
+### Remaining issues
+
+- The UI is dated and has known layout problems. A full overhaul is planned and
+  these are deliberately not being fixed piecemeal.
+- The maintenance screen lists 363 items and up to 66 reminders on one vehicle.
+  Faithful to the desktop, and the first thing worth rethinking in that
+  overhaul.
+- The database password passed through a chat transcript and should be rotated.
+- Nothing is due until 2026-10-18, so an empty Alerts screen is currently
+  correct rather than broken.
+
+### Suggested next step
+
+Deploy the web app (`docs/deploying.md`), have the client sign up their staff,
+and let an owner admit them. Then the UI overhaul.

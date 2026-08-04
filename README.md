@@ -1,38 +1,72 @@
-# TOG 5 VMS — Codex Specification Pack
+# TOG 5 VMS
 
-This folder contains the working specification files for building **TOG 5 VMS**, a local-first desktop Vehicle Maintenance System.
+A Vehicle Maintenance System for the TOG 5 fleet: vehicles, fuel, trips,
+maintenance schedules, service history, expenses, and alerts.
 
-These files are meant to be read by Codex before coding tasks. The human workflow is:
+Several staff use it at once, from phones and computers, wherever they are.
+Nothing of the client's has to stay switched on.
 
-1. Use ChatGPT Chat for planning, prompt optimization, troubleshooting, and manual instructions.
-2. Use Codex in VS Code for actual implementation.
-3. After every Codex task, update `live-update.md` with what changed, what passed, what failed, and what should happen next.
-4. Send the updated `live-update.md` back to ChatGPT Chat before asking for the next phase prompt.
+## Running it
 
-## Recommended Reading Order for Codex
+```sh
+npm install
+cp .env.example .env.local     # fill in from the Supabase dashboard
+npm run dev                    # http://127.0.0.1:1420
+```
 
-1. `AGENTS.md`
-2. `00-project-brief.md`
-3. `01-tech-stack-architecture.md`
-4. `02-functional-specification.md`
-5. `03-data-model.md`
-6. `04-maintenance-template-engine.md`
-7. `05-ui-ux-specification.md`
-8. `06-business-rules.md`
-9. `07-development-phases.md`
-10. `08-testing-quality.md`
-11. `live-update.md`
+```sh
+npm run lint
+npm run typecheck
+npm run test
+npm run build
 
-## Project Principle
+supabase/tests/run.sh          # the database, in a throwaway Postgres
+supabase/tests/mutate.sh       # prove those tests can fail
+```
 
-TOG 5 VMS must be:
+Everything but `npm install` needs no account. The database suite needs Docker
+and nothing else.
 
-- Local-only
-- Private
-- Desktop-first
-- Startup-on-boot capable
-- User-friendly
-- Maintenance-template driven
-- Safe from incorrect universal maintenance assumptions
+## How it fits together
 
-The most important architectural idea is the **smart maintenance template engine**. Maintenance tasks must adapt to vehicle type, fuel type, transmission type, drivetrain, and vehicle features.
+There is no application server. The browser talks to Postgres directly, and
+Postgres decides what it is allowed to do — access rules, business logic and
+the consequences of a change all live there. `specs/01-tech-stack-architecture.md`
+explains why, and it is the thing to read first.
+
+```text
+src/           React and TypeScript. Thin: every call goes to a view or a function.
+supabase/      The real schema, its tests, and the tools to apply it.
+src-tauri/     A window for the Windows app. Nothing else.
+specs/         What this is meant to do and why.
+docs/          Deploying it, and the user manual.
+```
+
+## Where things are documented
+
+| Question | File |
+| --- | --- |
+| What is this for, and who uses it | `specs/00-project-brief.md` |
+| How it is built, and why that way | `specs/01-tech-stack-architecture.md` |
+| What each screen does | `specs/02-functional-specification.md` |
+| Tables and fields | `specs/03-data-model.md` |
+| How maintenance items pick vehicles | `specs/04-maintenance-template-engine.md` |
+| Rules that must not be got wrong | `specs/06-business-rules.md` |
+| The database, and testing it | `supabase/README.md` |
+| Putting it online | `docs/deploying.md` |
+| Using it | `docs/TOG5-VMS-user-manual-v0.4.0.md` |
+| What happened, in order | `specs/live-update.md` |
+
+## The idea that matters most
+
+The **maintenance template engine**. Maintenance tasks adapt to vehicle type,
+fuel type, transmission, drivetrain and features — a diesel truck must never be
+told to change its spark plugs, and an EV must never be told to change its oil.
+Getting that wrong produces confident, wrong advice rather than an error, which
+is the worst failure this app has.
+
+## History
+
+Versions up to 0.3 were a single-seat Windows app with a local SQLite file.
+Version 0.4 moved the records to hosted Postgres so several people could use
+them at once. `main` still holds the desktop version if it is ever wanted.

@@ -164,9 +164,7 @@ export async function updateExpense(
   id: string,
   request: ExpenseMutationRequest,
 ): Promise<ExpenseRecord> {
-  return getExpense(
-    await rpc<string>("save_expense", { expense_id: id, ...expenseArgs(request) }),
-  );
+  return getExpense(await rpc<string>("save_expense", { expense_id: id, ...expenseArgs(request) }));
 }
 
 export async function archiveExpense(id: string): Promise<void> {

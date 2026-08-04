@@ -81,8 +81,8 @@ export function ServiceHistoryModule() {
           <div>
             <h2>Service History</h2>
             <p>
-              Completed maintenance records for each vehicle. These records also feed
-              your reports and cost summaries.
+              Completed maintenance records for each vehicle. These records also feed your reports
+              and cost summaries.
             </p>
           </div>
 

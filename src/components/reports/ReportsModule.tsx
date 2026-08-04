@@ -311,9 +311,7 @@ export function ReportsModule() {
           <div className="report-export-status">
             <div>
               <strong>CSV downloaded.</strong>
-              <span>
-                {exportResult.filename} is wherever this device saves downloads.
-              </span>
+              <span>{exportResult.filename} is wherever this device saves downloads.</span>
             </div>
           </div>
         ) : null}
