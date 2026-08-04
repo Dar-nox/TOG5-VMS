@@ -220,4 +220,100 @@ begin
   assert refused, 'a receipt from another vehicle must not be filed against this one';
 end $$;
 
+
+-- ---------------------------------------------------------------------------
+-- Attaching a receipt
+--
+-- Every test above saved work without one, which is how vehicle_documents kept
+-- a set_updated_at trigger and no updated_at column for as long as it did:
+-- nothing here ever updated a document row, and updating one is the only thing
+-- that failed.
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v uuid;
+  s uuid;
+  t uuid;
+  receipt uuid;
+  photo_before uuid;
+  photo_after uuid;
+  result public.maintenance_completion;
+  document record;
+begin
+  select vehicle_id, schedule_id into v, s
+  from pg_temp.vehicle_with_reminder('Receipt Van');
+
+  insert into public.vehicle_documents
+    (vehicle_id, document_type, storage_path, original_filename)
+  values (v, 'maintenance_receipt', 'maintenance-receipts/r.png', 'receipt.png')
+  returning id into receipt;
+
+  insert into public.vehicle_photos (vehicle_id, storage_path, mime_type)
+  values (v, 'maintenance-photos/before.jpg', 'image/jpeg') returning id into photo_before;
+  insert into public.vehicle_photos (vehicle_id, storage_path, mime_type)
+  values (v, 'maintenance-photos/after.jpg', 'image/jpeg') returning id into photo_after;
+
+  result := public.complete_maintenance_schedule(
+    schedule_id => s,
+    completed_date => current_date,
+    odometer => 10600,
+    work_performed => 'Changed oil, kept the receipt',
+    receipt_document_id => receipt,
+    before_photo_id => photo_before,
+    after_photo_id => photo_after
+  );
+
+  select * into document from public.vehicle_documents where id = receipt;
+  assert document.related_record_type = 'maintenance_log',
+    'the receipt should be filed against the service record';
+  assert document.related_record_id = result.log_id, 'and point at the right one';
+  assert document.updated_at is not null, 'and know when it was last touched';
+
+  -- The same path, for work with no reminder behind it.
+  declare
+    second_receipt uuid;
+    logged public.maintenance_completion;
+  begin
+    select id into t from public.maintenance_templates where template_key = 'brake_inspection';
+
+    insert into public.vehicle_documents
+      (vehicle_id, document_type, storage_path, original_filename)
+    values (v, 'maintenance_receipt', 'maintenance-receipts/r2.png', 'brakes.png')
+    returning id into second_receipt;
+
+    logged := public.log_maintenance(
+      vehicle_id => v, template_id => t, completed_date => current_date,
+      odometer => 10700, work_performed => 'Brake check',
+      receipt_document_id => second_receipt
+    );
+
+    assert (select related_record_id from public.vehicle_documents where id = second_receipt)
+           = logged.log_id,
+      'logging work with a receipt should file it too';
+  end;
+
+  -- And for fuel, which links its receipt the same way.
+  declare
+    fuel_receipt uuid;
+    fuel_id uuid;
+  begin
+    insert into public.vehicle_documents
+      (vehicle_id, document_type, storage_path, original_filename)
+    values (v, 'fuel_receipt', 'fuel-receipts/f.png', 'fuel.png') returning id into fuel_receipt;
+
+    insert into public.fuel_logs
+      (vehicle_id, fuel_date, odometer, fuel_type, liters, total_amount, is_full_tank,
+       receipt_document_id)
+    values (v, now(), 10800, 'diesel', 40, 2000, true, fuel_receipt) returning id into fuel_id;
+
+    update public.vehicle_documents
+    set related_record_type = 'fuel_log', related_record_id = fuel_id
+    where id = fuel_receipt;
+
+    assert (select related_record_id from public.vehicle_documents where id = fuel_receipt)
+           = fuel_id,
+      'a fuel receipt should link to its fuel log';
+  end;
+end $$;
+
 select 'service history behaves as it did on the desktop' as result;
