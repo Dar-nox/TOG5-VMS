@@ -19,6 +19,8 @@ pnpm-debug.log*
 *.db
 *.tog5backup
 *.tog5backup/
+# Generated from a real backup: names the client's own machine and folders.
+migration-files.tsv
 vehicle-photos/
 fuel-receipts/
 maintenance-receipts/
