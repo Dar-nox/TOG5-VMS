@@ -532,6 +532,12 @@ class Loader:
         self.write("-- Now work out what is due, once, with everything in place.")
         self.write("select public.refresh_maintenance_alerts_for_all_vehicles();")
         self.write()
+        self.write("-- The mapping goes away with the load. It is worked out from the old")
+        self.write("-- id rather than remembered, so this script can rebuild it at any")
+        self.write("-- time — and a table left behind in public would be one more thing")
+        self.write("-- carrying access rules of its own.")
+        self.write("drop table public.id_map;")
+        self.write()
         self.write("commit;")
 
 
