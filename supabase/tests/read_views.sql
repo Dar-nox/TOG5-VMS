@@ -111,7 +111,7 @@ begin
     select * into row_out from public.vehicle_maintenance_settings_detailed
     where id = setting_id;
     assert row_out.template_name = 'Engine Oil Change', 'the reminder should name the item';
-    assert row_out.template_priority = 'high', 'and carry its priority';
+    assert row_out.priority = 'high', 'and carry its priority';
   end;
 end $$;
 

@@ -36,24 +36,38 @@ one thing nothing else would have: when a schedule is overdue by both date and
 distance, the Rust original reports the odometer reason, because `max_by_key`
 returns the last maximum. No desktop test covered it.
 
+## Applying migrations to the real project
+
+```sh
+PGPASSWORD='the database password' supabase/push.sh
+```
+
+Every migration is written to be safe to re-apply, so running the whole set is
+the normal thing to do. Pass filenames to apply only some.
+
+Two things about the connection are worth knowing before you go looking for
+them again. The direct host, `db.<ref>.supabase.co`, has no A record on the
+free tier — without IPv6 it simply will not resolve, which looks like a typo
+rather than a plan. Use the pooler, on port 5432 rather than 6543, because
+migrations are DDL.
+
 ## The CLI
 
-`npx supabase` may fail on Windows with `No matching Supabase CLI binary
-package found for win32-x64`. That is an npm optional-dependency bug, not a
+You do not need it: `push.sh` and `tests/run.sh` both use Docker. If you want
+it anyway, `npx supabase` may fail on Windows with `No matching Supabase CLI
+binary package found for win32-x64` — an npm optional-dependency bug, not a
 problem with the project. Install it directly instead:
 
 ```sh
 winget install Supabase.CLI
 ```
 
-Nothing in `tests/` needs the CLI. You only need it to push migrations to a
-real project.
-
 ## Files
 
 | Path | What it is |
 | --- | --- |
 | `migrations/` | Applied in filename order. The real schema. |
+| `push.sh` | Apply migrations to the real project |
 | `tests/run.sh` | Apply everything to a throwaway Postgres and test it |
 | `tests/mutate.sh` | Prove the tests can fail |
 | `tests/local_auth_stub.sql` | Enough of Supabase's auth surface to test policies locally. **Never applied to a real project** — note it is in `tests/`, not `migrations/`. |

@@ -85,7 +85,7 @@ begin
                         'vehicleId', d.vehicle_id,
                         'vehicleName', d.vehicle_name,
                         'templateName', d.template_name,
-                        'category', d.template_category,
+                        'category', d.category,
                         'priority', d.priority,
                         'dueStatus', d.status,
                         'dueReason', (public.evaluate_due_status(
