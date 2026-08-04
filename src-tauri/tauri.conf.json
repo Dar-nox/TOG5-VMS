@@ -20,15 +20,6 @@
       }
     ],
     "security": {
-      "assetProtocol": {
-        "enable": true,
-        "scope": [
-          "$APPDATA/vehicle-photos/**",
-          "$APPDATA/fuel-receipts/**",
-          "$APPDATA/maintenance-receipts/**",
-          "$APPDATA/maintenance-photos/**"
-        ]
-      },
       "csp": null
     }
   },

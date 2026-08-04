@@ -1,97 +1,17 @@
-mod backup;
-mod dashboard;
-mod db;
-pub mod domain;
-mod expenses;
-mod fuel;
-mod maintenance;
-mod reports;
-mod settings;
-mod trips;
-mod vehicles;
+//! The Windows app.
+//!
+//! A window with TOG 5 VMS in it, and nothing else. The records live in
+//! Postgres and the app talks to them directly, so there is no local database,
+//! no backup format, and no commands for the frontend to call — all of which
+//! used to be here, and all of which are now Supabase's job.
+//!
+//! What is left exists so the fleet keeps a Start-menu icon. The web app is
+//! the same thing in a browser; anybody who would rather not install
+//! something can use that instead.
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .setup(|app| {
-            db::initialize_app_database(app.handle()).map_err(std::io::Error::other)?;
-            let mut connection =
-                db::open_app_connection(app.handle()).map_err(std::io::Error::other)?;
-            maintenance::repository::seed_default_templates(&mut connection)
-                .map_err(std::io::Error::other)?;
-            settings::repository::ensure_default_settings(&connection)
-                .map_err(std::io::Error::other)?;
-            settings::repository::ensure_default_owner_user(&connection)
-                .map_err(std::io::Error::other)?;
-            Ok(())
-        })
-        .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![
-            db::database_status,
-            backup::commands::create_backup,
-            backup::commands::validate_backup_file,
-            backup::commands::restore_backup,
-            backup::commands::list_backups,
-            backup::commands::get_local_file_safety_summary,
-            dashboard::commands::get_dashboard_overview,
-            expenses::commands::list_expenses,
-            expenses::commands::list_expenses_for_vehicle,
-            expenses::commands::get_expense,
-            expenses::commands::create_expense,
-            expenses::commands::update_expense,
-            expenses::commands::archive_expense,
-            expenses::commands::get_expense_summary,
-            expenses::commands::get_vehicle_cost_report,
-            expenses::commands::get_reports_overview,
-            fuel::commands::list_fuel_logs_for_vehicle,
-            fuel::commands::get_fuel_log,
-            fuel::commands::create_fuel_log,
-            fuel::commands::update_fuel_log,
-            fuel::commands::archive_fuel_log,
-            fuel::commands::store_fuel_receipt,
-            fuel::commands::get_fuel_efficiency_summary_for_vehicle,
-            maintenance::commands::list_maintenance_templates,
-            maintenance::commands::get_applicable_maintenance_templates_for_vehicle,
-            maintenance::commands::seed_maintenance_templates,
-            maintenance::commands::create_maintenance_template,
-            maintenance::commands::update_maintenance_template,
-            maintenance::commands::archive_maintenance_template,
-            maintenance::commands::list_maintenance_schedules_for_vehicle,
-            maintenance::commands::sync_maintenance_schedules_for_vehicle,
-            maintenance::commands::list_vehicle_maintenance_settings,
-            maintenance::commands::upsert_vehicle_maintenance_setting,
-            maintenance::commands::archive_vehicle_maintenance_setting,
-            maintenance::commands::refresh_maintenance_alerts_for_vehicle,
-            maintenance::commands::list_alerts,
-            maintenance::commands::dismiss_alert,
-            maintenance::commands::complete_maintenance_schedule,
-            maintenance::commands::log_maintenance,
-            maintenance::commands::list_service_history_for_vehicle,
-            maintenance::commands::get_maintenance_log,
-            maintenance::commands::store_maintenance_receipt,
-            maintenance::commands::store_maintenance_photo,
-            reports::commands::export_report_csv,
-            settings::commands::get_app_settings,
-            settings::commands::update_app_settings,
-            settings::commands::reset_app_settings,
-            settings::commands::list_local_users,
-            settings::commands::update_local_user,
-            settings::commands::get_access_summary,
-            settings::commands::clear_app_data,
-            trips::commands::list_trips,
-            trips::commands::list_open_trips,
-            trips::commands::get_trip,
-            trips::commands::start_trip,
-            trips::commands::complete_trip,
-            trips::commands::archive_trip,
-            trips::commands::get_trip_reports_overview,
-            vehicles::commands::list_vehicles,
-            vehicles::commands::get_vehicle,
-            vehicles::commands::store_vehicle_photo,
-            vehicles::commands::create_vehicle,
-            vehicles::commands::update_vehicle,
-            vehicles::commands::archive_vehicle,
-        ])
         .run(tauri::generate_context!())
         .expect("error while running TOG 5 VMS");
 }
