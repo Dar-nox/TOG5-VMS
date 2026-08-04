@@ -181,12 +181,23 @@ $$;
 -- The refresh itself
 -- ---------------------------------------------------------------------------
 
-create type public.alert_refresh_result as (
-  vehicle_id uuid,
-  created_count integer,
-  updated_count integer,
-  resolved_count integer
-);
+-- Guarded so that re-applying this file is a no-op, which every other
+-- statement in it already is.
+do $do$
+begin
+  if not exists (
+    select 1 from pg_type t
+    join pg_namespace n on n.oid = t.typnamespace
+    where n.nspname = 'public' and t.typname = 'alert_refresh_result'
+  ) then
+    create type public.alert_refresh_result as (
+    vehicle_id uuid,
+    created_count integer,
+    updated_count integer,
+    resolved_count integer
+    );
+  end if;
+end $do$;
 
 create or replace function public.refresh_maintenance_alerts_for_vehicle(
   vehicle_id uuid,

@@ -346,9 +346,14 @@ function YourAccountSection(props: {
       <form className="settings-form-grid" onSubmit={(event) => void handleChangePassword(event)}>
         <label className="form-field">
           <span>New password</span>
+          {/*
+            No minLength attribute on purpose. It makes the browser refuse the
+            submit with a tooltip that is easy to miss, which reads as the
+            button doing nothing — the check below says the same thing where
+            the rest of the messages appear.
+          */}
           <input
             autoComplete="new-password"
-            minLength={8}
             type="password"
             value={newPassword}
             onChange={(event) => setNewPassword(event.target.value)}

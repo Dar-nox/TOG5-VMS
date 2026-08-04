@@ -160,3 +160,65 @@ begin
 end $$;
 
 select 'fuel efficiency matches the desktop rules' as result;
+
+-- ---------------------------------------------------------------------------
+-- Recording fuel moves the vehicle forward
+--
+-- This was missing from the port, and nothing failed because of it: the fuel
+-- log saved, the vehicle stayed on its old reading, and every reminder
+-- measured in kilometres waited for a distance the vehicle never seemed to
+-- travel. The fleet looked healthy while its services fell behind.
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v uuid;
+  t uuid;
+begin
+  insert into public.vehicles (vehicle_name, vehicle_type, fuel_type, current_odometer)
+  values ('Odometer Van', 'van', 'diesel', 10000) returning id into v;
+
+  select id into t from public.maintenance_templates where template_key = 'engine_oil_change';
+  perform public.upsert_vehicle_maintenance_setting(
+    vehicle_id => v, template_id => t, custom_odometer_interval_km => 5000
+  );
+
+  assert (select next_due_odometer from public.maintenance_schedules where vehicle_id = v)
+         = 15000,
+    'the oil change should be due 5,000 km from where the van stands';
+
+  insert into public.fuel_logs
+    (vehicle_id, fuel_date, odometer, fuel_type, liters, total_amount, is_full_tank)
+  values (v, now(), 14800, 'diesel', 50, 2500, true);
+
+  assert (select current_odometer from public.vehicles where id = v) = 14800,
+    'the fill-up should have moved the van forward, got '
+      || (select current_odometer from public.vehicles where id = v);
+
+  -- 200 km short of due, inside the 500 km warning, so somebody should be told.
+  assert exists (
+    select 1 from public.alerts
+    where vehicle_id = v and status = 'active' and alert_type = 'due_soon_by_odometer'
+  ), 'coming up on the oil change should raise an alert without anybody opening a screen';
+
+  -- A fill-up entered late, with an older reading, must not wind it back.
+  insert into public.fuel_logs
+    (vehicle_id, fuel_date, odometer, fuel_type, liters, total_amount, is_full_tank)
+  values (v, now() - interval '10 days', 12000, 'diesel', 40, 2000, true);
+
+  assert (select current_odometer from public.vehicles where id = v) = 14800,
+    'a late entry with an older reading must not move the van backwards';
+
+  -- Passing the due reading turns the warning into an overdue alert.
+  insert into public.fuel_logs
+    (vehicle_id, fuel_date, odometer, fuel_type, liters, total_amount, is_full_tank)
+  values (v, now(), 15600, 'diesel', 45, 2250, true);
+
+  assert (select current_odometer from public.vehicles where id = v) = 15600,
+    'the later fill-up should move it forward again';
+  assert exists (
+    select 1 from public.alerts
+    where vehicle_id = v and status = 'active' and alert_type = 'overdue_by_odometer'
+  ), 'passing the due reading should raise an overdue alert';
+end $$;
+
+select 'fuel logs move the vehicle odometer forward' as result;

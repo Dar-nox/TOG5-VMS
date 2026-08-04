@@ -17,13 +17,24 @@
 -- The asymmetry in step 4 is deliberate and is in the original: the fallback
 -- match ignores requires_feature but still honours excludes_feature.
 
-create type public.template_applicability as (
-  applicability_status text,
-  is_auto_applicable boolean,
-  reason text,
-  warnings text[],
-  matched_rule_ids uuid[]
-);
+-- Guarded so that re-applying this file is a no-op, which every other
+-- statement in it already is.
+do $do$
+begin
+  if not exists (
+    select 1 from pg_type t
+    join pg_namespace n on n.oid = t.typnamespace
+    where n.nspname = 'public' and t.typname = 'template_applicability'
+  ) then
+    create type public.template_applicability as (
+    applicability_status text,
+    is_auto_applicable boolean,
+    reason text,
+    warnings text[],
+    matched_rule_ids uuid[]
+    );
+  end if;
+end $do$;
 
 -- A rule dimension is either "any" (null) or an exact match.
 create or replace function public.rule_field_matches(rule_value text, vehicle_value text)

@@ -39,12 +39,23 @@ begin
 end;
 $$;
 
-create type public.maintenance_completion as (
-  log_id uuid,
-  schedule_id uuid,
-  resolved_alert_count integer,
-  reminder_used boolean
-);
+-- Guarded so that re-applying this file is a no-op, which every other
+-- statement in it already is.
+do $do$
+begin
+  if not exists (
+    select 1 from pg_type t
+    join pg_namespace n on n.oid = t.typnamespace
+    where n.nspname = 'public' and t.typname = 'maintenance_completion'
+  ) then
+    create type public.maintenance_completion as (
+    log_id uuid,
+    schedule_id uuid,
+    resolved_alert_count integer,
+    reminder_used boolean
+    );
+  end if;
+end $do$;
 
 -- ---------------------------------------------------------------------------
 -- Completing a scheduled reminder
@@ -167,13 +178,6 @@ begin
       notes = null
   where id = complete_maintenance_schedule.schedule_id;
 
-  -- The odometer only ever goes up.
-  update public.vehicles
-  set current_odometer = completion_odometer
-  where id = context.vehicle_id
-    and current_odometer < completion_odometer
-    and deleted_at is null;
-
   if receipt_document_id is not null then
     update public.vehicle_documents
     set related_record_type = 'maintenance_log', related_record_id = log_id
@@ -183,6 +187,17 @@ begin
   -- Finishing the work clears every maintenance alert for it, whatever the
   -- reason each was raised for.
   resolved := public.resolve_stale_schedule_alerts(complete_maintenance_schedule.schedule_id, null);
+
+  -- The odometer only ever goes up, and this is deliberately the last thing
+  -- done. Moving it re-evaluates every other reminder on the vehicle, which
+  -- has to see this completion already recorded — and the count above has to
+  -- mean "what finishing this work cleared" rather than whatever the sweep
+  -- happened to tidy on its way past.
+  update public.vehicles
+  set current_odometer = completion_odometer
+  where id = context.vehicle_id
+    and current_odometer < completion_odometer
+    and deleted_at is null;
 
   return row(log_id, complete_maintenance_schedule.schedule_id, resolved, true)
     ::public.maintenance_completion;

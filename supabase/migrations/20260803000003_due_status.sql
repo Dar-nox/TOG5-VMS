@@ -8,11 +8,22 @@
 --
 -- The reason strings are shown to people, so they are reproduced exactly.
 
-create type public.due_evaluation as (
-  status text,
-  reason text,
-  alert_type text
-);
+-- Guarded so that re-applying this file is a no-op, which every other
+-- statement in it already is.
+do $do$
+begin
+  if not exists (
+    select 1 from pg_type t
+    join pg_namespace n on n.oid = t.typnamespace
+    where n.nspname = 'public' and t.typname = 'due_evaluation'
+  ) then
+    create type public.due_evaluation as (
+    status text,
+    reason text,
+    alert_type text
+    );
+  end if;
+end $do$;
 
 -- "1,200 km" not "1200.0 km", but "1,200.5 km" when the halves matter.
 create or replace function public.format_km(value numeric)
