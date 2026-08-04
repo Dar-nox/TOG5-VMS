@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { ConnectionProblemScreen } from "../components/auth/ConnectionProblemScreen";
+import { NotAdmittedScreen } from "../components/auth/NotAdmittedScreen";
 import { SignInScreen } from "../components/auth/SignInScreen";
 import { AppLayout } from "../components/common/AppLayout";
 import type { PageId } from "../types/navigation";
@@ -39,6 +40,8 @@ function AppGate() {
       return <ConnectionProblemScreen />;
     case "signed-out":
       return <SignInScreen />;
+    case "not-admitted":
+      return <NotAdmittedScreen />;
     case "signed-in":
       return <Workspace />;
   }

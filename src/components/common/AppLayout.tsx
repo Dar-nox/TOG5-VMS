@@ -24,7 +24,7 @@ export function AppLayout({
       <div className="workspace">
         <header className="top-header">
           <div>
-            <p className="eyebrow">Local desktop vehicle maintenance system</p>
+            <p className="eyebrow">Vehicle maintenance system</p>
             <h1>{activeItem.label}</h1>
             <p>{activeItem.description}</p>
           </div>

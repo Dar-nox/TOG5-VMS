@@ -27,9 +27,17 @@ begin
   assert (select role from public.profiles
           where id = 'a0000000-0000-0000-0000-000000000001') = 'owner',
     'the first account to sign up should be the owner';
+  assert (select status from public.profiles
+          where id = 'a0000000-0000-0000-0000-000000000001') = 'active',
+    'and should be able to start work immediately';
   assert (select role from public.profiles
           where id = 'a0000000-0000-0000-0000-000000000002') = 'manager',
     'later accounts should be managers, not owners';
+  -- The key that lets somebody sign up ships inside the app. Anyone who has
+  -- the app has it, so signing up must not be the same thing as getting in.
+  assert (select status from public.profiles
+          where id = 'a0000000-0000-0000-0000-000000000002') = 'pending',
+    'later accounts should wait for an owner to let them in';
   assert (select display_name from public.profiles
           where id = 'a0000000-0000-0000-0000-000000000002') = 'Maria Santos',
     'the display name should come from the sign-up metadata';
@@ -38,6 +46,26 @@ end $$;
 -- A vehicle to test against, inserted as the table owner before RLS applies.
 insert into public.vehicles (id, vehicle_name, vehicle_type, fuel_type, current_odometer)
 values ('b0000000-0000-0000-0000-000000000001', 'Service Van 1', 'van', 'diesel', 1200);
+
+-- --------------------------------------------------------------------------
+-- Somebody who has signed up but not been let in sees nothing
+-- --------------------------------------------------------------------------
+begin;
+  set local role authenticated;
+  set local request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000002';
+  do $$
+  begin
+    assert (select count(*) from public.vehicles) = 0,
+      'a pending account must not see the fleet, even though one exists';
+    assert (select count(*) from public.settings) = 0,
+      'nor the settings';
+  end $$;
+rollback;
+
+-- Let Maria in, the way an owner would. Everything below is about somebody
+-- who has been admitted.
+update public.profiles set status = 'active'
+where id = 'a0000000-0000-0000-0000-000000000002';
 
 -- --------------------------------------------------------------------------
 -- Nobody signed in sees anything

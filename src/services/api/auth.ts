@@ -5,6 +5,12 @@ export type SignedInUser = {
   email: string;
   displayName: string;
   role: "owner" | "manager" | "viewer";
+  /**
+   * Signing in and being let in are two different things. A new sign-up is
+   * `pending` until an owner admits them, and until then every table returns
+   * nothing — so the app has to know, or it looks broken instead of waiting.
+   */
+  status: "active" | "pending" | "inactive";
 };
 
 /**
@@ -21,8 +27,16 @@ export async function currentUser(): Promise<SignedInUser | null> {
     return null;
   }
 
-  const profile = unwrap<{ displayName: string; role: SignedInUser["role"] }>(
-    await supabase.from("profiles").select("display_name, role").eq("id", session.user.id).single(),
+  const profile = unwrap<{
+    displayName: string;
+    role: SignedInUser["role"];
+    status: SignedInUser["status"];
+  }>(
+    await supabase
+      .from("profiles")
+      .select("display_name, role, status")
+      .eq("id", session.user.id)
+      .single(),
   );
 
   return {
@@ -30,6 +44,7 @@ export async function currentUser(): Promise<SignedInUser | null> {
     email: session.user.email ?? "",
     displayName: profile.displayName,
     role: profile.role,
+    status: profile.status,
   };
 }
 

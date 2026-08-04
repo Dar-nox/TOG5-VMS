@@ -56,3 +56,10 @@ alter table storage.objects enable row level security;
 grant usage on schema storage to anon, authenticated, service_role;
 grant select, insert, update, delete on storage.objects to authenticated, service_role;
 grant select on storage.buckets to anon, authenticated, service_role;
+
+-- Supabase grants these; a plain Postgres does not. Without them a function
+-- that calls auth.uid() while acting as a signed-in user fails here and works
+-- in production, which is the same shape of difference that once let a whole
+-- passing suite hide a project rejecting every request.
+grant usage on schema auth to anon, authenticated, service_role;
+grant execute on function auth.uid() to anon, authenticated, service_role;

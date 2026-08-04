@@ -196,7 +196,7 @@ export function ReportsModule() {
         <div className="reports-header">
           <div>
             <h2>Reports</h2>
-            <p>Local reports for vehicle costs, maintenance records, and operational trip logs.</p>
+            <p>Reports for vehicle costs, maintenance records, and operational trip logs.</p>
           </div>
 
           <div className="report-filter-grid" aria-label="Report filters">

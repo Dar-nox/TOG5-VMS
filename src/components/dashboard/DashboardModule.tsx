@@ -88,7 +88,7 @@ export function DashboardModule({ onNavigate }: DashboardModuleProps) {
       {
         label: "Monthly costs",
         value: formatMoney(overview.costSummary.totalTrackedCost, overview.preferredCurrency),
-        detail: `${formatMonth(overview.costSummary.currentMonth)} tracked locally`,
+        detail: `${formatMonth(overview.costSummary.currentMonth)} tracked so far`,
         tone: "neutral" as const,
       },
       {
@@ -141,11 +141,11 @@ export function DashboardModule({ onNavigate }: DashboardModuleProps) {
     <div className="dashboard-module">
       <section className="dashboard-hero">
         <div>
-          <p className="eyebrow">Local overview</p>
-          <h2>Good day, {overview.ownerDisplayName || "Local Owner"}</h2>
+          <p className="eyebrow">Fleet overview</p>
+          <h2>Good day, {overview.ownerDisplayName || "there"}</h2>
           <p>
-            This dashboard uses only local data on this device. Counts, costs, alerts, and backup
-            reminders update from the records already saved in TOG 5 VMS.
+            Counts, costs and alerts come from the records everyone shares, and change as soon as
+            anybody adds one.
           </p>
           <div className="dashboard-hero-meta">
             <span>Updated {formatDateTime(overview.generatedAt)}</span>

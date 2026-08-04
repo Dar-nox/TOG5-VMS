@@ -24,6 +24,7 @@ mutations=(
   "the history can be rewritten|create policy p on public.audit_logs for update to authenticated using (true) with check (true);"
   "history can name somebody else|drop policy \"signed in users add to the history\" on public.audit_logs; create policy p on public.audit_logs for insert to authenticated with check (true);"
   "anyone signed out can read the fleet|drop policy \"signed in users read vehicles\" on public.vehicles; create policy p on public.vehicles for select to anon, authenticated using (true);"
+  "signing up is the same as getting in|create or replace function public.handle_new_user() returns trigger language plpgsql security definer set search_path = public as \$\$ begin insert into public.profiles (id, display_name, role, status) values (new.id, coalesce(nullif(trim(new.raw_user_meta_data ->> 'display_name'), ''), split_part(new.email, '@', 1)), case when not exists (select 1 from public.profiles) then 'owner' else 'manager' end, 'active'); return new; end; \$\$;"
 )
 
 escaped=0

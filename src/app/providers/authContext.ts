@@ -1,7 +1,12 @@
 import { createContext, useContext } from "react";
 import type { SignedInUser } from "../../services/api/auth";
 
-export type AuthPhase = "checking" | "signed-out" | "signed-in" | "unreachable";
+export type AuthPhase =
+  | "checking"
+  | "signed-out"
+  | "signed-in"
+  | "not-admitted"
+  | "unreachable";
 
 export type AuthContextValue = {
   phase: AuthPhase;

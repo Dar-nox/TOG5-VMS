@@ -503,7 +503,7 @@ function FuelLogForm(props: {
         <small>
           {props.receiptFile?.name ??
             props.form.receiptFilename ??
-            "PNG, JPG, WEBP, or PDF. Stored locally on this device."}
+            "PNG, JPG, WEBP, or PDF. Pictures are shrunk before upload."}
         </small>
       </label>
 

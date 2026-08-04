@@ -21,7 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const signedIn = await currentUser();
       setUser(signedIn);
-      setPhase(signedIn ? "signed-in" : "signed-out");
+      setPhase(phaseFor(signedIn));
     } catch (error) {
       // Reaching Supabase failed, which is different from not being signed in.
       // Saying "please sign in" when the connection is down sends people
@@ -65,7 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signIn: async (email: string, password: string) => {
         const signedIn = await requestSignIn(email, password);
         setUser(signedIn);
-        setPhase("signed-in");
+        setPhase(phaseFor(signedIn));
       },
       signOut: async () => {
         try {
@@ -80,4 +80,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+/**
+ * A correct password is not the same as access. Somebody waiting to be let in,
+ * or switched off again, would otherwise land on a workspace where every panel
+ * is empty and nothing says why.
+ */
+function phaseFor(signedIn: SignedInUser | null): AuthPhase {
+  if (!signedIn) {
+    return "signed-out";
+  }
+
+  return signedIn.status === "active" ? "signed-in" : "not-admitted";
 }

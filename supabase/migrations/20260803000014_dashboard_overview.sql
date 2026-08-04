@@ -209,18 +209,23 @@ begin
   where event_date >= month_start and event_date < month_end;
 
   -- ------------------------------------------------------------------
-  -- Backups
+  -- Exports
   --
-  -- Supabase takes these now, so there is nothing for the client to remember
-  -- to do. The panel says so rather than being removed, because a missing
-  -- backup section on a fleet system invites the question "so who is?".
+  -- An earlier version of this panel said backups ran automatically on the
+  -- server and there was nothing to do. That was wrong, and wrong in the worst
+  -- direction: the plan this runs on takes no automatic copies at all. A
+  -- reassuring message is exactly what stops somebody taking the export that
+  -- would have saved them, so the panel now counts from the last real one.
   -- ------------------------------------------------------------------
-  backup := jsonb_build_object(
-    'latestCompletedAt', null,
-    'latestBackupPath', null,
-    'reminderDue', false,
-    'message', 'Backups run automatically on the server. There is nothing to do here.',
-    'packageNote', 'Managed by Supabase.'
+  backup := (
+    select jsonb_build_object(
+      'latestCompletedAt', status -> 'latestBackupCompletedAt',
+      'latestBackupPath', null,
+      'reminderDue', (status ->> 'reminderDue')::boolean,
+      'message', status ->> 'message',
+      'packageNote', 'Take an export from the Backup screen. Nothing else keeps a copy.'
+    )
+    from public.backup_reminder_status() as status
   );
 
   -- ------------------------------------------------------------------

@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
+import { useAuth } from "../../app/providers/authContext";
+import { changeOwnPassword } from "../../services/api/auth";
 import {
-  clearAppData,
   getAccessSummary,
   getAppSettings,
-  listLocalUsers,
+  listUsers,
   resetAppSettings,
   updateAppSettings,
-  updateLocalUser,
+  updateUser,
   type AccessSummary,
   type AppSettings,
   type AppSettingsResponse,
-  type LocalUserRecord,
+  type UserRecord,
+  type UserStatus,
 } from "../../services/api/settings";
 
 type SettingsFormState = {
@@ -26,13 +28,6 @@ type SettingsFormState = {
   backupReminderIntervalDays: string;
   maintenanceAlertsEnabled: boolean;
   fuelEfficiencyAlertsEnabled: boolean;
-  startupOnBootEnabled: boolean;
-};
-
-type UserFormState = {
-  id: string;
-  displayName: string;
-  role: string;
 };
 
 const roleLabels: Record<string, string> = {
@@ -41,44 +36,31 @@ const roleLabels: Record<string, string> = {
   viewer: "Viewer",
 };
 
+const statusLabels: Record<string, string> = {
+  active: "Working",
+  pending: "Waiting to be let in",
+  inactive: "Switched off",
+};
+
 export function SettingsModule() {
+  const { isOwner, user } = useAuth();
   const [settingsResponse, setSettingsResponse] = useState<AppSettingsResponse | null>(null);
   const [accessSummary, setAccessSummary] = useState<AccessSummary | null>(null);
-  const [users, setUsers] = useState<LocalUserRecord[]>([]);
+  const [users, setUsers] = useState<UserRecord[]>([]);
   const [settingsForm, setSettingsForm] = useState<SettingsFormState>(() =>
     formFromSettings(defaultSettings()),
   );
-  const [userForm, setUserForm] = useState<UserFormState>({
-    displayName: "",
-    id: "",
-    role: "owner",
-  });
+  const [displayName, setDisplayName] = useState("");
   const [loading, setLoading] = useState(true);
   const [savingSettings, setSavingSettings] = useState(false);
-  const [savingUser, setSavingUser] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
   const [resetting, setResetting] = useState(false);
-  const [clearingData, setClearingData] = useState(false);
-  const [clearDataConfirmed, setClearDataConfirmed] = useState(false);
+  const [busyUserId, setBusyUserId] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [formIssues, setFormIssues] = useState<string[]>([]);
 
   const roles = useMemo(() => accessSummary?.roles ?? [], [accessSummary]);
-
-  const applyLoadedState = useCallback(
-    (response: AppSettingsResponse, userRecords: LocalUserRecord[], access: AccessSummary) => {
-      setSettingsResponse(response);
-      setAccessSummary(access);
-      setUsers(userRecords);
-      setSettingsForm(formFromSettings(response.settings));
-      setUserForm({
-        id: response.activeUser.id,
-        displayName: response.activeUser.displayName,
-        role: response.activeUser.role,
-      });
-    },
-    [],
-  );
 
   const loadSettings = useCallback(async () => {
     setLoading(true);
@@ -87,16 +69,21 @@ export function SettingsModule() {
     try {
       const [response, userRecords, access] = await Promise.all([
         getAppSettings(),
-        listLocalUsers(),
+        listUsers(),
         getAccessSummary(),
       ]);
-      applyLoadedState(response, userRecords, access);
+
+      setSettingsResponse(response);
+      setAccessSummary(access);
+      setUsers(userRecords);
+      setSettingsForm(formFromSettings(response.settings));
+      setDisplayName(response.activeUser.displayName);
     } catch (error) {
       setErrorMessage(messageFromError(error));
     } finally {
       setLoading(false);
     }
-  }, [applyLoadedState]);
+  }, []);
 
   useEffect(() => {
     void loadSettings();
@@ -113,7 +100,7 @@ export function SettingsModule() {
   const handleSaveSettings = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      const prepared = prepareSettings(settingsForm);
+      const prepared = prepareSettings(settingsForm, settingsResponse?.settings);
       setFormIssues(prepared.errors);
 
       if (!prepared.request) {
@@ -126,16 +113,16 @@ export function SettingsModule() {
 
       try {
         const response = await updateAppSettings(prepared.request);
-        const [userRecords, access] = await Promise.all([listLocalUsers(), getAccessSummary()]);
-        applyLoadedState(response, userRecords, access);
-        setSuccessMessage("Settings saved locally.");
+        setSettingsResponse(response);
+        setSettingsForm(formFromSettings(response.settings));
+        setSuccessMessage("Settings saved. Everyone sees these.");
       } catch (error) {
         setErrorMessage(messageFromError(error));
       } finally {
         setSavingSettings(false);
       }
     },
-    [applyLoadedState, settingsForm],
+    [settingsForm, settingsResponse],
   );
 
   const handleResetSettings = useCallback(async () => {
@@ -146,68 +133,60 @@ export function SettingsModule() {
 
     try {
       const response = await resetAppSettings();
-      const [userRecords, access] = await Promise.all([listLocalUsers(), getAccessSummary()]);
-      applyLoadedState(response, userRecords, access);
-      setSuccessMessage("Settings reset to local defaults.");
+      setSettingsResponse(response);
+      setSettingsForm(formFromSettings(response.settings));
+      setSuccessMessage("Settings reset to their defaults.");
     } catch (error) {
       setErrorMessage(messageFromError(error));
     } finally {
       setResetting(false);
     }
-  }, [applyLoadedState]);
+  }, []);
 
-  const handleSaveUser = useCallback(
+  const handleSaveProfile = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
 
-      if (!userForm.displayName.trim()) {
+      if (!displayName.trim() || !user) {
         setErrorMessage("Display name is required.");
         return;
       }
 
-      setSavingUser(true);
+      setSavingProfile(true);
       setErrorMessage(null);
       setSuccessMessage(null);
 
       try {
-        await updateLocalUser({
-          id: userForm.id,
-          displayName: userForm.displayName,
-          role: userForm.role,
-        });
+        await updateUser({ id: user.id, displayName });
         await loadSettings();
-        setSuccessMessage("Local user profile saved.");
+        setSuccessMessage("Your name was saved.");
       } catch (error) {
         setErrorMessage(messageFromError(error));
       } finally {
-        setSavingUser(false);
+        setSavingProfile(false);
       }
     },
-    [loadSettings, userForm],
+    [displayName, loadSettings, user],
   );
 
-  const handleClearAppData = useCallback(async () => {
-    if (!clearDataConfirmed) {
-      setErrorMessage("Confirm the clear-data warning before continuing.");
-      return;
-    }
+  const handleUserChange = useCallback(
+    async (id: string, change: { role?: string; status?: UserStatus }) => {
+      setBusyUserId(id);
+      setErrorMessage(null);
+      setSuccessMessage(null);
 
-    setClearingData(true);
-    setErrorMessage(null);
-    setSuccessMessage(null);
-    setFormIssues([]);
-
-    try {
-      const result = await clearAppData({ confirmClearData: true });
-      setClearDataConfirmed(false);
-      await loadSettings();
-      setSuccessMessage(`${result.message} ${result.filesRemoved} local files removed.`);
-    } catch (error) {
-      setErrorMessage(messageFromError(error));
-    } finally {
-      setClearingData(false);
-    }
-  }, [clearDataConfirmed, loadSettings]);
+      try {
+        const updated = await updateUser({ id, ...change });
+        setUsers((current) => current.map((record) => (record.id === id ? updated : record)));
+        setSuccessMessage(`${updated.displayName} updated.`);
+      } catch (error) {
+        setErrorMessage(messageFromError(error));
+      } finally {
+        setBusyUserId(null);
+      }
+    },
+    [],
+  );
 
   return (
     <div className="settings-module">
@@ -216,19 +195,21 @@ export function SettingsModule() {
           <div>
             <h2>Settings</h2>
             <p>
-              Local preferences, access scaffolding, backup reminders, and data safety notes for
-              this device.
+              Preferences everyone shares, who may use TOG 5 VMS, and keeping your own copy of the
+              records.
             </p>
           </div>
 
-          <button
-            className="secondary-button"
-            disabled={loading || resetting}
-            type="button"
-            onClick={() => void handleResetSettings()}
-          >
-            {resetting ? "Resetting..." : "Reset to defaults"}
-          </button>
+          {isOwner ? (
+            <button
+              className="secondary-button"
+              disabled={loading || resetting}
+              type="button"
+              onClick={() => void handleResetSettings()}
+            >
+              {resetting ? "Resetting..." : "Reset to defaults"}
+            </button>
+          ) : null}
         </div>
 
         {loading ? <div className="maintenance-empty-note">Loading settings...</div> : null}
@@ -237,34 +218,43 @@ export function SettingsModule() {
 
         {settingsResponse && accessSummary ? (
           <>
-            <ProfileAccessSection
-              accessSummary={accessSummary}
-              roles={roles}
-              saving={savingUser}
-              userForm={userForm}
-              users={users}
-              onFieldChange={(field, value) =>
-                setUserForm((currentForm) => ({ ...currentForm, [field]: value }))
-              }
-              onSubmit={handleSaveUser}
+            <YourAccountSection
+              displayName={displayName}
+              saving={savingProfile}
+              securityNote={accessSummary.securityNote}
+              onDisplayNameChange={setDisplayName}
+              onSubmit={handleSaveProfile}
             />
 
+            {isOwner ? (
+              <PeopleSection
+                busyUserId={busyUserId}
+                currentUserId={user?.id ?? ""}
+                roles={roles}
+                users={users}
+                onChange={handleUserChange}
+              />
+            ) : (
+              <ColleaguesSection users={users} />
+            )}
+
             <form className="settings-section-stack" onSubmit={handleSaveSettings}>
-              <GeneralPreferencesSection form={settingsForm} onFieldChange={handleSettingsChange} />
-              <MaintenanceAlertsSection form={settingsForm} onFieldChange={handleSettingsChange} />
-              <BackupSafetySection
-                dataSafety={settingsResponse.dataSafety}
+              <GeneralPreferencesSection
                 form={settingsForm}
+                readOnly={!isOwner}
+                onFieldChange={handleSettingsChange}
+              />
+              <MaintenanceAlertsSection
+                form={settingsForm}
+                readOnly={!isOwner}
+                onFieldChange={handleSettingsChange}
+              />
+              <ExportSafetySection
+                form={settingsForm}
+                readOnly={!isOwner}
                 reminder={settingsResponse.backupReminder}
                 onFieldChange={handleSettingsChange}
               />
-              <ClearLocalDataSection
-                confirmed={clearDataConfirmed}
-                clearing={clearingData}
-                onClear={() => void handleClearAppData()}
-                onConfirmChange={setClearDataConfirmed}
-              />
-              <StartupBehaviorSection form={settingsForm} onFieldChange={handleSettingsChange} />
 
               {formIssues.length > 0 ? (
                 <div className="inline-error">
@@ -274,11 +264,17 @@ export function SettingsModule() {
                 </div>
               ) : null}
 
-              <div className="settings-actions">
-                <button className="primary-button" disabled={savingSettings} type="submit">
-                  {savingSettings ? "Saving settings..." : "Save settings"}
-                </button>
-              </div>
+              {isOwner ? (
+                <div className="settings-actions">
+                  <button className="primary-button" disabled={savingSettings} type="submit">
+                    {savingSettings ? "Saving settings..." : "Save settings"}
+                  </button>
+                </div>
+              ) : (
+                <div className="maintenance-empty-note">
+                  Only the fleet owner can change these. They apply to everybody.
+                </div>
+              )}
             </form>
           </>
         ) : null}
@@ -287,64 +283,178 @@ export function SettingsModule() {
   );
 }
 
-function ProfileAccessSection(props: {
-  accessSummary: AccessSummary;
-  users: LocalUserRecord[];
-  roles: AccessSummary["roles"];
-  userForm: UserFormState;
+function YourAccountSection(props: {
+  displayName: string;
   saving: boolean;
-  onFieldChange: <Field extends keyof UserFormState>(
-    field: Field,
-    value: UserFormState[Field],
-  ) => void;
+  securityNote: string;
+  onDisplayNameChange: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
+  const [newPassword, setNewPassword] = useState("");
+  const [passwordBusy, setPasswordBusy] = useState(false);
+  const [passwordNote, setPasswordNote] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+
+  async function handleChangePassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPasswordNote(null);
+    setPasswordError(null);
+
+    if (newPassword.length < 8) {
+      setPasswordError("Use at least 8 characters.");
+      return;
+    }
+
+    setPasswordBusy(true);
+
+    try {
+      await changeOwnPassword(newPassword);
+      setNewPassword("");
+      setPasswordNote("Password changed. It applies the next time you sign in anywhere.");
+    } catch (error) {
+      setPasswordError(messageFromError(error));
+    } finally {
+      setPasswordBusy(false);
+    }
+  }
+
   return (
     <section className="settings-card">
       <div>
-        <h3>Profile & Access</h3>
-        <p>
-          Local role scaffolding is available now. Login, app lock, and permission enforcement are
-          future hardening work.
-        </p>
+        <h3>Your account</h3>
+        <p>{props.securityNote}</p>
       </div>
 
       <form className="settings-form-grid" onSubmit={props.onSubmit}>
         <label className="form-field">
-          <span>Display name</span>
+          <span>Your name</span>
           <input
             required
             type="text"
-            value={props.userForm.displayName}
-            onChange={(event) => props.onFieldChange("displayName", event.target.value)}
+            value={props.displayName}
+            onChange={(event) => props.onDisplayNameChange(event.target.value)}
           />
         </label>
 
-        <label className="form-field">
-          <span>Local role</span>
-          <select
-            value={props.userForm.role}
-            onChange={(event) => props.onFieldChange("role", event.target.value)}
-          >
-            {props.roles.map((role) => (
-              <option key={role.key} value={role.key}>
-                {role.label}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <div className="settings-form-wide settings-access-note">
-          <strong>{props.accessSummary.activeUser.displayName}</strong>
-          <span>{props.accessSummary.securityNote}</span>
-        </div>
-
         <div className="settings-actions settings-form-wide">
           <button className="primary-button" disabled={props.saving} type="submit">
-            {props.saving ? "Saving profile..." : "Save profile"}
+            {props.saving ? "Saving..." : "Save name"}
           </button>
         </div>
       </form>
+
+      <form className="settings-form-grid" onSubmit={(event) => void handleChangePassword(event)}>
+        <label className="form-field">
+          <span>New password</span>
+          <input
+            autoComplete="new-password"
+            minLength={8}
+            type="password"
+            value={newPassword}
+            onChange={(event) => setNewPassword(event.target.value)}
+          />
+        </label>
+
+        <div className="settings-actions settings-form-wide">
+          <button
+            className="secondary-button"
+            disabled={passwordBusy || newPassword.length === 0}
+            type="submit"
+          >
+            {passwordBusy ? "Changing..." : "Change password"}
+          </button>
+        </div>
+
+        {passwordNote ? (
+          <div className="backup-success-note settings-form-wide">{passwordNote}</div>
+        ) : null}
+        {passwordError ? (
+          <div className="inline-error compact settings-form-wide">{passwordError}</div>
+        ) : null}
+      </form>
+    </section>
+  );
+}
+
+function PeopleSection(props: {
+  users: UserRecord[];
+  roles: AccessSummary["roles"];
+  currentUserId: string;
+  busyUserId: string | null;
+  onChange: (id: string, change: { role?: string; status?: UserStatus }) => void;
+}) {
+  const waiting = props.users.filter((user) => user.status === "pending");
+
+  return (
+    <section className="settings-card">
+      <div>
+        <h3>People</h3>
+        <p>
+          Anyone can create an account, so nobody gets in until you let them. Switching somebody off
+          keeps everything they recorded.
+        </p>
+      </div>
+
+      {waiting.length > 0 ? (
+        <div className="settings-reminder due">
+          <strong>
+            {waiting.length === 1
+              ? "1 person is waiting to be let in"
+              : `${waiting.length} people are waiting to be let in`}
+          </strong>
+          <span>They can see nothing at all until you approve them.</span>
+        </div>
+      ) : null}
+
+      <div className="settings-user-list">
+        {props.users.map((user) => {
+          const busy = props.busyUserId === user.id;
+          const isSelf = user.id === props.currentUserId;
+
+          return (
+            <div className="settings-user-row" key={user.id}>
+              <span>
+                {user.displayName}
+                {isSelf ? " (you)" : ""}
+              </span>
+
+              <em>{statusLabels[user.status] ?? user.status}</em>
+
+              <select
+                disabled={busy}
+                value={user.role}
+                onChange={(event) => props.onChange(user.id, { role: event.target.value })}
+              >
+                {props.roles.map((role) => (
+                  <option key={role.key} value={role.key}>
+                    {role.label}
+                  </option>
+                ))}
+              </select>
+
+              {user.status === "active" ? (
+                <button
+                  className="secondary-button"
+                  disabled={busy}
+                  type="button"
+                  onClick={() => props.onChange(user.id, { status: "inactive" })}
+                >
+                  Switch off
+                </button>
+              ) : (
+                <button
+                  className="primary-button"
+                  disabled={busy}
+                  type="button"
+                  onClick={() => props.onChange(user.id, { status: "active" })}
+                >
+                  {user.status === "pending" ? "Let in" : "Switch on"}
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
 
       <div className="settings-role-grid">
         {props.roles.map((role) => (
@@ -354,9 +464,20 @@ function ProfileAccessSection(props: {
           </article>
         ))}
       </div>
+    </section>
+  );
+}
+
+function ColleaguesSection({ users }: { users: UserRecord[] }) {
+  return (
+    <section className="settings-card">
+      <div>
+        <h3>People</h3>
+        <p>Everyone using TOG 5 VMS. Only the fleet owner can change who is here.</p>
+      </div>
 
       <div className="settings-user-list">
-        {props.users.map((user) => (
+        {users.map((user) => (
           <div className="settings-user-row" key={user.id}>
             <span>{user.displayName}</span>
             <em>{roleLabels[user.role] ?? user.role}</em>
@@ -369,6 +490,7 @@ function ProfileAccessSection(props: {
 
 function GeneralPreferencesSection(props: {
   form: SettingsFormState;
+  readOnly: boolean;
   onFieldChange: <Field extends keyof SettingsFormState>(
     field: Field,
     value: SettingsFormState[Field],
@@ -377,14 +499,15 @@ function GeneralPreferencesSection(props: {
   return (
     <section className="settings-card">
       <div>
-        <h3>General Preferences</h3>
-        <p>These affect display labels only. Stored values stay in the original local units.</p>
+        <h3>General preferences</h3>
+        <p>These affect display labels only. Stored values keep their original units.</p>
       </div>
 
       <div className="settings-form-grid">
         <label className="form-field">
           <span>Preferred currency</span>
           <input
+            disabled={props.readOnly}
             maxLength={3}
             type="text"
             value={props.form.preferredCurrency}
@@ -395,6 +518,7 @@ function GeneralPreferencesSection(props: {
         <label className="form-field">
           <span>Distance unit</span>
           <select
+            disabled={props.readOnly}
             value={props.form.distanceUnit}
             onChange={(event) => props.onFieldChange("distanceUnit", event.target.value)}
           >
@@ -406,6 +530,7 @@ function GeneralPreferencesSection(props: {
         <label className="form-field">
           <span>Fuel efficiency display</span>
           <select
+            disabled={props.readOnly}
             value={props.form.fuelEfficiencyUnit}
             onChange={(event) => props.onFieldChange("fuelEfficiencyUnit", event.target.value)}
           >
@@ -417,6 +542,7 @@ function GeneralPreferencesSection(props: {
         <label className="form-field">
           <span>Date display</span>
           <select
+            disabled={props.readOnly}
             value={props.form.dateDisplayPreference}
             onChange={(event) => props.onFieldChange("dateDisplayPreference", event.target.value)}
           >
@@ -432,6 +558,7 @@ function GeneralPreferencesSection(props: {
 
 function MaintenanceAlertsSection(props: {
   form: SettingsFormState;
+  readOnly: boolean;
   onFieldChange: <Field extends keyof SettingsFormState>(
     field: Field,
     value: SettingsFormState[Field],
@@ -440,7 +567,7 @@ function MaintenanceAlertsSection(props: {
   return (
     <section className="settings-card">
       <div>
-        <h3>Maintenance & Alerts</h3>
+        <h3>Maintenance &amp; alerts</h3>
         <p>
           Due-soon defaults apply to new vehicle reminders. Existing reminders keep their stored
           thresholds unless you edit them.
@@ -451,6 +578,7 @@ function MaintenanceAlertsSection(props: {
         <label className="form-field">
           <span>Default due-soon days</span>
           <input
+            disabled={props.readOnly}
             min="0"
             step="1"
             type="number"
@@ -462,6 +590,7 @@ function MaintenanceAlertsSection(props: {
         <label className="form-field">
           <span>Default due-soon km</span>
           <input
+            disabled={props.readOnly}
             min="0"
             step="1"
             type="number"
@@ -472,18 +601,21 @@ function MaintenanceAlertsSection(props: {
 
         <SettingsToggle
           checked={props.form.includeSetupNeededSchedules}
+          disabled={props.readOnly}
           label="Include setup-needed schedules in attention lists"
           onChange={(value) => props.onFieldChange("includeSetupNeededSchedules", value)}
         />
 
         <SettingsToggle
           checked={props.form.maintenanceAlertsEnabled}
+          disabled={props.readOnly}
           label="Create in-app maintenance alerts"
           onChange={(value) => props.onFieldChange("maintenanceAlertsEnabled", value)}
         />
 
         <SettingsToggle
           checked={props.form.fuelEfficiencyAlertsEnabled}
+          disabled={props.readOnly}
           label="Create fuel-efficiency-drop alerts"
           onChange={(value) => props.onFieldChange("fuelEfficiencyAlertsEnabled", value)}
         />
@@ -492,10 +624,10 @@ function MaintenanceAlertsSection(props: {
   );
 }
 
-function BackupSafetySection(props: {
+function ExportSafetySection(props: {
   form: SettingsFormState;
+  readOnly: boolean;
   reminder: AppSettingsResponse["backupReminder"];
-  dataSafety: AppSettingsResponse["dataSafety"];
   onFieldChange: <Field extends keyof SettingsFormState>(
     field: Field,
     value: SettingsFormState[Field],
@@ -504,20 +636,26 @@ function BackupSafetySection(props: {
   return (
     <section className="settings-card">
       <div>
-        <h3>Backup & Local Data Safety</h3>
-        <p>Backups stay local. Database encryption is not enabled in this build.</p>
+        <h3>Exports &amp; data safety</h3>
+        <p>
+          Records live on a hosted database, encrypted on the way there and where they sit. The free
+          plan takes no automatic copies, though — so an export from the Backup screen is the only
+          copy you hold yourself.
+        </p>
       </div>
 
       <div className="settings-form-grid">
         <SettingsToggle
           checked={props.form.backupReminderEnabled}
-          label="Show backup reminder messaging"
+          disabled={props.readOnly}
+          label="Remind us to take an export"
           onChange={(value) => props.onFieldChange("backupReminderEnabled", value)}
         />
 
         <label className="form-field">
-          <span>Backup reminder interval days</span>
+          <span>Remind after this many days</span>
           <input
+            disabled={props.readOnly}
             min="1"
             step="1"
             type="number"
@@ -530,93 +668,16 @@ function BackupSafetySection(props: {
       </div>
 
       <div className={props.reminder.reminderDue ? "settings-reminder due" : "settings-reminder"}>
-        <strong>{props.reminder.reminderDue ? "Backup reminder" : "Backup status"}</strong>
+        <strong>{props.reminder.reminderDue ? "Export reminder" : "Export status"}</strong>
         <span>{props.reminder.message}</span>
-        {props.reminder.latestBackupPath ? <em>{props.reminder.latestBackupPath}</em> : null}
       </div>
-
-      <div className="settings-path-list">
-        <PathRow label="Database" value={props.dataSafety.databasePath} />
-        <PathRow label="App data folder" value={props.dataSafety.appDataDir} />
-        <PathRow label="Backup package" value={props.dataSafety.backupPackageFormat} />
-        <PathRow label="Encryption" value={props.dataSafety.encryptionStatus} />
-      </div>
-    </section>
-  );
-}
-
-function ClearLocalDataSection(props: {
-  confirmed: boolean;
-  clearing: boolean;
-  onClear: () => void;
-  onConfirmChange: (value: boolean) => void;
-}) {
-  return (
-    <section className="settings-card settings-danger-zone">
-      <div>
-        <h3>Clear Local Product Data</h3>
-        <p>
-          Use this only when you need to remove test records from this device. This clears vehicles,
-          trip logs, fuel logs, maintenance records, reminders, expenses, alerts, and app-managed
-          photos/receipts. Settings, the local user profile, maintenance item suggestions, and
-          backup packages are kept.
-        </p>
-      </div>
-
-      <label className="settings-toggle settings-danger-confirmation">
-        <input
-          checked={props.confirmed}
-          type="checkbox"
-          onChange={(event) => props.onConfirmChange(event.target.checked)}
-        />
-        <span>
-          I understand this permanently clears local product data from this device and cannot be
-          undone unless I restore from a backup.
-        </span>
-      </label>
-
-      <div className="settings-actions">
-        <button
-          className="danger-button"
-          disabled={!props.confirmed || props.clearing}
-          type="button"
-          onClick={props.onClear}
-        >
-          {props.clearing ? "Clearing data..." : "Clear local data"}
-        </button>
-      </div>
-    </section>
-  );
-}
-
-function StartupBehaviorSection(props: {
-  form: SettingsFormState;
-  onFieldChange: <Field extends keyof SettingsFormState>(
-    field: Field,
-    value: SettingsFormState[Field],
-  ) => void;
-}) {
-  return (
-    <section className="settings-card">
-      <div>
-        <h3>Startup & App Behavior</h3>
-        <p>
-          Startup preference is saved locally. Actual Windows startup registration belongs to
-          packaging/startup hardening.
-        </p>
-      </div>
-
-      <SettingsToggle
-        checked={props.form.startupOnBootEnabled}
-        label="Prefer starting TOG 5 VMS when Windows starts"
-        onChange={(value) => props.onFieldChange("startupOnBootEnabled", value)}
-      />
     </section>
   );
 }
 
 function SettingsToggle(props: {
   checked: boolean;
+  disabled?: boolean;
   label: string;
   onChange: (value: boolean) => void;
 }) {
@@ -624,6 +685,7 @@ function SettingsToggle(props: {
     <label className="settings-toggle">
       <input
         checked={props.checked}
+        disabled={props.disabled}
         type="checkbox"
         onChange={(event) => props.onChange(event.target.checked)}
       />
@@ -632,16 +694,10 @@ function SettingsToggle(props: {
   );
 }
 
-function PathRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="settings-path-row">
-      <strong>{label}</strong>
-      <span>{value}</span>
-    </div>
-  );
-}
-
-function prepareSettings(form: SettingsFormState): {
+function prepareSettings(
+  form: SettingsFormState,
+  current?: AppSettings,
+): {
   errors: string[];
   request?: AppSettings;
 } {
@@ -664,16 +720,12 @@ function prepareSettings(form: SettingsFormState): {
   }
 
   if (backupReminderIntervalDays === undefined || backupReminderIntervalDays < 1) {
-    errors.push("Backup reminder interval must be at least 1 day.");
+    errors.push("Reminder interval must be at least 1 day.");
   }
 
   if (errors.length > 0) {
     return { errors };
   }
-
-  const parsedDefaultDueSoonDays = defaultDueSoonDays ?? 0;
-  const parsedDefaultDueSoonKm = defaultDueSoonKm ?? 0;
-  const parsedBackupReminderIntervalDays = backupReminderIntervalDays ?? 1;
 
   return {
     errors: [],
@@ -682,14 +734,16 @@ function prepareSettings(form: SettingsFormState): {
       distanceUnit: form.distanceUnit,
       fuelEfficiencyUnit: form.fuelEfficiencyUnit,
       dateDisplayPreference: form.dateDisplayPreference,
-      defaultDueSoonDays: parsedDefaultDueSoonDays,
-      defaultDueSoonKm: parsedDefaultDueSoonKm,
+      defaultDueSoonDays: defaultDueSoonDays ?? 0,
+      defaultDueSoonKm: defaultDueSoonKm ?? 0,
       includeSetupNeededSchedules: form.includeSetupNeededSchedules,
       backupReminderEnabled: form.backupReminderEnabled,
-      backupReminderIntervalDays: parsedBackupReminderIntervalDays,
+      backupReminderIntervalDays: backupReminderIntervalDays ?? 1,
       maintenanceAlertsEnabled: form.maintenanceAlertsEnabled,
       fuelEfficiencyAlertsEnabled: form.fuelEfficiencyAlertsEnabled,
-      startupOnBootEnabled: form.startupOnBootEnabled,
+      // No longer on this screen — a hosted app does not start with Windows —
+      // but the stored value is passed through rather than silently reset.
+      startupOnBootEnabled: current?.startupOnBootEnabled ?? false,
     },
   };
 }
@@ -707,7 +761,6 @@ function formFromSettings(settings: AppSettings): SettingsFormState {
     backupReminderIntervalDays: String(settings.backupReminderIntervalDays),
     maintenanceAlertsEnabled: settings.maintenanceAlertsEnabled,
     fuelEfficiencyAlertsEnabled: settings.fuelEfficiencyAlertsEnabled,
-    startupOnBootEnabled: settings.startupOnBootEnabled,
   };
 }
 

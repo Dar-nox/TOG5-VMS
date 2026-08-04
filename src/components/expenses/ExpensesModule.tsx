@@ -214,7 +214,7 @@ export function ExpensesModule() {
           <div>
             <h2>Expenses</h2>
             <p>
-              Track manual vehicle costs locally. Fuel and service costs stay in their source
+              Track vehicle costs typed in by hand. Fuel and service costs stay in their source
               records and are summarized in Reports.
             </p>
           </div>

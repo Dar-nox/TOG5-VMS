@@ -79,8 +79,14 @@ begin
   assert overview->>'preferredCurrency' = 'PHP', 'the currency should come from settings';
   assert overview->'setupHints'->0->>'code' = 'add_first_vehicle',
     'an empty system should suggest adding a vehicle first';
-  assert overview->'backupSummary'->>'message' like '%automatically%',
-    'the backup panel should explain that it is handled, not leave people wondering';
+  -- This panel used to say backups ran automatically and there was nothing to
+  -- do. Nothing takes an automatic copy on this plan, and a reassuring message
+  -- is what stops somebody taking the export that would have saved them.
+  assert overview->'backupSummary'->>'message' like 'No export has been taken yet%',
+    'a fleet with no export should be told so, got: '
+      || (overview->'backupSummary'->>'message');
+  assert (overview->'backupSummary'->>'reminderDue')::boolean,
+    'and asked to take one';
 
   insert into public.vehicles (vehicle_name, vehicle_type, fuel_type, current_odometer)
   values ('Dashboard Van', 'van', 'diesel', 5000) returning id into v;

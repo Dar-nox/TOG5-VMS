@@ -1,14 +1,17 @@
-import { invoke } from "@tauri-apps/api/core";
+/**
+ * App settings and accounts.
+ *
+ * The desktop version of this screen described a file on somebody's desk: a
+ * database path, a folder, an encryption status that said "Not enabled". None
+ * of that is true any more, so the shapes changed rather than being kept and
+ * filled with plausible-looking strings.
+ *
+ * What stayed is the export reminder. The free plan takes no automatic copies,
+ * which makes an export the only copy of their records the client holds — the
+ * reminder matters more now than it did when the data was on their own disk.
+ */
 
-const settingsCommands = {
-  get: "get_app_settings",
-  update: "update_app_settings",
-  reset: "reset_app_settings",
-  listUsers: "list_local_users",
-  updateUser: "update_local_user",
-  accessSummary: "get_access_summary",
-  clearAppData: "clear_app_data",
-} as const;
+import { rpc } from "./client";
 
 export type AppSettings = {
   preferredCurrency: string;
@@ -30,104 +33,76 @@ export type UpdateAppSettingsRequest = AppSettings;
 export type BackupReminderStatus = {
   enabled: boolean;
   intervalDays: number;
-  latestBackupPath?: string | null;
   latestBackupCompletedAt?: string | null;
   daysSinceLatestBackup?: number | null;
   reminderDue: boolean;
   message: string;
 };
 
-export type LocalDataSafetyInfo = {
-  databasePath: string;
-  appDataDir: string;
-  encryptionStatus: string;
-  backupPackageFormat: string;
-  startupRegistrationStatus: string;
-};
+export type UserStatus = "active" | "pending" | "inactive";
 
-export type LocalUserRecord = {
+export type UserRecord = {
   id: string;
   displayName: string;
-  username?: string | null;
   role: "owner" | "manager" | "viewer" | string;
-  status: string;
+  status: UserStatus | string;
   createdAt: string;
   updatedAt: string;
 };
 
-export type UpdateLocalUserRequest = {
+export type UpdateUserRequest = {
   id: string;
-  displayName: string;
+  displayName?: string;
   role?: string;
+  status?: UserStatus;
 };
 
-export type LocalRoleRecord = {
+export type RoleRecord = {
   key: string;
   label: string;
   description: string;
 };
 
 export type AccessSummary = {
-  activeUser: LocalUserRecord;
-  roles: LocalRoleRecord[];
-  permissionsEnforced: boolean;
-  appLockStatus: string;
-  encryptionStatus: string;
+  activeUser: UserRecord;
+  pendingCount: number;
+  roles: RoleRecord[];
   securityNote: string;
 };
 
 export type AppSettingsResponse = {
   settings: AppSettings;
-  activeUser: LocalUserRecord;
+  activeUser: UserRecord;
   backupReminder: BackupReminderStatus;
-  dataSafety: LocalDataSafetyInfo;
-};
-
-export type ClearAppDataRequest = {
-  confirmClearData: boolean;
-};
-
-export type ClearAppDataTableResult = {
-  tableName: string;
-  rowsDeleted: number;
-};
-
-export type ClearAppDataResponse = {
-  message: string;
-  tablesCleared: ClearAppDataTableResult[];
-  managedFoldersCleared: string[];
-  filesRemoved: number;
-  settingsKept: boolean;
-  usersKept: boolean;
-  backupsKept: boolean;
 };
 
 export async function getAppSettings(): Promise<AppSettingsResponse> {
-  return invoke<AppSettingsResponse>(settingsCommands.get);
+  return rpc<AppSettingsResponse>("settings_overview");
 }
 
 export async function updateAppSettings(
   request: UpdateAppSettingsRequest,
 ): Promise<AppSettingsResponse> {
-  return invoke<AppSettingsResponse>(settingsCommands.update, { request });
+  return rpc<AppSettingsResponse>("update_app_settings", { settings: request });
 }
 
 export async function resetAppSettings(): Promise<AppSettingsResponse> {
-  return invoke<AppSettingsResponse>(settingsCommands.reset);
+  return rpc<AppSettingsResponse>("reset_app_settings");
 }
 
-export async function listLocalUsers(): Promise<LocalUserRecord[]> {
-  return invoke<LocalUserRecord[]>(settingsCommands.listUsers);
+export async function listUsers(): Promise<UserRecord[]> {
+  return rpc<UserRecord[]>("list_users");
 }
 
-export async function updateLocalUser(request: UpdateLocalUserRequest): Promise<LocalUserRecord> {
-  return invoke<LocalUserRecord>(settingsCommands.updateUser, { request });
+export async function updateUser(request: UpdateUserRequest): Promise<UserRecord> {
+  return rpc<UserRecord>("update_user", {
+    user_id: request.id,
+    display_name: request.displayName ?? null,
+    role: request.role ?? null,
+    status: request.status ?? null,
+  });
 }
 
 export async function getAccessSummary(): Promise<AccessSummary> {
-  return invoke<AccessSummary>(settingsCommands.accessSummary);
-}
-
-export async function clearAppData(request: ClearAppDataRequest): Promise<ClearAppDataResponse> {
-  return invoke<ClearAppDataResponse>(settingsCommands.clearAppData, { request });
+  return rpc<AccessSummary>("access_summary");
 }
