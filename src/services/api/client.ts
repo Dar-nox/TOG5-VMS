@@ -14,14 +14,20 @@ import { createClient, type PostgrestError } from "@supabase/supabase-js";
 const url = import.meta.env.VITE_SUPABASE_URL;
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-if (!url || !anonKey) {
-  throw new Error(
-    "TOG 5 VMS is not configured. Copy .env.example to .env.local and fill in the " +
-      "Supabase project URL and publishable key.",
-  );
-}
+/**
+ * Whether the app knows where its database is.
+ *
+ * Deliberately a flag rather than a thrown error. Throwing here happens while
+ * the module is still being imported, before React has mounted anything, so
+ * the whole app becomes a blank white page with the explanation buried in the
+ * browser console. Somebody who forgot to set these when deploying would have
+ * a site that built perfectly and showed nothing at all.
+ *
+ * The app checks this before it renders and says what is wrong instead.
+ */
+export const isConfigured = Boolean(url && anonKey);
 
-export const supabase = createClient(url, anonKey, {
+export const supabase = createClient(url || "https://unconfigured.invalid", anonKey || "unset", {
   auth: {
     persistSession: true,
     autoRefreshToken: true,

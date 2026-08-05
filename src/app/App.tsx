@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { ConnectionProblemScreen } from "../components/auth/ConnectionProblemScreen";
 import { NotAdmittedScreen } from "../components/auth/NotAdmittedScreen";
+import { NotConfiguredScreen } from "../components/auth/NotConfiguredScreen";
+import { isConfigured } from "../services/api/client";
 import { SignInScreen } from "../components/auth/SignInScreen";
 import { AppLayout } from "../components/common/AppLayout";
 import type { PageId } from "../types/navigation";
@@ -22,6 +24,14 @@ import {
 } from "./routes/Pages";
 
 export function App() {
+  // Checked before the provider, because a provider with nowhere to connect to
+  // would spend its first render asking an address that does not exist and
+  // report it as a connection problem — which sends somebody looking at their
+  // wi-fi instead of at the deployment.
+  if (!isConfigured) {
+    return <NotConfiguredScreen />;
+  }
+
   return (
     <AuthProvider>
       <AppGate />
