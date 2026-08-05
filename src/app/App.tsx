@@ -22,6 +22,7 @@ import { useHardwareBack } from "./useHardwareBack";
 const DashboardPage = lazy(() => import("./routes/DashboardPage"));
 const VehiclesPage = lazy(() => import("./routes/VehiclesPage"));
 const VehiclePage = lazy(() => import("./routes/VehiclePage"));
+const VehicleEditorPage = lazy(() => import("./routes/VehicleEditorPage"));
 const AlertsPage = lazy(() => import("./routes/AlertsPage"));
 const ReportsPage = lazy(() => import("./routes/ReportsPage"));
 const SettingsPage = lazy(() => import("./routes/SettingsPage"));
@@ -105,6 +106,15 @@ function RoutedApp() {
             </PageFrame>
           }
           path="vehicles"
+        />
+        {/* Before the vehicle route, so "new" is not read as an id. */}
+        <Route
+          element={
+            <PageFrame>
+              <VehicleEditorPage />
+            </PageFrame>
+          }
+          path="vehicles/new"
         />
         {/* The tab is part of the address, so a link can point at a vehicle's
             fuel history and the back button steps between tabs. */}
