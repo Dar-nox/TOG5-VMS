@@ -86,7 +86,7 @@ export async function uploadManagedFile(bucket: ManagedBucket, file: File): Prom
     throw new Error("Files must be 10 MB or smaller. Try a smaller picture.");
   }
 
-  const objectName = `${crypto.randomUUID()}.${extensionOf(prepared.name) || "bin"}`;
+  const objectName = `${uniqueName()}.${extensionOf(prepared.name) || "bin"}`;
 
   const { error } = await supabase.storage.from(bucket).upload(objectName, prepared, {
     contentType: prepared.type || undefined,
@@ -119,6 +119,28 @@ export async function insertVehicleDocument(
       .select("id, storage_path")
       .single(),
   );
+}
+
+/**
+ * A name no other upload will take.
+ *
+ * `crypto.randomUUID` is the obvious way and is missing from Android WebViews
+ * older than Chrome 92 — which is exactly the phone a driver is most likely to
+ * be holding, and a failure that cannot happen on any machine we build on. The
+ * fallback is random enough for a filename: the name only has to be unique,
+ * and the upload refuses to overwrite anything anyway.
+ */
+function uniqueName(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  }
+
+  return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 14)}`;
 }
 
 function extensionOf(filename: string): string {
