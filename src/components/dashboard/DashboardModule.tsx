@@ -8,11 +8,11 @@ import {
   type DashboardOverview,
   type DashboardSetupHint,
 } from "../../services/api/dashboard";
-import type { PageId } from "../../types/navigation";
+import { routeForTargetPage } from "../../lib/routes";
 import { useManagedFileUrl } from "../../services/files/useManagedFileUrl";
 
 type DashboardModuleProps = {
-  onNavigate?: (page: PageId) => void;
+  onNavigate?: (page: string) => void;
 };
 
 export function DashboardModule({ onNavigate }: DashboardModuleProps) {
@@ -395,19 +395,8 @@ function CostBreakdownRow({
   );
 }
 
-function isPageId(value?: string | null): value is PageId {
-  return (
-    value === "dashboard" ||
-    value === "vehicles" ||
-    value === "fuel" ||
-    value === "maintenance" ||
-    value === "service-history" ||
-    value === "expenses" ||
-    value === "reports" ||
-    value === "alerts" ||
-    value === "backup" ||
-    value === "settings"
-  );
+function isPageId(value?: string | null): value is string {
+  return Boolean(value) && routeForTargetPage(value) !== undefined;
 }
 
 function statusClass(value: string) {
