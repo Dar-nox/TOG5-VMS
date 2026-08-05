@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "../../app/providers/authContext";
+import { Button } from "../ui/Button";
+import { AuthShell } from "./AuthShell";
 
 /**
  * Shown when the app loads but cannot reach the server.
@@ -23,33 +25,13 @@ export function ConnectionProblemScreen() {
   }
 
   return (
-    <div className="sign-in-screen">
-      <div className="sign-in-card">
-        <div className="sign-in-brand">
-          <div className="brand-mark" aria-hidden="true">
-            VMS
-          </div>
-          <div>
-            <p>TOG 5</p>
-            <strong>Vehicle Care</strong>
-          </div>
-        </div>
+    <AuthShell title="Cannot reach TOG 5 VMS">
+      <p className="text-sm text-muted">{problem ?? "The app could not connect."}</p>
+      <p className="text-sm text-muted">Check your internet connection, then try again.</p>
 
-        <div className="sign-in-intro">
-          <h1>Cannot reach TOG 5 VMS</h1>
-          <p>{problem ?? "The app could not connect."}</p>
-          <p>Check your internet connection, then try again.</p>
-        </div>
-
-        <button
-          className="primary-button"
-          disabled={retrying}
-          onClick={() => void handleRetry()}
-          type="button"
-        >
-          {retrying ? "Trying again..." : "Try again"}
-        </button>
-      </div>
-    </div>
+      <Button block loading={retrying} onClick={() => void handleRetry()} variant="primary">
+        Try again
+      </Button>
+    </AuthShell>
   );
 }

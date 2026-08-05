@@ -1,4 +1,4 @@
-import { BackupRestoreModule } from "../../components/backup/BackupRestoreModule";
+import { BackupSection } from "../../components/backup/BackupSection";
 import { SettingsModule } from "../../components/settings/SettingsModule";
 
 /**
@@ -12,7 +12,7 @@ export default function SettingsPage() {
   return (
     <div className="flex flex-col gap-6">
       <SettingsModule />
-      <BackupRestoreModule />
+      <BackupSection />
     </div>
   );
 }

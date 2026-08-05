@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "../../app/providers/authContext";
+import { Button } from "../ui/Button";
+import { AuthShell } from "./AuthShell";
 
 /**
  * Signed in, but not let in.
@@ -26,54 +28,25 @@ export function NotAdmittedScreen() {
   }
 
   return (
-    <div className="sign-in-screen">
-      <div className="sign-in-card">
-        <div className="sign-in-brand">
-          <div className="brand-mark" aria-hidden="true">
-            VMS
-          </div>
-          <div>
-            <p>TOG 5</p>
-            <strong>Vehicle Care</strong>
-          </div>
-        </div>
+    <AuthShell title={switchedOff ? "This account is switched off" : "Waiting to be let in"}>
+      <p className="text-sm text-muted">
+        {switchedOff
+          ? "Nothing has been deleted — your records are still here. Ask the fleet owner to switch the account back on."
+          : "Your account was created. The fleet owner has to let you in before you can see any vehicles or records — ask them to open Settings and approve it."}
+      </p>
 
-        <div className="sign-in-intro">
-          {switchedOff ? (
-            <>
-              <h1>This account is switched off</h1>
-              <p>
-                Nothing has been deleted — your records are still here. Ask the fleet owner to
-                switch the account back on.
-              </p>
-            </>
-          ) : (
-            <>
-              <h1>Waiting to be let in</h1>
-              <p>
-                Your account was created. The fleet owner has to let you in before you can see any
-                vehicles or records — ask them to open Settings and approve it.
-              </p>
-            </>
-          )}
-          <p>
-            Signed in as <strong>{user?.email}</strong>.
-          </p>
-        </div>
+      <p className="text-sm text-muted">
+        Signed in as <strong className="text-ink">{user?.email}</strong>.
+      </p>
 
-        <button
-          className="primary-button"
-          disabled={checking}
-          onClick={() => void handleCheckAgain()}
-          type="button"
-        >
-          {checking ? "Checking..." : "Check again"}
-        </button>
-
-        <button className="secondary-button" onClick={() => void signOut()} type="button">
+      <div className="flex flex-col gap-2">
+        <Button block loading={checking} onClick={() => void handleCheckAgain()} variant="primary">
+          Check again
+        </Button>
+        <Button block onClick={() => void signOut()} variant="quiet">
           Sign out
-        </button>
+        </Button>
       </div>
-    </div>
+    </AuthShell>
   );
 }

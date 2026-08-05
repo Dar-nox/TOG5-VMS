@@ -1,3 +1,5 @@
+import { AuthShell } from "./AuthShell";
+
 /**
  * Shown when the app was built without knowing where its database is.
  *
@@ -8,31 +10,24 @@
  */
 export function NotConfiguredScreen() {
   return (
-    <div className="sign-in-screen">
-      <div className="sign-in-card">
-        <div className="sign-in-brand">
-          <div className="brand-mark" aria-hidden="true">
-            VMS
-          </div>
-          <div>
-            <p>TOG 5</p>
-            <strong>Vehicle Care</strong>
-          </div>
-        </div>
+    <AuthShell title="Not set up yet">
+      <p className="text-sm text-muted">
+        TOG 5 VMS was built without the settings that tell it where its database is, so it cannot
+        reach anything. Nothing is wrong with your records.
+      </p>
 
-        <div className="sign-in-intro">
-          <h1>Not configured</h1>
-          <p>
-            TOG 5 VMS was built without the settings that tell it where its database is, so it
-            cannot reach anything. Nothing is wrong with your records.
-          </p>
-          <p>
-            Whoever deployed this needs to set <code>VITE_SUPABASE_URL</code> and{" "}
-            <code>VITE_SUPABASE_ANON_KEY</code>, then build again — these are read when the app is
-            built, not when it runs, so setting them is not enough on its own.
-          </p>
-        </div>
-      </div>
-    </div>
+      <p className="text-sm text-muted">
+        Whoever deployed this needs to set{" "}
+        <code className="rounded-sm bg-surface-sunken px-1 font-mono text-xs">
+          VITE_SUPABASE_URL
+        </code>{" "}
+        and{" "}
+        <code className="rounded-sm bg-surface-sunken px-1 font-mono text-xs">
+          VITE_SUPABASE_ANON_KEY
+        </code>
+        , then build again. They are read when the app is built, not when it runs, so setting them
+        is not enough on its own.
+      </p>
+    </AuthShell>
   );
 }
