@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
-import { ExpensesModule } from "../../components/expenses/ExpensesModule";
+import { ExpensesTab } from "../../components/vehicle/tabs/ExpensesTab";
 import { FuelTab } from "../../components/vehicle/tabs/FuelTab";
 import { MaintenanceTemplateModule } from "../../components/maintenance/MaintenanceTemplateModule";
 import { ServiceHistoryTab } from "../../components/vehicle/tabs/ServiceHistoryTab";
-import { TripsModule } from "../../components/trips/TripsModule";
+import { TripsTab } from "../../components/vehicle/tabs/TripsTab";
 import { VehicleOverview } from "../../components/vehicle/VehicleOverview";
 import { VehiclePhoto } from "../../components/vehicle/VehiclePhoto";
 import { Badge } from "../../components/ui/Badge";
@@ -158,10 +158,10 @@ export default function VehiclePage() {
         <ServiceHistoryTab vehicleId={vehicleId} />
       </TabPanel>
       <TabPanel active={active} id="trips">
-        <TripsModule />
+        <TripsTab vehicleId={vehicleId} />
       </TabPanel>
       <TabPanel active={active} id="expenses">
-        <ExpensesModule />
+        <ExpensesTab vehicleId={vehicleId} />
       </TabPanel>
     </div>
   );
