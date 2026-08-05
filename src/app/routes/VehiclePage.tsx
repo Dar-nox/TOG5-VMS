@@ -8,6 +8,7 @@ import { TripsTab } from "../../components/vehicle/tabs/TripsTab";
 import { VehicleOverview } from "../../components/vehicle/VehicleOverview";
 import { VehiclePhoto } from "../../components/vehicle/VehiclePhoto";
 import { Badge } from "../../components/ui/Badge";
+import { Button } from "../../components/ui/Button";
 import { SkeletonRows } from "../../components/ui/Spinner";
 import { ErrorBlock } from "../../components/ui/States";
 import { TabPanel, Tabs, type TabItem } from "../../components/ui/Tabs";
@@ -133,6 +134,8 @@ export default function VehiclePage() {
             </span>
           </div>
         </div>
+
+        <Button onClick={() => void navigate(`/vehicles/${vehicleId}/edit`)}>Edit</Button>
       </header>
 
       <Tabs

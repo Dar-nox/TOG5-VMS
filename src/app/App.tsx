@@ -116,6 +116,15 @@ function RoutedApp() {
           }
           path="vehicles/new"
         />
+        {/* Static "edit" outranks the :tab parameter below it. */}
+        <Route
+          element={
+            <PageFrame>
+              <VehicleEditorPage />
+            </PageFrame>
+          }
+          path="vehicles/:vehicleId/edit"
+        />
         {/* The tab is part of the address, so a link can point at a vehicle's
             fuel history and the back button steps between tabs. */}
         <Route
