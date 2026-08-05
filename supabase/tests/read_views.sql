@@ -149,4 +149,29 @@ begin;
   end $$;
 rollback;
 
+-- ---------------------------------------------------------------------------
+-- Every view, structurally, not just the ones somebody thought to list
+-- ---------------------------------------------------------------------------
+--
+-- The checks above ask whether a particular view leaks. They passed while
+-- alerts_detailed was readable by anyone holding the public key on the real
+-- project, because `create or replace view` had quietly dropped the setting
+-- there and not here. Asking the catalogue instead of the behaviour catches a
+-- view somebody adds later and forgets, which is how this happened.
+do $$
+declare
+  unguarded text;
+begin
+  select string_agg(c.relname, ', ' order by c.relname) into unguarded
+  from pg_class c
+  join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public'
+    and c.relkind = 'v'
+    and coalesce(c.reloptions::text, '') not like '%security_invoker%';
+
+  assert unguarded is null,
+    'every view must be security_invoker or it runs as its owner and ignores '
+    || 'the access rules entirely. Missing on: ' || coalesce(unguarded, '');
+end $$;
+
 select 'read views carry the joins and respect the access rules' as result;
