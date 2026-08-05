@@ -7099,3 +7099,72 @@ just looked like a normal one.
 
 Deploy the web app (`docs/deploying.md`), have the client sign up their staff,
 and let an owner admit them. Then the UI overhaul.
+
+---
+
+## UI Overhaul & Fixes — `feat/ui-overhaul` (2026-08-05)
+
+Same release, still 0.4.0: "Supabase Online Migration & UI Overhaul".
+
+**Net: 8,898 lines added, 12,130 deleted.** The app is smaller than it was.
+
+### What was actually wrong
+
+Two audits found the reported complaints had a few mechanical causes, not a
+general need for polish.
+
+- **Overlapping content** was never a stacking bug — there was no `z-index`,
+  `position: fixed` or `sticky` anywhere. Breakpoints were keyed to the
+  viewport while the grids they controlled sat inside a column ~500px
+  narrower, so between 761px and 1120px nothing had collapsed and nothing
+  fit. Everything is container-queried now.
+- **Zoom** shared that cause. On a 1366px laptop at Windows' usual 125%, the
+  app was already in the collapsed icon rail — which had 58px for a label and
+  no wrapping rule.
+- **Mobile** was an 1,138px horizontally scrolling strip of 11 items, 8 of them
+  off-screen with no cue.
+- **"AI slop"** was ~85 blocks of instructional prose. Every screen printed its
+  title and description twice before showing a record.
+- **Inconsistency** followed from having no shared UI at all:
+  `src/components/forms/` was an empty directory.
+
+### Found along the way, not in the plan
+
+- **Every packaged subset of IBM Plex drops U+20B1, the peso sign.** The app is
+  entirely in pesos. `scripts/subset-fonts.py` subsets the complete fonts and
+  keeps it. Also: `Inter` had been requested since the beginning with no font
+  file ever shipped, so the intended typography had never rendered for anybody.
+- **The data export did nothing on Android.** A WebView has no downloads
+  directory, so the hidden `<a download>` click succeeded silently and no file
+  appeared — while still recording an export and resetting the backup
+  reminder. It goes through the share sheet now, and a dismissed sheet is not
+  recorded.
+- **`dateDisplayPreference` was read by nothing.** A column with a check
+  constraint, a dropdown in Settings, three valid values, and no effect.
+- **`src/domain`'s maintenance half had drifted from Postgres** — returning
+  `"upcoming"` where the database returns `"not_due"`, and never returning
+  `"needs_setup"`. Deleted rather than left as a trap.
+- Android's hardware back button closed the app from anywhere, because
+  navigation was a `useState` with no history.
+
+### Open question for the client
+
+Fuel, trips, maintenance, service history and expenses became **tabs inside a
+vehicle** rather than fleet-wide screens. This is cleaner for a single vehicle
+and matches what `specs/05` always asked for.
+
+It costs something real: **logging several vehicles in one sitting is now
+slower.** The old screens had a vehicle dropdown, so you could stay put and
+switch vehicles. Now it is a trip back to the vehicle list each time.
+
+To be put to the client. If they want the fleet-wide entry points back, the
+answer is not to revert this work — it is to add a vehicle picker to the
+capture flows so both routes exist. The overhaul, the fixes and the design
+system stand either way.
+
+### Remaining
+
+- Manual verification on a real Android device: hardware back, camera capture,
+  CSV share sheet. Not testable in a browser.
+- The database password passed through a chat transcript and should still be
+  rotated.
