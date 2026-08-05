@@ -1,0 +1,14 @@
+# Line endings are normalised to LF in the repository and checked out however
+# the platform wants them. Without this, a Windows checkout rewrites every file
+# to CRLF, Prettier — which expects LF — then reports the whole tree as
+# unformatted, and running the formatter starts a fight with git that neither
+# side wins.
+* text=auto eol=lf
+
+# Binary, and must never be touched.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.sqlite3 binary
+*.tog5backup binary
