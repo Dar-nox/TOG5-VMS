@@ -18,6 +18,7 @@ import {
   type TripReportsOverview,
 } from "../../services/api/trips";
 import { listVehicles, type VehicleRecord } from "../../services/api/vehicles";
+import { canPrint, saveMessage, saveTextFile } from "../../lib/saveFile";
 
 export function ReportsModule() {
   const [activeTab, setActiveTab] = useState<"costs" | "trips">("costs");
@@ -310,8 +311,8 @@ export function ReportsModule() {
         {exportResult ? (
           <div className="report-export-status">
             <div>
-              <strong>CSV downloaded.</strong>
-              <span>{exportResult.filename} is wherever this device saves downloads.</span>
+              <strong>{exportResult.via === "cancelled" ? "Not saved." : "CSV saved."}</strong>
+              <span>{saveMessage(exportResult)}</span>
             </div>
           </div>
         ) : null}
@@ -824,7 +825,21 @@ function csvCell(value: string | number | null | undefined) {
   return `"${text.replace(/"/g, '""')}"`;
 }
 
+/**
+ * Puts a report on paper, or as close as the device gets.
+ *
+ * `window.print()` is not implemented in an Android WebView. It does nothing
+ * and reports nothing, so on a phone the Print button was simply inert. There
+ * the report is written out and handed to the share sheet instead, which
+ * reaches Drive, Gmail, or Chrome — and Chrome can print it.
+ */
 function printReportHtml(title: string, bodyHtml: string) {
+  if (!canPrint()) {
+    const filename = `${title.replace(/[^\w-]+/g, "-").toLowerCase()}.html`;
+    void saveTextFile(filename, bodyHtml, "text/html;charset=utf-8");
+    return;
+  }
+
   const frame = document.createElement("iframe");
   frame.title = title;
   frame.style.position = "fixed";
