@@ -9,6 +9,7 @@ import type { PageId } from "../types/navigation";
 import { navigationItems } from "../types/navigation";
 import { AuthProvider } from "./providers/AuthProvider";
 import { useAuth } from "./providers/authContext";
+import { FormatProvider } from "./providers/FormatProvider";
 import {
   AlertsPage,
   BackupPage,
@@ -53,7 +54,13 @@ function AppGate() {
     case "not-admitted":
       return <NotAdmittedScreen />;
     case "signed-in":
-      return <Workspace />;
+      // Inside the signed-in branch because reading the fleet's display
+      // settings requires being signed in.
+      return (
+        <FormatProvider>
+          <Workspace />
+        </FormatProvider>
+      );
   }
 }
 
