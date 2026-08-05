@@ -43,15 +43,17 @@ because it is also the foundation for savepoints.
 
 ## 1. Account creation and management
 
-### The constraint that decides the shape
+### Correcting what I said first
 
-**An owner cannot create accounts from the browser.** Supabase's
-`auth.admin.createUser` requires the *service role* key, which bypasses row
-level security entirely and must never ship in a client bundle — AGENTS.md is
-explicit that the publishable key is the only key allowed in the app.
+I claimed an owner cannot create accounts from the browser. That is true of
+`auth.admin.createUser`, which needs the *service role* key and must never ship
+in a client bundle — and it is **not true in general**, which is the part I got
+wrong.
 
-So "owner creates accounts in Settings" is not a UI problem. It needs code
-running somewhere the service key can live.
+Ordinary `signUp` uses the publishable key and is already allowed. The only
+real obstacle is that `signUp` **replaces the current session**: the owner
+would be signed out and become the account they just made. That is a solvable
+problem, not a wall. See Option A2, which is now the recommendation.
 
 ### Option A — Self sign-up, owner approves *(recommended)*
 
@@ -68,6 +70,53 @@ already built and tested:
 **Trade:** anybody with the URL can create an account. They see nothing until
 approved, and the owner gets a visible queue — but the owner does have to
 notice. Worth pairing with a pending-count badge on the Settings tab.
+
+### Option A2 — Owner creates the account, in Settings *(recommended)*
+
+Your idea, and it works. The owner fills in a name, email and starting
+password; the app calls the ordinary `signUp` on a **second, throwaway Supabase
+client**:
+
+```ts
+const enrolment = createClient(url, anonKey, {
+  auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+});
+
+await enrolment.auth.signUp({
+  email,
+  password,
+  options: { data: { display_name: name } },
+});
+```
+
+`persistSession: false` is the whole trick. Sessions are shared between client
+instances through storage, so a client that never writes to storage cannot
+disturb the owner's session in `services/api/client.ts`, which uses
+`persistSession: true`. The throwaway client is discarded straight after.
+
+Two things make this fit better than expected:
+
+- `handle_new_user()` does not care who initiated the sign-up. It makes account
+  two onwards **pending** regardless, so an owner-created account lands in the
+  same queue and the owner approves it — exactly the "create button acts as the
+  approval" you described. It can be approved automatically in the same flow,
+  since the owner is the one creating it.
+- The trigger reads `raw_user_meta_data ->> 'display_name'`, so passing
+  `options.data.display_name` sets the person's name at creation instead of
+  defaulting to the part of their email before the `@`.
+
+**Cost:** an hour or two. No Edge Function, no service key, no new
+infrastructure.
+
+**Check before building:** whether *Confirm email* is switched on in the
+Supabase project's auth settings. If it is, the new account cannot sign in
+until they click a link, which changes this from "create an account" into "send
+an invitation". It is very likely off, since accounts work today — but confirm
+rather than assume.
+
+**Known rough edge:** the owner chooses the starting password and has to pass
+it on, and nothing forces a change at first sign-in. Acceptable for a small
+company; worth a "change this soon" line on the screen.
 
 ### Option B — Owner invites, via a Supabase Edge Function
 
@@ -90,11 +139,15 @@ it means the owner leaves the app and uses a developer console, and the
 
 ### My view
 
-**A now, B later if the client dislikes open sign-up.** A is an hour and makes
-the app honest about a flow that is already fully built and currently has no
-front door. B is the better end state for a company, but it is the first piece
-of server-side code in this project and should not be bundled into the same
-week as a page-structure decision.
+**A2, and probably not A at all.** For a company fleet, the owner creating
+accounts is the behaviour you actually want, and A2 gets there for about the
+same effort as A with none of the exposure — nobody who happens to have the URL
+can create anything. It reuses the pending/approve machinery rather than
+bypassing it, so nothing already built is wasted.
+
+Add the public sign-up link (A) only if the client wants staff to enrol
+themselves. B stays on the shelf: it is the tidiest end state, but it is the
+first server-side code in this project, and A2 covers the need without it.
 
 Either way, **a separate accounts page is not needed yet.** There are a handful
 of staff. A section in Settings is the right size; split it out if it ever
@@ -143,6 +196,28 @@ one transaction. This is the part that needs real care:
 
 **Sizing:** the current database exports to a few MB. Keeping the last ~10
 snapshots is comfortably inside 1 GB. Prune older ones automatically.
+
+### Local copies as well as online — yes, and it is the stronger half
+
+Every snapshot should be downloadable, and taking one should offer the file
+immediately as well as storing it. The download path already exists and already
+works on a phone through the share sheet, so this is nearly free.
+
+Worth being precise about what a local copy does and does not buy, because it
+is easy to overclaim:
+
+- **It does not help you restore while Supabase is down.** Restoring writes to
+  the database, so if the database is unreachable there is nothing to restore
+  into, whichever copy you hold.
+- **It does protect against losing the project entirely** — a deleted project,
+  a lost login, a free-tier account paused for inactivity, a billing mistake.
+  In that case an online-only snapshot disappears with everything else, and the
+  local file is the only thing left. That is the real hedge, and it is a good
+  one.
+
+So the two copies answer different failures, and the local one answers the
+worse failure. Treat the downloaded file as the record of last resort and say
+so on screen — the client should be keeping one somewhere that is not a laptop.
 
 ### My view
 
@@ -211,12 +286,17 @@ move.
      Note this is additive: the design system, primitives, layout fixes,
      formatting and every bug fix are independent of where the screens live.
      Nothing from this overhaul needs reverting.
-2. **§0a and §0b** — the name field, and making the archive copy true. Small,
-   and one of them is a promise the app is currently breaking.
-3. **§1 Option A** — sign-up link. An hour, and it opens a door that is
-   otherwise walled off.
-4. **§3 Archive/restore, then Activity log.** Both read or write data that
-   already exists.
-5. **§2 snapshots, half one.** Then stop and think before the restore half.
+2. **§0a — the display name field.** Twenty minutes, and it is a regression.
+3. **§3 Archive / restore.** Agreed for the next session if the structure is
+   approved. This also settles §0b: once records can be brought back, the
+   confirmation copy saying they can be restored becomes true. Until it ships,
+   the copy is a promise the app is breaking, so if this slips, change the
+   wording in the meantime.
+4. **§1 Option A2** — owner creates accounts in Settings. An hour or two, and
+   check the *Confirm email* project setting first.
+5. **§3 Activity log.** Read-only over `audit_logs`, which is already
+   populated and shown nowhere.
+6. **§2 snapshots, half one** — take, store online, download. Then stop and
+   think before the restore half.
 
 Ownership transfer whenever it comes up; it is small and independent.
