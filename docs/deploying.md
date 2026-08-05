@@ -30,18 +30,25 @@ npm run build          # writes dist/
 ```
 
 `dist/` is a folder of static files. Any static host will serve it —
-**Cloudflare Pages** is the recommended one: generous free tier, no cold
-starts, and it sits in front of the same network the fleet already uses.
+**Cloudflare** is the one in use: generous free tier and no cold starts.
 
-Whichever host, two settings matter:
+Two settings matter, whichever host:
 
 * **Build command** `npm run build`, **output directory** `dist`
 * The two `VITE_SUPABASE_*` variables, set at build time. Vite bakes them into
   the bundle, so changing them means rebuilding — they are not read at runtime.
 
-`public/_redirects` sends unknown paths to `index.html`, which both Cloudflare
-Pages and Netlify honour. The app has no client-side routes today, so this only
-matters if somebody refreshes on a path that does not exist.
+`wrangler.jsonc` holds the Cloudflare deploy settings and is committed
+deliberately. Left out, wrangler regenerates one on every build and answers its
+own setup prompts from defaults, so the configuration ends up somewhere nobody
+can read it.
+
+A path that matches no file serves `index.html`, set by
+`not_found_handling: "single-page-application"`. A `_redirects` file used to do
+that job and was rejected — Cloudflare reads `/* /index.html 200` as a rule
+that triggers itself, and fails the deploy rather than the build, which is
+after everything else has already looked fine. On Netlify or a similar host,
+`_redirects` is the right answer instead.
 
 ### Installing it on a phone
 

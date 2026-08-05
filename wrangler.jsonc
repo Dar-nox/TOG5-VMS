@@ -1,0 +1,22 @@
+{
+  // Cloudflare deploy settings, committed rather than left to be guessed.
+  //
+  // Without this file wrangler regenerates one on every build and answers its
+  // own setup prompts from defaults, which means the deployment configuration
+  // lives nowhere anybody can read it.
+  //
+  // "single-page-application" is what serves index.html for a path that does
+  // not match a file. A _redirects file used to do that job here and was
+  // rejected — Cloudflare reads `/* /index.html 200` as a rule that triggers
+  // itself. This setting is the supported way to say the same thing.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tog5-vms",
+  "compatibility_date": "2026-08-05",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  },
+  "assets": {
+    "not_found_handling": "single-page-application"
+  }
+}
