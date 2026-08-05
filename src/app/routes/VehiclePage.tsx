@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { ExpensesModule } from "../../components/expenses/ExpensesModule";
-import { FuelLogsModule } from "../../components/fuel/FuelLogsModule";
+import { FuelTab } from "../../components/vehicle/tabs/FuelTab";
 import { MaintenanceTemplateModule } from "../../components/maintenance/MaintenanceTemplateModule";
 import { ServiceHistoryTab } from "../../components/vehicle/tabs/ServiceHistoryTab";
 import { TripsModule } from "../../components/trips/TripsModule";
@@ -149,7 +149,7 @@ export default function VehiclePage() {
       {/* Still the fleet-wide modules while each is rebuilt against this
           vehicle. */}
       <TabPanel active={active} id="fuel">
-        <FuelLogsModule />
+        <FuelTab vehicle={vehicle} />
       </TabPanel>
       <TabPanel active={active} id="maintenance">
         <MaintenanceTemplateModule />
