@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import {
   getReportsOverview,
   getVehicleCostReport,
@@ -191,25 +190,13 @@ export function ReportsModule() {
     }
   }
 
-  async function handleRevealExport() {
-    if (!exportResult) {
-      return;
-    }
-
-    try {
-      await revealItemInDir(exportResult.filePath);
-    } catch (error) {
-      setExportError(messageFromError(error));
-    }
-  }
-
   return (
     <div className="reports-module">
       <section className="reports-workspace">
         <div className="reports-header">
           <div>
             <h2>Reports</h2>
-            <p>Local reports for vehicle costs, maintenance records, and operational trip logs.</p>
+            <p>Reports for vehicle costs, maintenance records, and operational trip logs.</p>
           </div>
 
           <div className="report-filter-grid" aria-label="Report filters">
@@ -323,16 +310,9 @@ export function ReportsModule() {
         {exportResult ? (
           <div className="report-export-status">
             <div>
-              <strong>CSV exported.</strong>
-              <span>{exportResult.filePath}</span>
+              <strong>CSV downloaded.</strong>
+              <span>{exportResult.filename} is wherever this device saves downloads.</span>
             </div>
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={() => void handleRevealExport()}
-            >
-              Show file
-            </button>
           </div>
         ) : null}
         {exportError ? <div className="inline-error compact">{exportError}</div> : null}

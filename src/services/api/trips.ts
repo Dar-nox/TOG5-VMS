@@ -1,14 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
-
-const tripCommands = {
-  list: "list_trips",
-  listOpen: "list_open_trips",
-  get: "get_trip",
-  start: "start_trip",
-  complete: "complete_trip",
-  archive: "archive_trip",
-  reportsOverview: "get_trip_reports_overview",
-} as const;
+import { rpc, supabase, unwrap, unwrapVoid } from "./client";
 
 export type TripStatus = "open" | "completed" | "cancelled";
 
@@ -73,48 +63,82 @@ export type TripReportsOverview = {
   recentTrips: TripRecord[];
 };
 
+/**
+ * Trips read from a view that flattens the drivers, passengers and
+ * destinations into lists, so one request replaces four joins.
+ */
 export async function listTrips(filter?: TripListFilter): Promise<TripRecord[]> {
-  return invoke<TripRecord[]>(tripCommands.list, { filter: cleanFilter(filter) });
+  let query = supabase.from("trips_with_people").select("*");
+
+  if (filter?.vehicleId) {
+    query = query.eq("vehicle_id", filter.vehicleId);
+  }
+  if (filter?.status) {
+    query = query.eq("status", filter.status);
+  }
+  if (filter?.startDate) {
+    query = query.gte("departure_time", filter.startDate);
+  }
+  if (filter?.endDate) {
+    query = query.lte("departure_time", `${filter.endDate}T23:59:59`);
+  }
+
+  return unwrap(await query.order("departure_time", { ascending: false }));
 }
 
 export async function listOpenTrips(): Promise<TripRecord[]> {
-  return invoke<TripRecord[]>(tripCommands.listOpen);
+  return unwrap(
+    await supabase
+      .from("trips_with_people")
+      .select("*")
+      .eq("status", "open")
+      .order("departure_time", { ascending: false }),
+  );
 }
 
 export async function getTrip(id: string): Promise<TripRecord> {
-  return invoke<TripRecord>(tripCommands.get, { id });
+  return unwrap(await supabase.from("trips_with_people").select("*").eq("id", id).single());
 }
 
+/** One call, because a trip and its people have to be written together. */
 export async function startTrip(request: StartTripRequest): Promise<TripRecord> {
-  return invoke<TripRecord>(tripCommands.start, { request });
+  const id = await rpc<string>("start_trip", {
+    vehicle_id: request.vehicleId,
+    departure_time: request.departureTime,
+    reason: request.reason,
+    drivers: request.drivers,
+    passengers: request.passengers,
+    destinations: request.destinations,
+    departure_notes: request.departureNotes ?? null,
+  });
+
+  return getTrip(id);
 }
 
 export async function completeTrip(id: string, request: CompleteTripRequest): Promise<TripRecord> {
-  return invoke<TripRecord>(tripCommands.complete, { id, request });
+  await rpc<void>("complete_trip", {
+    trip_id: id,
+    return_time: request.returnTime,
+    return_notes: request.returnNotes ?? null,
+  });
+
+  return getTrip(id);
 }
 
 export async function archiveTrip(id: string): Promise<void> {
-  return invoke<void>(tripCommands.archive, { id });
+  // Soft delete. A trigger takes the drivers, passengers and destinations
+  // with it, so nothing is left listed against a trip that is gone.
+  unwrapVoid(
+    await supabase.from("trips").update({ deleted_at: new Date().toISOString() }).eq("id", id),
+  );
 }
 
 export async function getTripReportsOverview(
   filter?: TripReportFilter,
 ): Promise<TripReportsOverview> {
-  return invoke<TripReportsOverview>(tripCommands.reportsOverview, {
-    filter: cleanFilter(filter),
+  return rpc<TripReportsOverview>("trip_reports_overview", {
+    vehicle_id: filter?.vehicleId ?? null,
+    start_date: filter?.startDate ?? null,
+    end_date: filter?.endDate ?? null,
   });
-}
-
-function cleanFilter<Filter extends Record<string, string | undefined>>(
-  filter?: Filter,
-): Filter | undefined {
-  if (!filter) {
-    return undefined;
-  }
-
-  const cleaned = Object.fromEntries(
-    Object.entries(filter).filter(([, value]) => value !== undefined && value.trim() !== ""),
-  ) as Filter;
-
-  return Object.keys(cleaned).length > 0 ? cleaned : undefined;
 }

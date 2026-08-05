@@ -1,17 +1,14 @@
-import { invoke } from "@tauri-apps/api/core";
-import type { ExpenseCategory } from "../../domain";
+/**
+ * Expenses, and the cost reports built on them.
+ *
+ * Every total comes from the database rather than being added up here. The
+ * desktop app implemented the "an expense that mirrors a fuel log is not an
+ * extra cost" rule three separate times, in three places that could disagree;
+ * there is now one view that decides it and every report reads that.
+ */
 
-const expenseCommands = {
-  list: "list_expenses",
-  listForVehicle: "list_expenses_for_vehicle",
-  get: "get_expense",
-  create: "create_expense",
-  update: "update_expense",
-  archive: "archive_expense",
-  summary: "get_expense_summary",
-  vehicleCostReport: "get_vehicle_cost_report",
-  reportsOverview: "get_reports_overview",
-} as const;
+import { rpc, supabase, unwrap } from "./client";
+import type { ExpenseCategory } from "../../domain";
 
 export type RelatedRecordType = "fuel_log" | "maintenance_log" | "repair_record" | "other";
 
@@ -125,48 +122,101 @@ export type ReportsOverview = {
 };
 
 export async function listExpenses(filter?: ExpenseListFilter): Promise<ExpenseRecord[]> {
-  return invoke<ExpenseRecord[]>(expenseCommands.list, { filter: cleanFilter(filter) });
+  let query = supabase.from("expenses_detailed").select("*");
+  const clean = cleanFilter(filter);
+
+  if (clean?.vehicleId) {
+    query = query.eq("vehicle_id", clean.vehicleId);
+  }
+
+  if (clean?.category) {
+    query = query.eq("category", clean.category);
+  }
+
+  if (clean?.startDate) {
+    query = query.gte("expense_date", clean.startDate);
+  }
+
+  if (clean?.endDate) {
+    query = query.lte("expense_date", clean.endDate);
+  }
+
+  return unwrap(
+    await query
+      .order("expense_date", { ascending: false })
+      .order("created_at", { ascending: false }),
+  );
 }
 
 export async function listExpensesForVehicle(vehicleId: string): Promise<ExpenseRecord[]> {
-  return invoke<ExpenseRecord[]>(expenseCommands.listForVehicle, { vehicleId });
+  return listExpenses({ vehicleId });
 }
 
 export async function getExpense(id: string): Promise<ExpenseRecord> {
-  return invoke<ExpenseRecord>(expenseCommands.get, { id });
+  return unwrap(await supabase.from("expenses_detailed").select("*").eq("id", id).single());
 }
 
 export async function createExpense(request: ExpenseMutationRequest): Promise<ExpenseRecord> {
-  return invoke<ExpenseRecord>(expenseCommands.create, { request });
+  return getExpense(await rpc<string>("save_expense", expenseArgs(request)));
 }
 
 export async function updateExpense(
   id: string,
   request: ExpenseMutationRequest,
 ): Promise<ExpenseRecord> {
-  return invoke<ExpenseRecord>(expenseCommands.update, { id, request });
+  return getExpense(await rpc<string>("save_expense", { expense_id: id, ...expenseArgs(request) }));
 }
 
 export async function archiveExpense(id: string): Promise<void> {
-  return invoke<void>(expenseCommands.archive, { id });
+  await rpc<void>("archive_expense", { expense_id: id });
 }
 
 export async function getExpenseSummary(filter?: ExpenseListFilter): Promise<ExpenseSummaryReport> {
-  return invoke<ExpenseSummaryReport>(expenseCommands.summary, { filter: cleanFilter(filter) });
+  const clean = cleanFilter(filter);
+
+  return rpc<ExpenseSummaryReport>("expense_summary", {
+    vehicle_id: clean?.vehicleId ?? null,
+    category: clean?.category ?? null,
+    start_date: clean?.startDate ?? null,
+    end_date: clean?.endDate ?? null,
+  });
 }
 
 export async function getVehicleCostReport(
   vehicleId: string,
   filter?: ReportFilter,
 ): Promise<VehicleCostReport> {
-  return invoke<VehicleCostReport>(expenseCommands.vehicleCostReport, {
-    vehicleId,
-    filter: cleanFilter(filter),
+  const clean = cleanFilter(filter);
+
+  return rpc<VehicleCostReport>("vehicle_cost_report", {
+    vehicle_id: vehicleId,
+    start_date: clean?.startDate ?? null,
+    end_date: clean?.endDate ?? null,
   });
 }
 
 export async function getReportsOverview(filter?: ReportFilter): Promise<ReportsOverview> {
-  return invoke<ReportsOverview>(expenseCommands.reportsOverview, { filter: cleanFilter(filter) });
+  const clean = cleanFilter(filter);
+
+  return rpc<ReportsOverview>("reports_overview", {
+    vehicle_id: clean?.vehicleId ?? null,
+    start_date: clean?.startDate ?? null,
+    end_date: clean?.endDate ?? null,
+  });
+}
+
+function expenseArgs(request: ExpenseMutationRequest) {
+  return {
+    vehicle_id: request.vehicleId,
+    expense_date: request.expenseDate,
+    category: request.category,
+    description: request.description,
+    amount: request.amount,
+    receipt_document_id: request.receiptDocumentId ?? null,
+    related_record_type: request.relatedRecordType ?? null,
+    related_record_id: request.relatedRecordId ?? null,
+    notes: request.notes ?? null,
+  };
 }
 
 function cleanFilter<Filter extends Record<string, string | undefined>>(

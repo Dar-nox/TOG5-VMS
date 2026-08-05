@@ -1,15 +1,6 @@
-import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { managedFileUrl, rpc, supabase, unwrap, unwrapVoid } from "./client";
+import { insertVehicleDocument, uploadManagedFile } from "./storage";
 import type { FuelEfficiencyStatus, FuelLogFuelType } from "../../domain";
-
-const fuelCommands = {
-  listForVehicle: "list_fuel_logs_for_vehicle",
-  get: "get_fuel_log",
-  create: "create_fuel_log",
-  update: "update_fuel_log",
-  archive: "archive_fuel_log",
-  storeReceipt: "store_fuel_receipt",
-  summaryForVehicle: "get_fuel_efficiency_summary_for_vehicle",
-} as const;
 
 export type FuelTypeWarningRecord = {
   code: string;
@@ -62,7 +53,7 @@ export type FuelLogMutationRequest = {
 export type FuelReceiptRecord = {
   id: string;
   vehicleId: string;
-  filePath: string;
+  storagePath: string;
   originalFilename?: string | null;
   fileSizeBytes: number;
   createdAt?: string | null;
@@ -78,47 +69,110 @@ export type FuelEfficiencySummaryRecord = {
 };
 
 export async function listFuelLogsForVehicle(vehicleId: string): Promise<FuelLogRecord[]> {
-  return invoke<FuelLogRecord[]>(fuelCommands.listForVehicle, { vehicleId });
+  return unwrap(
+    await supabase
+      .from("fuel_logs_detailed")
+      .select("*")
+      .eq("vehicle_id", vehicleId)
+      .order("fuel_date", { ascending: false })
+      .order("odometer", { ascending: false }),
+  );
 }
 
 export async function getFuelLog(id: string): Promise<FuelLogRecord> {
-  return invoke<FuelLogRecord>(fuelCommands.get, { id });
+  return unwrap(await supabase.from("fuel_logs_detailed").select("*").eq("id", id).single());
 }
 
 export async function createFuelLog(request: FuelLogMutationRequest): Promise<FuelLogRecord> {
-  return invoke<FuelLogRecord>(fuelCommands.create, { request });
+  const created = unwrap<{ id: string }>(
+    await supabase.from("fuel_logs").insert(toRow(request)).select("id").single(),
+  );
+
+  await linkReceipt(request.receiptDocumentId, created.id);
+
+  return getFuelLog(created.id);
 }
 
 export async function updateFuelLog(
   id: string,
   request: FuelLogMutationRequest,
 ): Promise<FuelLogRecord> {
-  return invoke<FuelLogRecord>(fuelCommands.update, { id, request });
+  unwrapVoid(await supabase.from("fuel_logs").update(toRow(request)).eq("id", id));
+  await linkReceipt(request.receiptDocumentId, id);
+
+  return getFuelLog(id);
 }
 
 export async function archiveFuelLog(id: string): Promise<void> {
-  return invoke<void>(fuelCommands.archive, { id });
+  // Soft delete. A trigger recalculates the vehicle's whole efficiency history
+  // afterwards, since removing a fill changes the readings either side of it.
+  unwrapVoid(
+    await supabase.from("fuel_logs").update({ deleted_at: new Date().toISOString() }).eq("id", id),
+  );
 }
 
 export async function storeFuelReceipt(vehicleId: string, file: File): Promise<FuelReceiptRecord> {
-  const bytes = Array.from(new Uint8Array(await file.arrayBuffer()));
+  const storagePath = await uploadManagedFile("fuel-receipts", file);
+  const document = await insertVehicleDocument(vehicleId, "fuel_receipt", storagePath, file.name);
 
-  return invoke<FuelReceiptRecord>(fuelCommands.storeReceipt, {
-    request: {
-      vehicleId,
-      originalFilename: file.name,
-      mimeType: file.type || undefined,
-      bytes,
-    },
-  });
+  return {
+    id: document.id,
+    vehicleId,
+    storagePath: document.storagePath,
+    originalFilename: file.name,
+    fileSizeBytes: file.size,
+    createdAt: new Date().toISOString(),
+  };
 }
 
 export async function getFuelEfficiencySummaryForVehicle(
   vehicleId: string,
 ): Promise<FuelEfficiencySummaryRecord> {
-  return invoke<FuelEfficiencySummaryRecord>(fuelCommands.summaryForVehicle, { vehicleId });
+  return rpc<FuelEfficiencySummaryRecord>("fuel_efficiency_summary_for_vehicle", {
+    vehicle_id: vehicleId,
+  });
 }
 
-export function fuelReceiptUrl(filePath?: string | null): string | undefined {
-  return filePath ? convertFileSrc(filePath.replace(/\\/g, "/")) : undefined;
+export function fuelReceiptUrl(storagePath?: string | null): Promise<string | undefined> {
+  return managedFileUrl(storagePath);
+}
+
+/**
+ * The desktop app derived whichever of price and total was missing. Keeping
+ * that here means somebody can still enter only what is on the receipt.
+ */
+function toRow(request: FuelLogMutationRequest) {
+  const liters = request.liters;
+  const pricePerLiter =
+    request.pricePerLiter ??
+    (request.totalAmount !== undefined && liters > 0 ? request.totalAmount / liters : null);
+  const totalAmount =
+    request.totalAmount ??
+    (request.pricePerLiter !== undefined ? request.pricePerLiter * liters : 0);
+
+  return {
+    vehicle_id: request.vehicleId,
+    fuel_date: request.fuelDate,
+    odometer: request.odometer,
+    fuel_type: request.fuelType,
+    liters,
+    price_per_liter: pricePerLiter,
+    total_amount: totalAmount,
+    station_name: request.stationName || null,
+    receipt_number: request.receiptNumber || null,
+    receipt_document_id: request.receiptDocumentId || null,
+    is_full_tank: request.isFullTank,
+    notes: request.notes || null,
+  };
+}
+
+async function linkReceipt(documentId: string | undefined, fuelLogId: string): Promise<void> {
+  if (!documentId) {
+    return;
+  }
+
+  await supabase
+    .from("vehicle_documents")
+    .update({ related_record_type: "fuel_log", related_record_id: fuelLogId })
+    .eq("id", documentId);
 }

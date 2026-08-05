@@ -3177,6 +3177,117 @@ h1 {
   gap: 10px;
 }
 
+.app-loading {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  color: #31515b;
+  font-weight: 800;
+}
+
+.sign-in-screen {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  background: #102833;
+  padding: 24px;
+}
+
+.sign-in-card {
+  display: grid;
+  width: 100%;
+  max-width: 420px;
+  gap: 18px;
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 28px;
+}
+
+.sign-in-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #31515b;
+}
+
+.sign-in-brand p {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.sign-in-brand strong {
+  font-size: 1.05rem;
+}
+
+.sign-in-intro {
+  display: grid;
+  gap: 8px;
+}
+
+.sign-in-intro h1 {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+.sign-in-intro p {
+  margin: 0;
+  color: #4a6670;
+  line-height: 1.55;
+}
+
+.sidebar-account {
+  display: grid;
+  margin-top: auto;
+  gap: 10px;
+  border: 1px solid #2a4650;
+  border-radius: 8px;
+  background: #173844;
+  padding: 14px;
+}
+
+.sidebar-account-name {
+  display: grid;
+  gap: 2px;
+  overflow-wrap: anywhere;
+}
+
+.sidebar-account-name span {
+  color: #f1c75b;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.sidebar-account-name strong {
+  color: #f8fbfa;
+  font-size: 0.95rem;
+}
+
+.sidebar-sign-out {
+  min-height: 38px;
+  border: 1px solid #3d5f6b;
+  border-radius: 8px;
+  background: transparent;
+  color: #cfe0dc;
+  padding: 8px 12px;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.sidebar-sign-out:hover:not(:disabled) {
+  border-color: #f1c75b;
+  color: #f1c75b;
+}
+
+.sidebar-sign-out:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
 @media (max-width: 1120px) {
   .desktop-shell {
     grid-template-columns: 94px minmax(0, 1fr);
@@ -3192,8 +3303,20 @@ h1 {
   }
 
   .brand-block div:not(.brand-mark),
-  .sidebar-note {
+  .sidebar-note,
+  .sidebar-account-name {
     display: none;
+  }
+
+  .sidebar-account {
+    border: 0;
+    background: transparent;
+    padding: 0;
+  }
+
+  .sidebar-sign-out {
+    padding: 8px 4px;
+    font-size: 0.78rem;
   }
 
   .nav-label {
@@ -3286,6 +3409,20 @@ h1 {
 
   .brand-block div:not(.brand-mark) {
     display: block;
+  }
+
+  .sidebar-account {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .sidebar-account-name {
+    display: grid;
+  }
+
+  .sidebar-sign-out {
+    padding: 8px 12px;
+    font-size: 0.88rem;
   }
 
   .nav-list {

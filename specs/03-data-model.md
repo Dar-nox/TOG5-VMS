@@ -1,12 +1,36 @@
 # 03 — Data Model Specification
 
-This file defines the initial domain entities and database tables for TOG 5 VMS.
+This file defines the domain entities and their business meaning. The tables as
+actually built are in `supabase/migrations/`, which is the authority when the
+two disagree.
 
-Use this as a starting point. Exact SQL may evolve, but business meaning should remain stable.
+## What moving to Postgres changed
+
+The field tables below still describe the right *meaning*. Four things about
+their shape changed when the records left SQLite, and they apply everywhere:
+
+* **Ids are `uuid`, not text.** The desktop generated
+  `vehicle_1784465585674_3` — a millisecond timestamp plus a counter that reset
+  when the app restarted. Fine for one machine; several phones writing at once
+  would collide. Anything below reading `text/uuid` is `uuid default
+  gen_random_uuid()`.
+* **Dates are real types.** `timestamptz` for an instant, `date` for a calendar
+  day. The desktop stored text in three incompatible formats and the migration
+  normalises all of them.
+* **Money is `numeric(12,2)`, booleans are `boolean`, metadata is `jsonb`.**
+  Not `REAL`, `INTEGER 0/1` and `TEXT`.
+* **`file_path` is `storage_path`.** An object in a Supabase Storage bucket,
+  such as `vehicle-photos/photo_1784465548523_2.jpg` — not a path on somebody's
+  C: drive.
+
+Enums that Rust used to check are now `CHECK` constraints, because clients
+reach the tables directly and a rule enforced only in the client is not
+enforced.
 
 ## Table List
 
-1. `users`
+1. `profiles` — replaces `users`. One row per Supabase Auth account, holding
+   display name, role and status. Passwords are Auth's, not ours.
 2. `vehicles`
 3. `vehicle_photos`
 4. `vehicle_documents`
@@ -18,12 +42,26 @@ Use this as a starting point. Exact SQL may evolve, but business meaning should 
 10. `maintenance_schedules`
 11. `maintenance_logs`
 12. `repair_records`
-13. `parts_inventory`
+13. `trips`, `trip_drivers`, `trip_passengers`, `trip_destinations`
 14. `expenses`
 15. `alerts`
 16. `settings`
-17. `backups`
+17. `data_exports` — replaces `backups`. Records that an export was taken and
+    when, so the app can say how long it has been. The files themselves are
+    downloads and are not held here.
 18. `audit_logs`
+
+`parts_inventory` was specified but never used, and is not in the schema.
+
+## Reading the data
+
+Screens do not query these tables directly. They read flat views —
+`vehicles_with_photo`, `fuel_logs_detailed`, `maintenance_schedules_detailed`
+and the rest — which resolve the joins and, where it matters, evaluate status
+against today rather than replaying what was stored.
+
+Every one of those views is `security_invoker = on`. Without it a view runs as
+its owner and is a way straight around the access rules.
 
 ## vehicles
 

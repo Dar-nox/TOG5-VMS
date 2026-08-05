@@ -4,7 +4,9 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", "src-tauri/target"] },
+  // target/ holds Rust build output, including JavaScript Tauri generates
+  // for its own use. It is not ours to lint.
+  { ignores: ["dist", "target", "src-tauri/target"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

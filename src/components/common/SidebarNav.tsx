@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { useAuth } from "../../app/providers/authContext";
 import type { NavigationItem, PageId } from "../../types/navigation";
 
 type SidebarNavProps = {
@@ -7,6 +9,19 @@ type SidebarNavProps = {
 };
 
 export function SidebarNav({ activePage, items, onNavigate }: SidebarNavProps) {
+  const { user, signOut } = useAuth();
+  const [signingOut, setSigningOut] = useState(false);
+
+  async function handleSignOut() {
+    setSigningOut(true);
+
+    try {
+      await signOut();
+    } finally {
+      setSigningOut(false);
+    }
+  }
+
   return (
     <aside className="sidebar" aria-label="Main navigation">
       <div className="brand-block">
@@ -33,9 +48,19 @@ export function SidebarNav({ activePage, items, onNavigate }: SidebarNavProps) {
         ))}
       </nav>
 
-      <div className="sidebar-note">
-        <span>Local MVP</span>
-        Vehicle records are stored locally on this device.
+      <div className="sidebar-account">
+        <div className="sidebar-account-name">
+          <span>Signed in as</span>
+          <strong>{user?.displayName ?? "Unknown"}</strong>
+        </div>
+        <button
+          className="sidebar-sign-out"
+          disabled={signingOut}
+          onClick={() => void handleSignOut()}
+          type="button"
+        >
+          {signingOut ? "Signing out..." : "Sign out"}
+        </button>
       </div>
     </aside>
   );

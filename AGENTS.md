@@ -1,93 +1,125 @@
-# AGENTS.md — Codex Working Instructions for TOG 5 VMS
+# AGENTS.md — Working Instructions for TOG 5 VMS
 
 ## Role
 
-You are the coding agent for **TOG 5 VMS**, a local desktop Vehicle Maintenance System.
+You are the coding agent for **TOG 5 VMS**, a Vehicle Maintenance System the
+client's staff reach from anywhere — phone or computer.
 
-The goal is to implement the project incrementally, safely, and with minimal unnecessary rewrites. Prefer small, verifiable changes over broad speculative changes.
+Implement incrementally and safely. Prefer small, verifiable changes over broad
+speculative ones.
 
-## Required Behavior
+## Read First
 
-Before making code changes, read the relevant specification files in this repository, especially:
+1. `specs/00-project-brief.md`
+2. `specs/01-tech-stack-architecture.md`
+3. `specs/02-functional-specification.md`
+4. `specs/03-data-model.md`
+5. `specs/04-maintenance-template-engine.md`
+6. `specs/05-ui-ux-specification.md`
+7. `specs/06-business-rules.md`
+8. `specs/07-development-phases.md`
+9. `specs/08-testing-quality.md`
+10. `specs/live-update.md`
 
-1. `00-project-brief.md`
-2. `01-tech-stack-architecture.md`
-3. `02-functional-specification.md`
-4. `03-data-model.md`
-5. `04-maintenance-template-engine.md`
-6. `05-ui-ux-specification.md`
-7. `06-business-rules.md`
-8. `07-development-phases.md`
-9. `08-testing-quality.md`
-10. `live-update.md`
+`supabase/README.md` covers the database and how to test it.
 
 ## Development Rules
 
-1. Keep the app local-only. Do not add cloud sync, remote APIs, analytics, telemetry, or external data upload.
-2. Use SQLite for persistent local data unless explicitly instructed otherwise.
-3. Preserve user data and avoid destructive migrations.
-4. Do not hard-code universal maintenance schedules when templates/rules are appropriate.
-5. Do not make plate number required.
-6. Vehicle name and vehicle picture are the primary identifiers.
-7. Maintenance applicability must consider fuel type, transmission type, drivetrain, and selected vehicle features.
-8. Diesel vehicles must not automatically receive spark plug maintenance.
-9. Gasoline vehicles must not automatically receive diesel-only maintenance such as DEF/AdBlue service.
-10. Full EVs must not automatically receive engine oil, fuel filter, spark plug, or exhaust maintenance.
-11. Allow user override with warning when maintenance applicability is questionable.
-12. Prefer clear, simple UI over dense technical screens.
-13. Add validation for odometer, required fields, costs, dates, and fuel quantities.
-14. When changing data structures, update related types, migrations, seed data, and tests.
-15. After completing a phase or milestone, update `live-update.md`.
+1. **Rules that must always hold go in Postgres, not the client.** Four clients
+   talk to PostgREST directly with a key that ships inside the app. Anything
+   enforced only in TypeScript is not enforced.
+2. **Every table has row level security, including `deleted_at is null`.** A
+   soft-deleted row must not exist as far as any client is concerned.
+3. **Views must be `security_invoker = on`.** Without it a view runs as its
+   owner and is a hole straight through the access rules.
+4. **Anything that must happen as one piece is a database function.** Not a
+   sequence of requests from the browser that can fail halfway.
+5. **A change with consequences carries them.** A fuel log moves the vehicle's
+   odometer; moving the odometer re-evaluates what is due. Do not leave that to
+   whichever screen someone happens to open.
+6. Grants and policies are different things, and Postgres checks the grant
+   first. New tables need both.
+7. Preserve user data. Avoid destructive migrations.
+8. Do not hard-code universal maintenance schedules when templates and rules
+   are appropriate.
+9. Do not make plate number required.
+10. Vehicle name and vehicle picture are the primary identifiers.
+11. Maintenance applicability must consider fuel type, transmission type,
+    drivetrain, and selected vehicle features.
+12. Diesel vehicles must not automatically receive spark plug maintenance.
+13. Gasoline vehicles must not automatically receive diesel-only maintenance
+    such as DEF/AdBlue service.
+14. Full EVs must not automatically receive engine oil, fuel filter, spark
+    plug, or exhaust maintenance.
+15. Allow user override with warning when applicability is questionable.
+16. Prefer clear, simple UI over dense technical screens. Assume a phone.
+17. Validate odometer, required fields, costs, dates, and fuel quantities.
+18. When changing data structures, update related types, migrations, seed data,
+    and tests together.
+19. After a phase or milestone, update `specs/live-update.md`.
+
+## Online Only
+
+Confirmed with the client: no offline mode, no queue, no sync.
+
+Writes must **fail visibly**. Never accept something optimistically and lose it
+quietly — a record that vanishes without a word is worse than one that was
+never taken.
+
+Do not cache fleet data in the service worker. The shell, yes; records, never.
+A stale odometer reading with no way to tell it is stale is worse than a
+spinner.
+
+## Secrets
+
+- The **publishable key** is meant to be public. It ships in the bundle. Row
+  level security protects the data, not secrecy of the key.
+- The **database password** is a real secret. It is only for pushing
+  migrations, only ever in a shell, and never in a file.
+- The client's backup file holds real fleet data and stays git-ignored.
 
 ## Coding Style
 
-- Use TypeScript for frontend code.
-- Prefer explicit types for domain models.
-- Keep business logic separate from UI components where possible.
-- Use small reusable UI components.
-- Use clear naming over abbreviations.
-- Write readable validation errors.
-- Add comments only where they clarify business logic.
+- TypeScript for frontend code, explicit types for domain models.
+- Business logic out of components.
+- Small reusable components, clear names over abbreviations.
+- Readable validation errors, written for the person reading them.
+- Comments explain *why*, especially where a rule is subtle or was got wrong
+  before. Do not narrate what the code plainly says.
 
 ## Testing Expectations
 
 For each meaningful change:
 
-1. Run available formatting/linting.
-2. Run available unit tests.
-3. Run build/typecheck where available.
-4. Record results in `live-update.md`.
+1. `supabase/tests/run.sh` if the database changed.
+2. `supabase/tests/mutate.sh` if any access rule changed. Not optional — a
+   passing test that cannot fail proves nothing.
+3. `npm run lint`, `npm run typecheck`, `npm run test`, `npm run build`.
+4. Record results in `specs/live-update.md`.
 
-If tests are not yet configured, state that clearly in `live-update.md` and add a future task.
+**When adding a test for a bug, check it fails without the fix.** Two bugs have
+reached the client through tests that exercised the shape of a feature but not
+the part that touched another table.
 
 ## Live Update Requirement
 
-At the end of each task, update `live-update.md` with:
+At the end of each task, append to `specs/live-update.md`: date, phase, files
+changed, summary, commands run, results, errors, decisions, remaining issues,
+next step.
 
-1. Date/time if available.
-2. Phase or milestone worked on.
-3. Files changed.
-4. Summary of changes.
-5. Commands run.
-6. Test/build results.
-7. Errors encountered.
-8. Decisions made.
-9. Remaining issues.
-10. Suggested next step.
+Do not remove history. Append unless asked to consolidate.
 
-Do not remove useful history from `live-update.md`. Append new updates unless the user explicitly asks to consolidate it.
+## Scope Control
 
-## Safety and Scope Control
+Out of scope unless asked:
 
-Do not implement future/out-of-scope features unless requested, including:
-
-- Cloud sync
-- Online accounts
 - GPS tracking
 - Automatic manufacturer schedule lookup
 - Receipt OCR
-- Mobile app
-- Network database
-- Remote telemetry
+- Offline mode or sync
+- Anything requiring a paid plan
 
-When uncertain, prefer adding a TODO note or asking for confirmation instead of inventing a large architecture.
+The client has ruled out paid subscriptions **for now**. That rules out paid
+tiers, not vendors — check before letting it shape an architecture.
+
+When uncertain, ask or leave a TODO rather than inventing a large architecture.

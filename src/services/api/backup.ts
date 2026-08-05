@@ -1,112 +1,143 @@
-import { invoke } from "@tauri-apps/api/core";
+/**
+ * Taking a copy of the records.
+ *
+ * The desktop build wrote a zip of the SQLite file plus the photo folders, and
+ * could restore it. None of that applies now — the database is hosted, and a
+ * browser cannot put a file back into it — so this is an export and not a
+ * backup system.
+ *
+ * It still matters, more than it did. The free plan takes no automatic copies,
+ * so this download is the only copy of their records the client holds. Each
+ * export is recorded in the database, which is what lets Settings say how long
+ * it has been since the last one.
+ */
 
-const backupCommands = {
-  create: "create_backup",
-  validate: "validate_backup_file",
-  restore: "restore_backup",
-  list: "list_backups",
-  safetySummary: "get_local_file_safety_summary",
-} as const;
+import { rpc, supabase, unwrap } from "./client";
 
-export type BackupManifestFile = {
-  path: string;
+/** Every table worth keeping, in an order that reads sensibly in the file. */
+const EXPORTED_TABLES = [
+  "profiles",
+  "vehicles",
+  "vehicle_photos",
+  "vehicle_documents",
+  "maintenance_templates",
+  "maintenance_template_rules",
+  "vehicle_maintenance_settings",
+  "maintenance_schedules",
+  "maintenance_logs",
+  "repair_records",
+  "fuel_logs",
+  "trips",
+  "trip_drivers",
+  "trip_passengers",
+  "trip_destinations",
+  "expenses",
+  "alerts",
+  "settings",
+  "audit_logs",
+] as const;
+
+export type ExportSummary = {
+  exportedAt: string;
+  filename: string;
   sizeBytes: number;
-  checksum: string;
+  recordCounts: Record<string, number>;
+  totalRecords: number;
 };
 
-export type BackupManifest = {
-  appName: string;
-  appVersion: string;
-  formatVersion: number;
+export type ExportHistoryRecord = {
+  id: string;
+  exportedBy?: string | null;
+  recordCounts: Record<string, number>;
   createdAt: string;
-  databaseFileName: string;
-  includedFolders: string[];
-  fileCount: number;
-  totalSizeBytes: number;
-  checksumAlgorithm: string;
-  files: BackupManifestFile[];
 };
 
-export type FileIntegrityIssue = {
-  severity: "warning" | "error" | string;
-  code: string;
-  message: string;
-  path?: string | null;
+export type StorageSummary = {
+  photoCount: number;
+  documentCount: number;
 };
 
-export type BackupPackageResponse = {
-  id: string;
-  backupPath: string;
-  manifest: BackupManifest;
-  sizeBytes: number;
-  status: string;
-  message: string;
-};
+/**
+ * Reads every table and hands the browser one JSON file.
+ *
+ * Photos and receipts are not in it. They are files rather than records, they
+ * are the bulk of the storage, and a browser cannot zip gigabytes without
+ * falling over — so the file lists what exists and where, and says plainly
+ * that the images themselves stay on the server.
+ */
+export async function exportAllData(): Promise<ExportSummary> {
+  const tables: Record<string, unknown[]> = {};
+  const recordCounts: Record<string, number> = {};
 
-export type BackupValidationResult = {
-  backupPath: string;
-  valid: boolean;
-  manifest?: BackupManifest | null;
-  issues: FileIntegrityIssue[];
-};
+  for (const table of EXPORTED_TABLES) {
+    const rows = unwrap<unknown[]>(await supabase.from(table).select("*"));
+    tables[table] = rows;
+    recordCounts[table] = rows.length;
+  }
 
-export type RestoreBackupRequest = {
-  backupPath: string;
-  confirmRestore: boolean;
-};
+  const exportedAt = new Date().toISOString();
+  const contents = {
+    appName: "TOG 5 VMS",
+    formatVersion: 1,
+    exportedAt,
+    note:
+      "Every record in the fleet database. Photos and receipts are stored as " +
+      "files and are not included here; the vehicle_photos and " +
+      "vehicle_documents rows list where each one lives.",
+    recordCounts,
+    tables,
+  };
 
-export type RestoreBackupResponse = {
-  restored: boolean;
-  restartRequired: boolean;
-  restoredFrom: string;
-  safetyBackupPath: string;
-  message: string;
-};
+  const blob = new Blob([JSON.stringify(contents, null, 2)], {
+    type: "application/json",
+  });
+  const filename = `tog5-vms-export-${exportedAt.slice(0, 10)}.json`;
 
-export type BackupHistoryRecord = {
-  id: string;
-  backupPath: string;
-  status: string;
-  startedAt: string;
-  completedAt?: string | null;
-  verifiedAt?: string | null;
-  sizeBytes?: number | null;
-  notes?: string | null;
-};
+  download(blob, filename);
 
-export type ManagedFolderSummary = {
-  folderName: string;
-  folderPath: string;
-  exists: boolean;
-  fileCount: number;
-  totalSizeBytes: number;
-};
+  // Recorded only after the file has been handed over, so a failed read never
+  // resets the reminder clock on an export that did not happen.
+  await rpc<string>("record_data_export", { record_counts: recordCounts });
 
-export type LocalFileSafetySummary = {
-  databasePath: string;
-  databaseExists: boolean;
-  managedFolders: ManagedFolderSummary[];
-  referencedFileCount: number;
-  missingReferenceCount: number;
-  issues: FileIntegrityIssue[];
-};
-
-export async function createBackup(): Promise<BackupPackageResponse> {
-  return invoke<BackupPackageResponse>(backupCommands.create);
+  return {
+    exportedAt,
+    filename,
+    sizeBytes: blob.size,
+    recordCounts,
+    totalRecords: Object.values(recordCounts).reduce((sum, count) => sum + count, 0),
+  };
 }
 
-export async function validateBackupFile(backupPath: string): Promise<BackupValidationResult> {
-  return invoke<BackupValidationResult>(backupCommands.validate, { backupPath });
+export async function listExports(): Promise<ExportHistoryRecord[]> {
+  return unwrap(
+    await supabase
+      .from("data_exports")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(10),
+  );
 }
 
-export async function restoreBackup(request: RestoreBackupRequest): Promise<RestoreBackupResponse> {
-  return invoke<RestoreBackupResponse>(backupCommands.restore, { request });
+/** What is held as files rather than records, so the screen can say so. */
+export async function getStorageSummary(): Promise<StorageSummary> {
+  const [photos, documents] = await Promise.all([
+    supabase.from("vehicle_photos").select("id", { count: "exact", head: true }),
+    supabase.from("vehicle_documents").select("id", { count: "exact", head: true }),
+  ]);
+
+  return {
+    photoCount: photos.count ?? 0,
+    documentCount: documents.count ?? 0,
+  };
 }
 
-export async function listBackups(): Promise<BackupHistoryRecord[]> {
-  return invoke<BackupHistoryRecord[]>(backupCommands.list);
-}
-
-export async function getLocalFileSafetySummary(): Promise<LocalFileSafetySummary> {
-  return invoke<LocalFileSafetySummary>(backupCommands.safetySummary);
+function download(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }

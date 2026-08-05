@@ -15,10 +15,10 @@ import {
   listVehicles,
   storeVehiclePhoto,
   updateVehicle,
-  vehiclePhotoUrl,
   type VehicleMutationRequest,
   type VehicleRecord,
 } from "../../services/api/vehicles";
+import { useManagedFileUrl } from "../../services/files/useManagedFileUrl";
 import {
   listMaintenanceSchedulesForVehicle,
   listVehicleMaintenanceSettings,
@@ -41,7 +41,7 @@ type VehicleFormState = {
   notes: string;
   primaryPhotoId: string;
   primaryPhotoName: string;
-  primaryPhotoUrl?: string;
+  primaryPhotoPath?: string;
 };
 
 const vehicleTypeOptions: Array<{ value: VehicleType; label: string }> = [
@@ -220,7 +220,7 @@ export function VehicleModule() {
         ...currentForm,
         primaryPhotoId: savedPhoto.id,
         primaryPhotoName: savedPhoto.originalFilename ?? file.name,
-        primaryPhotoUrl: vehiclePhotoUrl(savedPhoto.filePath),
+        primaryPhotoPath: savedPhoto.storagePath,
       }));
       setValidationIssues((issues) => issues.filter((issue) => issue.field !== "primaryPhotoId"));
     } catch (error) {
@@ -373,6 +373,7 @@ function VehicleForm(props: {
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   const { fileInputRef, form, issues, mode, photoSaving, saving, onChange } = props;
+  const formPhotoUrl = useManagedFileUrl(form.primaryPhotoPath);
 
   return (
     <form className="vehicle-form" onSubmit={props.onSubmit}>
@@ -386,8 +387,8 @@ function VehicleForm(props: {
 
       <div className="vehicle-photo-picker">
         <div className="vehicle-photo-frame large vehicle-photo-preview">
-          {form.primaryPhotoUrl ? (
-            <img className="vehicle-photo-image" alt="" src={form.primaryPhotoUrl} />
+          {formPhotoUrl ? (
+            <img className="vehicle-photo-image" alt="" src={formPhotoUrl} />
           ) : (
             <span>Vehicle picture</span>
           )}
@@ -799,7 +800,7 @@ function buildMaintenanceOverviewRows(
 }
 
 function VehiclePhoto(props: { vehicle: VehicleRecord; size: "small" | "large" }) {
-  const imageUrl = vehiclePhotoUrl(props.vehicle.primaryPhotoPath);
+  const imageUrl = useManagedFileUrl(props.vehicle.primaryPhotoPath);
   const [imageFailed, setImageFailed] = useState(false);
 
   useEffect(() => {
@@ -887,7 +888,7 @@ function formFromVehicle(vehicle: VehicleRecord): VehicleFormState {
     notes: vehicle.notes ?? "",
     primaryPhotoId: vehicle.primaryPhotoId ?? "",
     primaryPhotoName: "",
-    primaryPhotoUrl: vehiclePhotoUrl(vehicle.primaryPhotoPath),
+    primaryPhotoPath: vehicle.primaryPhotoPath ?? undefined,
   };
 }
 

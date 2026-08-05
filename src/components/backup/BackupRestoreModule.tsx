@@ -1,42 +1,35 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
-  createBackup,
-  getLocalFileSafetySummary,
-  listBackups,
-  restoreBackup,
-  validateBackupFile,
-  type BackupHistoryRecord,
-  type BackupPackageResponse,
-  type BackupValidationResult,
-  type FileIntegrityIssue,
-  type LocalFileSafetySummary,
+  exportAllData,
+  getStorageSummary,
+  listExports,
+  type ExportHistoryRecord,
+  type ExportSummary,
+  type StorageSummary,
 } from "../../services/api/backup";
 
+/**
+ * The old version of this screen made and restored zip files on somebody's
+ * disk. There is no disk any more, and a browser cannot put a database back —
+ * so this screen explains where the records actually are and lets anyone take
+ * a copy for themselves.
+ */
 export function BackupRestoreModule() {
-  const [safetySummary, setSafetySummary] = useState<LocalFileSafetySummary | null>(null);
-  const [backupHistory, setBackupHistory] = useState<BackupHistoryRecord[]>([]);
-  const [selectedBackupPath, setSelectedBackupPath] = useState("");
-  const [validation, setValidation] = useState<BackupValidationResult | null>(null);
-  const [lastBackup, setLastBackup] = useState<BackupPackageResponse | null>(null);
-  const [restoreConfirmation, setRestoreConfirmation] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [history, setHistory] = useState<ExportHistoryRecord[]>([]);
+  const [storage, setStorage] = useState<StorageSummary | null>(null);
+  const [lastExport, setLastExport] = useState<ExportSummary | null>(null);
   const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
-  const [validating, setValidating] = useState(false);
-  const [restoring, setRestoring] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const latestBackup = useMemo(() => backupHistory[0] ?? null, [backupHistory]);
-
-  const loadBackupData = useCallback(async () => {
+  const loadPageData = useCallback(async () => {
     setLoading(true);
     setErrorMessage(null);
 
     try {
-      const [summary, history] = await Promise.all([getLocalFileSafetySummary(), listBackups()]);
-      setSafetySummary(summary);
-      setBackupHistory(history);
-      setSelectedBackupPath((currentPath) => currentPath || history[0]?.backupPath || "");
+      const [exports, storageSummary] = await Promise.all([listExports(), getStorageSummary()]);
+      setHistory(exports);
+      setStorage(storageSummary);
     } catch (error) {
       setErrorMessage(messageFromError(error));
     } finally {
@@ -45,427 +38,140 @@ export function BackupRestoreModule() {
   }, []);
 
   useEffect(() => {
-    void loadBackupData();
-  }, [loadBackupData]);
+    void loadPageData();
+  }, [loadPageData]);
 
-  const handleCreateBackup = useCallback(async () => {
-    setCreating(true);
+  const handleExport = useCallback(async () => {
+    setExporting(true);
     setErrorMessage(null);
-    setSuccessMessage(null);
-    setValidation(null);
 
     try {
-      const backup = await createBackup();
-      setLastBackup(backup);
-      setSelectedBackupPath(backup.backupPath);
-      setSuccessMessage(`Backup created: ${backup.backupPath}`);
-      await loadBackupData();
+      setLastExport(await exportAllData());
+      await loadPageData();
     } catch (error) {
       setErrorMessage(messageFromError(error));
     } finally {
-      setCreating(false);
+      setExporting(false);
     }
-  }, [loadBackupData]);
-
-  const handleValidate = useCallback(async () => {
-    if (!selectedBackupPath.trim()) {
-      setErrorMessage("Enter a backup package path before validating.");
-      return;
-    }
-
-    setValidating(true);
-    setErrorMessage(null);
-    setSuccessMessage(null);
-    setRestoreConfirmation(false);
-
-    try {
-      const result = await validateBackupFile(selectedBackupPath);
-      setValidation(result);
-
-      if (result.valid) {
-        setSuccessMessage("Backup validation passed. Review the details before restoring.");
-      } else {
-        setErrorMessage(validationFailureSummary(result));
-      }
-    } catch (error) {
-      setErrorMessage(messageFromError(error));
-    } finally {
-      setValidating(false);
-    }
-  }, [selectedBackupPath]);
-
-  const handleRestore = useCallback(async () => {
-    if (!validation?.valid) {
-      setErrorMessage("Validate a backup successfully before restoring.");
-      return;
-    }
-
-    if (!restoreConfirmation) {
-      setErrorMessage("Confirm the restore warning before continuing.");
-      return;
-    }
-
-    setRestoring(true);
-    setErrorMessage(null);
-    setSuccessMessage(null);
-
-    try {
-      const response = await restoreBackup({
-        backupPath: selectedBackupPath,
-        confirmRestore: true,
-      });
-      setSuccessMessage(`${response.message} Safety backup: ${response.safetyBackupPath}`);
-      setRestoreConfirmation(false);
-      await loadBackupData();
-    } catch (error) {
-      setErrorMessage(messageFromError(error));
-    } finally {
-      setRestoring(false);
-    }
-  }, [loadBackupData, restoreConfirmation, selectedBackupPath, validation?.valid]);
+  }, [loadPageData]);
 
   return (
     <div className="backup-module">
       <section className="backup-workspace">
         <div className="backup-header">
           <div>
-            <h2>Backup & Restore</h2>
-            <p>
-              Create local backup packages for the SQLite database and app-managed files. Restore
-              validates the package and creates a safety backup first.
-            </p>
+            <h2>Backup</h2>
+            <p>Where the records are kept, and how to hold a copy of your own.</p>
           </div>
 
           <button
             className="primary-button"
-            disabled={creating}
+            disabled={exporting}
             type="button"
-            onClick={() => void handleCreateBackup()}
+            onClick={() => void handleExport()}
           >
-            {creating ? "Creating backup..." : "Create backup"}
+            {exporting ? "Exporting..." : "Export everything"}
           </button>
         </div>
 
-        {loading ? <div className="maintenance-empty-note">Checking local files...</div> : null}
         {errorMessage ? <div className="inline-error">{errorMessage}</div> : null}
-        {successMessage ? <div className="backup-success-note">{successMessage}</div> : null}
 
-        <BackupStatusPanel
-          lastBackup={lastBackup}
-          latestHistory={latestBackup}
-          safetySummary={safetySummary}
-        />
+        {lastExport ? (
+          <div className="backup-success-note">
+            {lastExport.filename} downloaded — {lastExport.totalRecords.toLocaleString()} records,{" "}
+            {formatSize(lastExport.sizeBytes)}. It is wherever this device saves downloads.
+          </div>
+        ) : null}
 
-        <div className="backup-grid">
-          <LocalFileSafetyPanel summary={safetySummary} />
-          <RestorePanel
-            backupHistory={backupHistory}
-            restoring={restoring}
-            restoreConfirmation={restoreConfirmation}
-            selectedBackupPath={selectedBackupPath}
-            validating={validating}
-            validation={validation}
-            onConfirmChange={setRestoreConfirmation}
-            onPathChange={(value) => {
-              setSelectedBackupPath(value);
-              setValidation(null);
-              setRestoreConfirmation(false);
-            }}
-            onRestore={() => void handleRestore()}
-            onValidate={() => void handleValidate()}
-          />
-        </div>
+        <section className="settings-card">
+          <div>
+            <h3>Where your records live</h3>
+            <p>
+              Everything is on a hosted database rather than one computer. It is encrypted on the
+              way there and where it sits, and everyone signed in sees the same records the moment
+              they change.
+            </p>
+            <p>
+              The plan this runs on takes no automatic copies. That is the reason for the button
+              above: an export is the only copy of your records that you hold yourself, and it is
+              worth taking one regularly.
+            </p>
+          </div>
 
-        <BackupHistoryPanel
-          history={backupHistory}
-          onSelectBackup={(path) => {
-            setSelectedBackupPath(path);
-            setValidation(null);
-            setRestoreConfirmation(false);
-          }}
-        />
+          {storage ? (
+            <div className="settings-path-list">
+              <div className="settings-path-row">
+                <strong>Photos</strong>
+                <span>{storage.photoCount.toLocaleString()} stored as files</span>
+              </div>
+              <div className="settings-path-row">
+                <strong>Receipts and documents</strong>
+                <span>{storage.documentCount.toLocaleString()} stored as files</span>
+              </div>
+            </div>
+          ) : null}
+        </section>
+
+        <section className="settings-card">
+          <div>
+            <h3>What an export contains</h3>
+            <p>
+              One file holding every record: vehicles, trips, fuel, service history, reminders,
+              expenses, alerts, and who did what. Photos and receipts are files rather than records
+              and stay on the server — the export lists each one so nothing is unaccounted for.
+            </p>
+            <p>
+              Putting an export back is not something the app can do by itself. If it ever comes to
+              that, the file has everything needed to rebuild the fleet, and it should be handed to
+              whoever looks after the system.
+            </p>
+          </div>
+        </section>
+
+        <section className="settings-card">
+          <div>
+            <h3>Recent exports</h3>
+            <p>Taken by anyone signed in. This is what the reminder in Settings counts from.</p>
+          </div>
+
+          {loading ? (
+            <div className="maintenance-empty-note">Loading...</div>
+          ) : history.length === 0 ? (
+            <div className="maintenance-empty-note">
+              No export has been taken yet. Now would be a good time.
+            </div>
+          ) : (
+            <div className="settings-user-list">
+              {history.map((record) => (
+                <div className="settings-user-row" key={record.id}>
+                  <span>{new Date(record.createdAt).toLocaleString()}</span>
+                  <em>{totalOf(record.recordCounts).toLocaleString()} records</em>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       </section>
     </div>
   );
 }
 
-function BackupStatusPanel(props: {
-  safetySummary: LocalFileSafetySummary | null;
-  latestHistory: BackupHistoryRecord | null;
-  lastBackup: BackupPackageResponse | null;
-}) {
-  const issueCount = props.safetySummary?.issues.length ?? 0;
-  const missingReferences = props.safetySummary?.missingReferenceCount ?? 0;
-
-  return (
-    <div className="backup-summary-grid" aria-label="Backup status summary">
-      <BackupMetric
-        label="Database"
-        value={props.safetySummary?.databaseExists ? "Found" : "Missing"}
-      />
-      <BackupMetric
-        label="Managed files"
-        value={`${totalManagedFiles(props.safetySummary).toLocaleString()} files`}
-      />
-      <BackupMetric label="Missing references" value={missingReferences.toLocaleString()} />
-      <BackupMetric label="Safety warnings" value={issueCount.toLocaleString()} />
-      <BackupMetric
-        label="Latest backup"
-        value={props.lastBackup?.manifest.createdAt ?? props.latestHistory?.completedAt ?? "None"}
-      />
-    </div>
-  );
+function totalOf(counts: Record<string, number>): number {
+  return Object.values(counts ?? {}).reduce((sum, count) => sum + count, 0);
 }
 
-function BackupMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="backup-summary-card">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
-function LocalFileSafetyPanel({ summary }: { summary: LocalFileSafetySummary | null }) {
-  return (
-    <section className="backup-panel">
-      <div>
-        <h3>Local file safety</h3>
-        <p>Checks the database and app-managed folders used by vehicle photos and receipts.</p>
-      </div>
-
-      {summary ? (
-        <>
-          <div className="backup-path-note">
-            <strong>Database</strong>
-            <span>{summary.databasePath}</span>
-          </div>
-
-          <div className="backup-folder-list">
-            {summary.managedFolders.map((folder) => (
-              <div className="backup-folder-row" key={folder.folderName}>
-                <div>
-                  <strong>{labelFromKey(folder.folderName)}</strong>
-                  <span>{folder.folderPath}</span>
-                </div>
-                <em>{folder.exists ? `${folder.fileCount} files` : "Not created yet"}</em>
-              </div>
-            ))}
-          </div>
-
-          <IssueList issues={summary.issues} emptyText="No local file safety issues found." />
-        </>
-      ) : (
-        <div className="maintenance-empty-note">Local file safety summary is loading.</div>
-      )}
-    </section>
-  );
-}
-
-function RestorePanel(props: {
-  backupHistory: BackupHistoryRecord[];
-  selectedBackupPath: string;
-  validation: BackupValidationResult | null;
-  validating: boolean;
-  restoring: boolean;
-  restoreConfirmation: boolean;
-  onPathChange: (value: string) => void;
-  onValidate: () => void;
-  onRestore: () => void;
-  onConfirmChange: (value: boolean) => void;
-}) {
-  return (
-    <section className="backup-panel">
-      <div>
-        <h3>Validate and restore</h3>
-        <p>
-          Restore replaces local app data only after validation and confirmation. Restart is
-          required after restore.
-        </p>
-      </div>
-
-      <label className="form-field">
-        <span>Backup package path</span>
-        <input
-          list="backup-history-paths"
-          type="text"
-          value={props.selectedBackupPath}
-          onChange={(event) => props.onPathChange(event.target.value)}
-        />
-      </label>
-      <datalist id="backup-history-paths">
-        {props.backupHistory.map((backup) => (
-          <option key={backup.id} value={backup.backupPath} />
-        ))}
-      </datalist>
-
-      <div className="backup-action-row">
-        <button
-          className="secondary-button"
-          disabled={props.validating}
-          type="button"
-          onClick={props.onValidate}
-        >
-          {props.validating ? "Validating..." : "Validate backup"}
-        </button>
-      </div>
-
-      {props.validation ? <ValidationResultCard validation={props.validation} /> : null}
-
-      <label className="backup-confirm-row">
-        <input
-          checked={props.restoreConfirmation}
-          type="checkbox"
-          onChange={(event) => props.onConfirmChange(event.target.checked)}
-        />
-        <span>
-          I understand restore will replace local app data after creating a safety backup, and the
-          app should be restarted afterward.
-        </span>
-      </label>
-
-      <div className="backup-action-row">
-        <button
-          className="danger-button"
-          disabled={!props.validation?.valid || !props.restoreConfirmation || props.restoring}
-          type="button"
-          onClick={props.onRestore}
-        >
-          {props.restoring ? "Restoring..." : "Restore validated backup"}
-        </button>
-      </div>
-    </section>
-  );
-}
-
-function ValidationResultCard({ validation }: { validation: BackupValidationResult }) {
-  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
-
-  const handleCopyReport = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(validation, null, 2));
-      setCopyState("copied");
-    } catch {
-      setCopyState("failed");
-    }
-  }, [validation]);
-
-  return (
-    <div className={validation.valid ? "backup-success-note" : "inline-error"}>
-      <strong>{validation.valid ? "Backup is valid" : "Backup needs attention"}</strong>
-      {validation.manifest ? (
-        <span>
-          {validation.manifest.fileCount} files / {formatBytes(validation.manifest.totalSizeBytes)}{" "}
-          / created {validation.manifest.createdAt}
-        </span>
-      ) : null}
-      <IssueList issues={validation.issues} emptyText="No validation issues found." />
-
-      <div className="backup-action-row">
-        <button className="secondary-button" type="button" onClick={() => void handleCopyReport()}>
-          {copyState === "copied" ? "Diagnostic report copied" : "Copy diagnostic report"}
-        </button>
-        {copyState === "failed" ? (
-          <span>Could not copy the report. Select the details above and copy them manually.</span>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-function BackupHistoryPanel(props: {
-  history: BackupHistoryRecord[];
-  onSelectBackup: (path: string) => void;
-}) {
-  return (
-    <section className="backup-panel">
-      <div>
-        <h3>Backup history</h3>
-        <p>Local backup and restore records saved in the SQLite database.</p>
-      </div>
-
-      {props.history.length === 0 ? (
-        <div className="maintenance-empty-note">No backup history yet.</div>
-      ) : (
-        <div className="backup-history-list">
-          {props.history.map((backup) => (
-            <article className="backup-history-card" key={backup.id}>
-              <div>
-                <div className="maintenance-card-heading">
-                  <span className="maintenance-category">{backup.status}</span>
-                  <span className="priority-pill">{formatBytes(backup.sizeBytes ?? 0)}</span>
-                </div>
-                <h3>{backup.completedAt ?? backup.startedAt}</h3>
-                <p>{backup.backupPath}</p>
-                {backup.notes ? (
-                  <div className="maintenance-action-note">{backup.notes}</div>
-                ) : null}
-              </div>
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={() => props.onSelectBackup(backup.backupPath)}
-              >
-                Use this path
-              </button>
-            </article>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function IssueList({ issues, emptyText }: { issues: FileIntegrityIssue[]; emptyText: string }) {
-  if (issues.length === 0) {
-    return <div className="maintenance-empty-note">{emptyText}</div>;
+function formatSize(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} B`;
   }
 
-  return (
-    <div className="backup-issue-list">
-      {issues.map((issue) => (
-        <div className={`backup-issue ${issue.severity}`} key={`${issue.code}-${issue.path ?? ""}`}>
-          <strong>{issue.message}</strong>
-          <code className="backup-issue-code">{issue.code}</code>
-          {issue.path ? <span>{issue.path}</span> : null}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function totalManagedFiles(summary: LocalFileSafetySummary | null) {
-  return summary?.managedFolders.reduce((total, folder) => total + folder.fileCount, 0) ?? 0;
-}
-
-function formatBytes(value: number) {
-  if (value < 1024) {
-    return `${value} B`;
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
   }
 
-  if (value < 1024 * 1024) {
-    return `${(value / 1024).toFixed(1)} KB`;
-  }
-
-  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function labelFromKey(value: string) {
-  return value
-    .split(/[-_]/)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function messageFromError(error: unknown) {
   return error instanceof Error ? error.message : String(error);
-}
-
-function validationFailureSummary(validation: BackupValidationResult) {
-  const errors = validation.issues.filter((issue) => issue.severity === "error");
-  const codes = [...new Set(errors.map((issue) => issue.code))].join(", ");
-  const countLabel = errors.length === 1 ? "1 issue" : `${errors.length} issues`;
-  const subject = errors.length === 1 ? "it is" : "they are";
-
-  return `Backup validation found ${countLabel} (${codes}). Restore is disabled until ${subject} fixed.`;
 }

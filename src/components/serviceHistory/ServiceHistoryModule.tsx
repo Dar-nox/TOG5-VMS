@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   listServiceHistoryForVehicle,
-  maintenanceFileUrl,
   type MaintenanceLogRecord,
 } from "../../services/api/maintenance";
 import { getAppSettings } from "../../services/api/settings";
 import { listVehicles, type VehicleRecord } from "../../services/api/vehicles";
+import { useManagedFileUrl } from "../../services/files/useManagedFileUrl";
 
 const DEFAULT_CURRENCY = "PHP";
 
@@ -81,8 +81,8 @@ export function ServiceHistoryModule() {
           <div>
             <h2>Service History</h2>
             <p>
-              Completed maintenance records saved locally for each vehicle. These records also feed
-              your reports and cost summaries.
+              Completed maintenance records for each vehicle. These records also feed your reports
+              and cost summaries.
             </p>
           </div>
 
@@ -144,9 +144,9 @@ export function ServiceHistoryModule() {
 }
 
 function ServiceHistoryCard({ currency, log }: { currency: string; log: MaintenanceLogRecord }) {
-  const receiptHref = maintenanceFileUrl(log.receiptFilePath);
-  const beforeHref = maintenanceFileUrl(log.beforePhotoPath);
-  const afterHref = maintenanceFileUrl(log.afterPhotoPath);
+  const receiptHref = useManagedFileUrl(log.receiptFilePath);
+  const beforeHref = useManagedFileUrl(log.beforePhotoPath);
+  const afterHref = useManagedFileUrl(log.afterPhotoPath);
 
   return (
     <article className="service-history-card">

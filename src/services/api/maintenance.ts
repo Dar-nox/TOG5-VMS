@@ -1,4 +1,18 @@
-import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+/**
+ * Maintenance items, reminders, schedules and service history.
+ *
+ * Almost every write here goes through a database function rather than a table
+ * update. Completing a service touches four tables and either all of it lands
+ * or none of it does — done from the browser it would be four requests that can
+ * fail halfway, leaving a van with a service record and a reminder still
+ * showing overdue.
+ *
+ * Seeding is gone: the 35 items and their rules are part of the schema now, so
+ * there is nothing for the app to trigger.
+ */
+
+import { managedFileUrl, rpc, supabase, unwrap } from "./client";
+import { insertVehicleDocument, uploadManagedFile } from "./storage";
 import type {
   AlertPriority,
   AlertStatus,
@@ -8,27 +22,6 @@ import type {
   MaintenanceScheduleStatus,
 } from "../../domain";
 import type { Drivetrain, TransmissionType, VehicleFuelType, VehicleType } from "../../domain";
-
-const maintenanceCommands = {
-  listTemplates: "list_maintenance_templates",
-  applicableForVehicle: "get_applicable_maintenance_templates_for_vehicle",
-  seedTemplates: "seed_maintenance_templates",
-  createTemplate: "create_maintenance_template",
-  updateTemplate: "update_maintenance_template",
-  archiveTemplate: "archive_maintenance_template",
-  listSchedulesForVehicle: "list_maintenance_schedules_for_vehicle",
-  syncSchedulesForVehicle: "sync_maintenance_schedules_for_vehicle",
-  listVehicleMaintenanceSettings: "list_vehicle_maintenance_settings",
-  upsertVehicleMaintenanceSetting: "upsert_vehicle_maintenance_setting",
-  archiveVehicleMaintenanceSetting: "archive_vehicle_maintenance_setting",
-  refreshAlertsForVehicle: "refresh_maintenance_alerts_for_vehicle",
-  completeSchedule: "complete_maintenance_schedule",
-  logMaintenance: "log_maintenance",
-  listServiceHistoryForVehicle: "list_service_history_for_vehicle",
-  getMaintenanceLog: "get_maintenance_log",
-  storeReceipt: "store_maintenance_receipt",
-  storePhoto: "store_maintenance_photo",
-} as const;
 
 export type MaintenanceTemplateRuleRecord = {
   id: string;
@@ -65,11 +58,6 @@ export type ApplicableMaintenanceTemplate = {
   reason: string;
   warnings: string[];
   matchedRuleIds: string[];
-};
-
-export type SeedMaintenanceTemplatesResult = {
-  templateCount: number;
-  ruleCount: number;
 };
 
 export type CreateMaintenanceTemplateRequest = {
@@ -140,9 +128,7 @@ export type UpsertVehicleMaintenanceSettingRequest = {
 
 export type SyncMaintenanceSchedulesResult = {
   vehicleId: string;
-  createdCount: number;
-  updatedCount: number;
-  skippedCount: number;
+  syncedCount: number;
   schedules: MaintenanceScheduleRecord[];
 };
 
@@ -263,142 +249,330 @@ export type MaintenanceAttachmentRecord = {
   createdAt?: string | null;
 };
 
+/** What a completion RPC hands back: ids, not rows. */
+type MaintenanceCompletion = {
+  logId: string;
+  scheduleId: string | null;
+  resolvedAlertCount: number;
+  reminderUsed: boolean;
+};
+
 export async function listMaintenanceTemplates(): Promise<MaintenanceTemplateRecord[]> {
-  return invoke<MaintenanceTemplateRecord[]>(maintenanceCommands.listTemplates);
+  // Seeded items stay out of the list until something references them, so a
+  // new install shows the handful somebody actually set up rather than 35.
+  return rpc<MaintenanceTemplateRecord[]>("list_user_maintenance_templates");
 }
 
 export async function getApplicableMaintenanceTemplatesForVehicle(
   vehicleId: string,
 ): Promise<ApplicableMaintenanceTemplate[]> {
-  return invoke<ApplicableMaintenanceTemplate[]>(maintenanceCommands.applicableForVehicle, {
-    vehicleId,
+  return rpc<ApplicableMaintenanceTemplate[]>("applicable_templates_for_vehicle", {
+    vehicle_id: vehicleId,
   });
-}
-
-export async function seedMaintenanceTemplates(): Promise<SeedMaintenanceTemplatesResult> {
-  return invoke<SeedMaintenanceTemplatesResult>(maintenanceCommands.seedTemplates);
 }
 
 export async function createMaintenanceTemplate(
   request: CreateMaintenanceTemplateRequest,
 ): Promise<MaintenanceTemplateRecord> {
-  return invoke<MaintenanceTemplateRecord>(maintenanceCommands.createTemplate, { request });
+  const id = await rpc<string>("create_maintenance_template", templateArgs(request));
+
+  return getMaintenanceTemplate(id);
 }
 
 export async function updateMaintenanceTemplate(
   request: UpdateMaintenanceTemplateRequest,
 ): Promise<MaintenanceTemplateRecord> {
-  return invoke<MaintenanceTemplateRecord>(maintenanceCommands.updateTemplate, { request });
+  const id = await rpc<string>("update_maintenance_template", {
+    template_id: request.id,
+    ...templateArgs(request),
+  });
+
+  return getMaintenanceTemplate(id);
 }
 
 export async function archiveMaintenanceTemplate(templateId: string): Promise<void> {
-  return invoke<void>(maintenanceCommands.archiveTemplate, { templateId });
+  // Takes the item out of circulation along with the reminders and schedules
+  // that depend on it, rather than deleting history that points at it.
+  await rpc<void>("archive_maintenance_template", { template_id: templateId });
 }
 
 export async function listMaintenanceSchedulesForVehicle(
   vehicleId: string,
 ): Promise<MaintenanceScheduleRecord[]> {
-  return invoke<MaintenanceScheduleRecord[]>(maintenanceCommands.listSchedulesForVehicle, {
-    vehicleId,
-  });
+  return unwrap(
+    await supabase
+      .from("maintenance_schedules_detailed")
+      .select("*")
+      .eq("vehicle_id", vehicleId)
+      .order("category", { ascending: true })
+      .order("template_name", { ascending: true }),
+  );
 }
 
 export async function syncMaintenanceSchedulesForVehicle(
   vehicleId: string,
 ): Promise<SyncMaintenanceSchedulesResult> {
-  return invoke<SyncMaintenanceSchedulesResult>(maintenanceCommands.syncSchedulesForVehicle, {
-    vehicleId,
+  const syncedCount = await rpc<number>("sync_maintenance_schedules_for_vehicle", {
+    vehicle_id: vehicleId,
   });
+
+  return {
+    vehicleId,
+    syncedCount,
+    schedules: await listMaintenanceSchedulesForVehicle(vehicleId),
+  };
 }
 
 export async function listVehicleMaintenanceSettings(
   vehicleId: string,
 ): Promise<VehicleMaintenanceSettingRecord[]> {
-  return invoke<VehicleMaintenanceSettingRecord[]>(
-    maintenanceCommands.listVehicleMaintenanceSettings,
-    { vehicleId },
+  return unwrap(
+    await supabase
+      .from("vehicle_maintenance_settings_detailed")
+      .select("*")
+      .eq("vehicle_id", vehicleId)
+      .order("category", { ascending: true })
+      .order("template_name", { ascending: true }),
   );
 }
 
 export async function upsertVehicleMaintenanceSetting(
   request: UpsertVehicleMaintenanceSettingRequest,
 ): Promise<VehicleMaintenanceSettingRecord> {
-  return invoke<VehicleMaintenanceSettingRecord>(
-    maintenanceCommands.upsertVehicleMaintenanceSetting,
-    { request },
+  // Saving a reminder also recalculates the schedule behind it, which is why
+  // this is one call and not an upsert followed by a second request.
+  const id = await rpc<string>("upsert_vehicle_maintenance_setting", {
+    vehicle_id: request.vehicleId,
+    template_id: request.templateId,
+    ...defined({
+      status: request.status,
+      custom_time_interval_days: request.customTimeIntervalDays,
+      custom_odometer_interval_km: request.customOdometerIntervalKm,
+      custom_due_soon_days: request.customDueSoonDays,
+      custom_due_soon_km: request.customDueSoonKm,
+      notes: request.notes,
+    }),
+  });
+
+  return unwrap(
+    await supabase.from("vehicle_maintenance_settings_detailed").select("*").eq("id", id).single(),
   );
 }
 
 export async function archiveVehicleMaintenanceSetting(settingId: string): Promise<void> {
-  return invoke<void>(maintenanceCommands.archiveVehicleMaintenanceSetting, { settingId });
+  await rpc<void>("archive_vehicle_maintenance_setting", { setting_id: settingId });
 }
 
 export async function refreshMaintenanceAlertsForVehicle(
   vehicleId: string,
 ): Promise<RefreshMaintenanceAlertsResult> {
-  return invoke<RefreshMaintenanceAlertsResult>(maintenanceCommands.refreshAlertsForVehicle, {
+  const counts = await rpc<{
+    createdCount: number;
+    updatedCount: number;
+    resolvedCount: number;
+  }>("refresh_maintenance_alerts_for_vehicle", { vehicle_id: vehicleId });
+
+  return {
     vehicleId,
-  });
+    createdCount: counts.createdCount,
+    updatedCount: counts.updatedCount,
+    resolvedCount: counts.resolvedCount,
+    activeAlerts: await listActiveAlertsForVehicle(vehicleId),
+  };
 }
 
 export async function completeMaintenanceSchedule(
   request: CompleteMaintenanceScheduleRequest,
 ): Promise<CompleteMaintenanceScheduleResult> {
-  return invoke<CompleteMaintenanceScheduleResult>(maintenanceCommands.completeSchedule, {
-    request,
+  const completion = await rpc<MaintenanceCompletion>("complete_maintenance_schedule", {
+    schedule_id: request.scheduleId,
+    ...completionArgs(request),
   });
+
+  const [log, schedule] = await Promise.all([
+    getMaintenanceLog(completion.logId),
+    getMaintenanceSchedule(completion.scheduleId),
+  ]);
+
+  if (!schedule) {
+    throw new Error("The service was recorded but its reminder could not be read.");
+  }
+
+  return { log, schedule, resolvedAlertCount: completion.resolvedAlertCount };
 }
 
 export async function logMaintenance(
   request: LogMaintenanceRequest,
 ): Promise<LogMaintenanceResult> {
-  return invoke<LogMaintenanceResult>(maintenanceCommands.logMaintenance, { request });
+  const completion = await rpc<MaintenanceCompletion>("log_maintenance", {
+    vehicle_id: request.vehicleId,
+    template_id: request.templateId,
+    ...completionArgs(request),
+  });
+
+  const [log, schedule] = await Promise.all([
+    getMaintenanceLog(completion.logId),
+    getMaintenanceSchedule(completion.scheduleId),
+  ]);
+
+  return {
+    log,
+    schedule,
+    resolvedAlertCount: completion.resolvedAlertCount,
+    // False when the vehicle has no reminder for this item — the work is
+    // recorded, but there is nothing to move forward.
+    reminderUsed: completion.reminderUsed,
+  };
 }
 
 export async function listServiceHistoryForVehicle(
   vehicleId: string,
 ): Promise<MaintenanceLogRecord[]> {
-  return invoke<MaintenanceLogRecord[]>(maintenanceCommands.listServiceHistoryForVehicle, {
-    vehicleId,
-  });
+  return unwrap(
+    await supabase
+      .from("maintenance_logs_detailed")
+      .select("*")
+      .eq("vehicle_id", vehicleId)
+      .order("completed_date", { ascending: false })
+      .order("created_at", { ascending: false }),
+  );
 }
 
 export async function getMaintenanceLog(id: string): Promise<MaintenanceLogRecord> {
-  return invoke<MaintenanceLogRecord>(maintenanceCommands.getMaintenanceLog, { id });
+  return unwrap(await supabase.from("maintenance_logs_detailed").select("*").eq("id", id).single());
 }
 
 export async function storeMaintenanceReceipt(
   vehicleId: string,
   file: File,
 ): Promise<MaintenanceAttachmentRecord> {
-  const bytes = Array.from(new Uint8Array(await file.arrayBuffer()));
+  const storagePath = await uploadManagedFile("maintenance-receipts", file);
+  const document = await insertVehicleDocument(
+    vehicleId,
+    "maintenance_receipt",
+    storagePath,
+    file.name,
+  );
 
-  return invoke<MaintenanceAttachmentRecord>(maintenanceCommands.storeReceipt, {
-    request: {
-      vehicleId,
-      originalFilename: file.name,
-      mimeType: file.type || undefined,
-      bytes,
-    },
-  });
+  return {
+    id: document.id,
+    vehicleId,
+    filePath: document.storagePath,
+    originalFilename: file.name,
+    mimeType: file.type || null,
+    fileSizeBytes: file.size,
+    createdAt: new Date().toISOString(),
+  };
 }
 
 export async function storeMaintenancePhoto(
   vehicleId: string,
   file: File,
 ): Promise<MaintenanceAttachmentRecord> {
-  const bytes = Array.from(new Uint8Array(await file.arrayBuffer()));
+  const storagePath = await uploadManagedFile("maintenance-photos", file);
 
-  return invoke<MaintenanceAttachmentRecord>(maintenanceCommands.storePhoto, {
-    request: {
-      vehicleId,
-      originalFilename: file.name,
-      mimeType: file.type || undefined,
-      bytes,
-    },
-  });
+  // Attached to the vehicle straight away, and never primary: the database
+  // refuses an attachment that belongs to a different vehicle, and the profile
+  // picture is chosen on the vehicle screen, not here.
+  const photo = unwrap<{ id: string; storagePath: string }>(
+    await supabase
+      .from("vehicle_photos")
+      .insert({
+        vehicle_id: vehicleId,
+        storage_path: storagePath,
+        original_filename: file.name,
+        mime_type: file.type || null,
+        file_size_bytes: file.size,
+        is_primary: false,
+      })
+      .select("id, storage_path")
+      .single(),
+  );
+
+  return {
+    id: photo.id,
+    vehicleId,
+    filePath: photo.storagePath,
+    originalFilename: file.name,
+    mimeType: file.type || null,
+    fileSizeBytes: file.size,
+    createdAt: new Date().toISOString(),
+  };
 }
 
-export function maintenanceFileUrl(filePath?: string | null): string | undefined {
-  return filePath ? convertFileSrc(filePath.replace(/\\/g, "/")) : undefined;
+export function maintenanceFileUrl(storagePath?: string | null): Promise<string | undefined> {
+  return managedFileUrl(storagePath);
+}
+
+async function getMaintenanceTemplate(id: string): Promise<MaintenanceTemplateRecord> {
+  return unwrap(
+    await supabase.from("maintenance_templates_with_rules").select("*").eq("id", id).single(),
+  );
+}
+
+async function getMaintenanceSchedule(
+  id: string | null,
+): Promise<MaintenanceScheduleRecord | null> {
+  if (!id) {
+    return null;
+  }
+
+  return unwrap(
+    await supabase.from("maintenance_schedules_detailed").select("*").eq("id", id).single(),
+  );
+}
+
+async function listActiveAlertsForVehicle(vehicleId: string): Promise<AlertRecord[]> {
+  return unwrap(
+    await supabase
+      .from("alerts_detailed")
+      .select("*")
+      .eq("vehicle_id", vehicleId)
+      .eq("status", "active")
+      .order("created_at", { ascending: false }),
+  );
+}
+
+function templateArgs(request: CreateMaintenanceTemplateRequest) {
+  return {
+    name: request.name,
+    category: request.category,
+    ...defined({
+      description: request.description,
+      default_time_interval_days: request.defaultTimeIntervalDays,
+      default_odometer_interval_km: request.defaultOdometerIntervalKm,
+      default_due_soon_days: request.defaultDueSoonDays,
+      default_due_soon_km: request.defaultDueSoonKm,
+      priority: request.priority,
+    }),
+  };
+}
+
+function completionArgs(request: CompleteMaintenanceScheduleRequest | LogMaintenanceRequest) {
+  return {
+    completed_date: request.completedDate,
+    work_performed: request.workPerformed,
+    ...defined({
+      odometer: request.odometer,
+      parts_replaced: request.partsReplaced,
+      labor_cost: request.laborCost,
+      parts_cost: request.partsCost,
+      total_cost: request.totalCost,
+      mechanic_shop: request.mechanicShop,
+      receipt_document_id: request.receiptDocumentId,
+      before_photo_id: request.beforePhotoId,
+      after_photo_id: request.afterPhotoId,
+      warranty_expiration: request.warrantyExpiration,
+      notes: request.notes,
+    }),
+  };
+}
+
+/**
+ * Drops the arguments nobody filled in, so the database function uses its own
+ * default. Sending `null` instead would mean "no labour cost" where the
+ * function means zero, and the totals would come out wrong.
+ */
+function defined(args: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(args).filter(([, value]) => value !== undefined));
 }
