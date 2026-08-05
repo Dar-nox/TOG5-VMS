@@ -219,6 +219,50 @@ So the two copies answer different failures, and the local one answers the
 worse failure. Treat the downloaded file as the record of last resort and say
 so on screen — the client should be keeping one somewhere that is not a laptop.
 
+### Could a local snapshot rebuild the fleet somewhere else?
+
+Mostly yes, and the gaps are worth knowing before anyone relies on it.
+
+**What survives.** Every row of all nineteen tables. The schema, the row level
+security, the triggers and the ~30 Postgres functions are not in the file at
+all — they live in `supabase/migrations/` in git, which is the right place for
+them. Between the repository and one snapshot, the fleet's records can be stood
+up again.
+
+**Gap one: the photos and receipts are not in it.** The export says so itself —
+it holds the `vehicle_photos` and `vehicle_documents` rows, which record *where
+each file lives*, not the files. Restore that into a fresh project and every
+vehicle has a broken picture. That matters more here than in most systems,
+because a vehicle's picture is a required field and one of the two ways staff
+identify a van.
+
+**Gap two: the accounts are not in it.** `profiles` is exported, but
+`auth.users` — the emails and password hashes — is not reachable through
+PostgREST and never will be. `profiles.id` points at `auth.users.id`, so
+restoring profiles into a new project produces rows referring to accounts that
+do not exist, and every `created_by` on every record dangles. Everyone would
+re-register and the ids would differ.
+
+That second gap is solvable and there is precedent in this repository:
+`supabase/migrate_from_backup.py` already remaps identities deterministically
+with `uuid5` for the original SQLite migration. The same technique applies.
+
+**Design consequence:** if a savepoint is meant to be disaster recovery rather
+than a data dump, **it has to include the files**, or ship alongside a media
+export that does. Otherwise "restore point" promises more than it delivers, in
+the same way the archive confirmations currently do. Options: bundle the
+snapshot and the media into a zip, or keep a separate "download all photos"
+action and say plainly that a complete backup is both files.
+
+**One caveat on "another online database".** Moving to a *different Supabase
+project* is realistic — migrations, then data, then re-register the staff.
+Moving to a *different vendor* is a rebuild, not a restore: the app talks to
+PostgREST directly, its access rules are RLS built on `auth.uid()`, its files
+are in Supabase Storage, and its business logic is Postgres functions. The data
+is portable; the architecture is not. That is a deliberate trade this project
+already made, and the abandoned self-hosted branch is what the alternative
+looked like.
+
 ### My view
 
 **Worth building, in two halves, and do not ship the second half early.**
