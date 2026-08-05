@@ -1,5 +1,5 @@
 import { BackupSection } from "../../components/backup/BackupSection";
-import { SettingsModule } from "../../components/settings/SettingsModule";
+import { SettingsSections } from "../../components/settings/SettingsSections";
 
 /**
  * Backup lives here now rather than being its own destination.
@@ -10,8 +10,9 @@ import { SettingsModule } from "../../components/settings/SettingsModule";
  */
 export default function SettingsPage() {
   return (
-    <div className="flex flex-col gap-6">
-      <SettingsModule />
+    <div className="flex flex-col gap-5">
+      <h1 className="text-xl font-semibold text-heading @md:text-2xl">Settings</h1>
+      <SettingsSections />
       <BackupSection />
     </div>
   );
