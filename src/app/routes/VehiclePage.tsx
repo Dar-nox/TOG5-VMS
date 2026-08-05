@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router";
 import { ExpensesModule } from "../../components/expenses/ExpensesModule";
 import { FuelLogsModule } from "../../components/fuel/FuelLogsModule";
 import { MaintenanceTemplateModule } from "../../components/maintenance/MaintenanceTemplateModule";
-import { ServiceHistoryModule } from "../../components/serviceHistory/ServiceHistoryModule";
+import { ServiceHistoryTab } from "../../components/vehicle/tabs/ServiceHistoryTab";
 import { TripsModule } from "../../components/trips/TripsModule";
 import { VehicleOverview } from "../../components/vehicle/VehicleOverview";
 import { VehiclePhoto } from "../../components/vehicle/VehiclePhoto";
@@ -155,7 +155,7 @@ export default function VehiclePage() {
         <MaintenanceTemplateModule />
       </TabPanel>
       <TabPanel active={active} id="history">
-        <ServiceHistoryModule />
+        <ServiceHistoryTab vehicleId={vehicleId} />
       </TabPanel>
       <TabPanel active={active} id="trips">
         <TripsModule />
