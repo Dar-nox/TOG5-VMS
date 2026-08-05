@@ -289,10 +289,14 @@
     letter-spacing: -0.01em;
   }
 
+  /* Motion is decoration here and goes when it is not wanted — except where
+     it is the only thing telling somebody the app is still working. A frozen
+     spinner says "finished" and is worse than no spinner, so anything marked
+     essential keeps moving. */
   @media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
+    *:not([data-motion="essential"]),
+    *:not([data-motion="essential"])::before,
+    *:not([data-motion="essential"])::after {
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
