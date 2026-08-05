@@ -15,13 +15,7 @@ import { Badge } from "../../ui/Badge";
 import { Button, ButtonRow } from "../../ui/Button";
 import { Card, CardHeader } from "../../ui/Card";
 import { DataList, DataRow, MetaItem } from "../../ui/DataRow";
-import {
-  DateTimeField,
-  FieldGrid,
-  FieldGridFull,
-  TextAreaField,
-  TextField,
-} from "../../ui/Field";
+import { DateTimeField, FieldGrid, FieldGridFull, TextAreaField, TextField } from "../../ui/Field";
 import { SkeletonRows } from "../../ui/Spinner";
 import { EmptyState, ErrorBlock, ErrorSummary } from "../../ui/States";
 import { PeopleField } from "./PeopleField";

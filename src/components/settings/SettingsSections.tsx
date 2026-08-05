@@ -161,7 +161,9 @@ export function SettingsSections() {
   }
 
   if (error) {
-    return <ErrorBlock action={<Button onClick={() => void load()}>Try again</Button>} message={error} />;
+    return (
+      <ErrorBlock action={<Button onClick={() => void load()}>Try again</Button>} message={error} />
+    );
   }
 
   if (!settings) {

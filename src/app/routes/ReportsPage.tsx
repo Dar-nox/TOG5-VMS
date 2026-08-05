@@ -8,10 +8,7 @@ import { canPrint, saveMessage } from "../../lib/saveFile";
 import { labelFromKey } from "../../lib/text";
 import { getReportsOverview, type ReportsOverview } from "../../services/api/expenses";
 import { exportReportCsv } from "../../services/api/reports";
-import {
-  getTripReportsOverview,
-  type TripReportsOverview,
-} from "../../services/api/trips";
+import { getTripReportsOverview, type TripReportsOverview } from "../../services/api/trips";
 import { listVehicles, type VehicleRecord } from "../../services/api/vehicles";
 import { Button, ButtonRow } from "../../components/ui/Button";
 import { Card, CardHeader, Stat, StatRow } from "../../components/ui/Card";
@@ -60,7 +57,9 @@ export default function ReportsPage() {
   const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
-    void listVehicles().then(setVehicles).catch(() => undefined);
+    void listVehicles()
+      .then(setVehicles)
+      .catch(() => undefined);
   }, []);
 
   const load = useCallback(async () => {
@@ -166,7 +165,10 @@ export default function ReportsPage() {
       </Card>
 
       {error ? (
-        <ErrorBlock action={<Button onClick={() => void load()}>Try again</Button>} message={error} />
+        <ErrorBlock
+          action={<Button onClick={() => void load()}>Try again</Button>}
+          message={error}
+        />
       ) : null}
 
       <Tabs active={tab} items={TABS} label="Report type" onChange={setTab} />
@@ -211,7 +213,11 @@ export default function ReportsPage() {
                                 numeric
                                 value={fmt.money(summary.repairTotal)}
                               />
-                              <MetaItem label="Total" numeric value={fmt.money(summary.totalCost)} />
+                              <MetaItem
+                                label="Total"
+                                numeric
+                                value={fmt.money(summary.totalCost)}
+                              />
                               <MetaItem
                                 label="Per distance"
                                 numeric

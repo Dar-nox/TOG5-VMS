@@ -38,7 +38,12 @@ export function AccountBlock({ collapsed = false }: { collapsed?: boolean }) {
   }
 
   return (
-    <div className={cn("flex items-center gap-2 border-t border-navy-800 pt-3", collapsed && "flex-col")}>
+    <div
+      className={cn(
+        "flex items-center gap-2 border-t border-navy-800 pt-3",
+        collapsed && "flex-col",
+      )}
+    >
       <span
         aria-hidden="true"
         className="grid size-9 shrink-0 place-items-center rounded-full bg-navy-700 text-xs font-semibold text-gold-400"

@@ -72,11 +72,7 @@ export function VehicleOverview({
                 key={schedule.id}
                 meta={
                   <>
-                    <MetaItem
-                      label="Due date"
-                      numeric
-                      value={fmt.date(schedule.nextDueDate)}
-                    />
+                    <MetaItem label="Due date" numeric value={fmt.date(schedule.nextDueDate)} />
                     <MetaItem
                       label="Due odometer"
                       numeric

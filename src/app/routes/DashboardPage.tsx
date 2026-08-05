@@ -11,10 +11,7 @@ import { toneForDueStatus, toneForPriority } from "../../components/ui/tones";
 import { messageFromError } from "../../lib/errors";
 import { routeForTargetPage, routes } from "../../lib/routes";
 import { labelFromKey } from "../../lib/text";
-import {
-  getDashboardOverview,
-  type DashboardOverview,
-} from "../../services/api/dashboard";
+import { getDashboardOverview, type DashboardOverview } from "../../services/api/dashboard";
 
 /**
  * What the fleet needs today.
@@ -59,7 +56,9 @@ export default function DashboardPage() {
   }
 
   if (error && !overview) {
-    return <ErrorBlock action={<Button onClick={() => void load()}>Try again</Button>} message={error} />;
+    return (
+      <ErrorBlock action={<Button onClick={() => void load()}>Try again</Button>} message={error} />
+    );
   }
 
   if (!overview) {
@@ -96,8 +95,7 @@ export default function DashboardPage() {
             </>
           ) : maintenanceSummary.dueSoonCount > 0 ? (
             <>
-              Nothing is overdue.{" "}
-              <strong>{maintenanceSummary.dueSoonCount}</strong>{" "}
+              Nothing is overdue. <strong>{maintenanceSummary.dueSoonCount}</strong>{" "}
               {maintenanceSummary.dueSoonCount === 1 ? "item is" : "items are"} coming up soon.
             </>
           ) : (

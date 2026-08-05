@@ -2,11 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useFormat } from "../../app/providers/formatContext";
 import { useToast } from "../../app/providers/toastContext";
 import { messageFromError } from "../../lib/errors";
-import {
-  exportAllData,
-  listExports,
-  type ExportHistoryRecord,
-} from "../../services/api/backup";
+import { exportAllData, listExports, type ExportHistoryRecord } from "../../services/api/backup";
 import { Button } from "../ui/Button";
 import { Card, CardHeader } from "../ui/Card";
 import { DataList, DataRow, MetaItem } from "../ui/DataRow";
@@ -103,8 +99,8 @@ export function BackupSection() {
 
       <p className="mt-4 text-xs text-muted">
         Photos and receipts are stored as files and are not inside the export, though the records
-        list where each one lives. Putting an export back is not something the app can do on its
-        own — the file has everything needed, and it should go to whoever looks after the system.
+        list where each one lives. Putting an export back is not something the app can do on its own
+        — the file has everything needed, and it should go to whoever looks after the system.
       </p>
     </Card>
   );

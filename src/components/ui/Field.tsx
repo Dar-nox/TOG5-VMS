@@ -89,7 +89,14 @@ type TextFieldProps = BaseProps & {
   type?: "text" | "email" | "password" | "tel";
 };
 
-export function TextField({ value, onChange, placeholder, autoComplete, type = "text", ...shell }: TextFieldProps) {
+export function TextField({
+  value,
+  onChange,
+  placeholder,
+  autoComplete,
+  type = "text",
+  ...shell
+}: TextFieldProps) {
   return (
     <FieldShell {...shell}>
       {({ id, describedBy, invalid }) => (
@@ -121,7 +128,15 @@ type NumberFieldProps = BaseProps & {
   placeholder?: string;
 };
 
-export function NumberField({ value, onChange, unit, min = 0, step, placeholder, ...shell }: NumberFieldProps) {
+export function NumberField({
+  value,
+  onChange,
+  unit,
+  min = 0,
+  step,
+  placeholder,
+  ...shell
+}: NumberFieldProps) {
   return (
     <FieldShell {...shell}>
       {({ id, describedBy, invalid }) => (
@@ -312,7 +327,13 @@ type TextAreaFieldProps = BaseProps & {
   placeholder?: string;
 };
 
-export function TextAreaField({ value, onChange, rows = 3, placeholder, ...shell }: TextAreaFieldProps) {
+export function TextAreaField({
+  value,
+  onChange,
+  rows = 3,
+  placeholder,
+  ...shell
+}: TextAreaFieldProps) {
   return (
     <FieldShell {...shell}>
       {({ id, describedBy, invalid }) => (
@@ -342,7 +363,14 @@ type CheckboxFieldProps = {
   className?: string;
 };
 
-export function CheckboxField({ label, hint, checked, onChange, disabled, className }: CheckboxFieldProps) {
+export function CheckboxField({
+  label,
+  hint,
+  checked,
+  onChange,
+  disabled,
+  className,
+}: CheckboxFieldProps) {
   const id = useId();
   const hintId = `${id}-hint`;
 

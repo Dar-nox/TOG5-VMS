@@ -139,4 +139,3 @@ export async function getStorageSummary(): Promise<StorageSummary> {
     documentCount: documents.count ?? 0,
   };
 }
-

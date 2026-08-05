@@ -17,13 +17,7 @@ import { AccountBlock } from "./AccountBlock";
  * overflow and nothing sticky, so at high zoom the navigation scrolled away
  * with the page and could not be reached without scrolling back.
  */
-export function SideNav({
-  collapsed,
-  onToggle,
-}: {
-  collapsed: boolean;
-  onToggle: () => void;
-}) {
+export function SideNav({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   const { pathname } = useLocation();
 
   return (

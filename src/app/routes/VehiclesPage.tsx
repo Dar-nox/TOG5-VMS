@@ -105,11 +105,7 @@ export default function VehiclesPage() {
             <DataRow
               key={vehicle.id}
               media={
-                <VehiclePhoto
-                  alt=""
-                  className="size-14"
-                  storagePath={vehicle.primaryPhotoPath}
-                />
+                <VehiclePhoto alt="" className="size-14" storagePath={vehicle.primaryPhotoPath} />
               }
               meta={
                 <>

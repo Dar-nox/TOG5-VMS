@@ -83,11 +83,7 @@ export function ServiceHistoryTab({ vehicleId }: { vehicleId: string }) {
               <MetaItem label="Total" numeric value={fmt.money(log.totalCost)} />
               {log.mechanicShop ? <MetaItem label="Shop" value={log.mechanicShop} /> : null}
               {log.warrantyExpiration ? (
-                <MetaItem
-                  label="Warranty until"
-                  numeric
-                  value={fmt.date(log.warrantyExpiration)}
-                />
+                <MetaItem label="Warranty until" numeric value={fmt.date(log.warrantyExpiration)} />
               ) : null}
             </>
           }

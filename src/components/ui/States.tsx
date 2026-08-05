@@ -82,14 +82,13 @@ export function ErrorSummary({ issues, className }: { issues: string[]; classNam
 
   return (
     <div
-      className={cn(
-        "rounded-md border border-overdue-line bg-overdue-surface p-4",
-        className,
-      )}
+      className={cn("rounded-md border border-overdue-line bg-overdue-surface p-4", className)}
       role="alert"
     >
       <p className="text-sm font-semibold text-overdue">
-        {issues.length === 1 ? "Check this before saving" : `Check these ${issues.length} things before saving`}
+        {issues.length === 1
+          ? "Check this before saving"
+          : `Check these ${issues.length} things before saving`}
       </p>
       <ul className="mt-2 flex list-disc flex-col gap-1 pl-5 text-sm text-overdue">
         {issues.map((issue) => (

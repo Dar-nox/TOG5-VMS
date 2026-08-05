@@ -89,7 +89,12 @@ export default function AlertsPage() {
         </Button>
       </div>
 
-      {error ? <ErrorBlock action={<Button onClick={() => void load()}>Try again</Button>} message={error} /> : null}
+      {error ? (
+        <ErrorBlock
+          action={<Button onClick={() => void load()}>Try again</Button>}
+          message={error}
+        />
+      ) : null}
 
       {loading ? (
         <SkeletonRows rows={3} />
@@ -112,11 +117,18 @@ export default function AlertsPage() {
               meta={
                 <>
                   <MetaItem label="Vehicle" value={alert.vehicleName ?? "—"} />
-                  <MetaItem label="Item" value={alert.maintenanceTemplateName ?? relatedLabel(alert)} />
+                  <MetaItem
+                    label="Item"
+                    value={alert.maintenanceTemplateName ?? relatedLabel(alert)}
+                  />
                   <MetaItem label="Due" numeric value={fmt.date(alert.dueDate)} />
                 </>
               }
-              onClick={alert.vehicleId ? () => void navigate(routes.vehicle(alert.vehicleId!, "maintenance")) : undefined}
+              onClick={
+                alert.vehicleId
+                  ? () => void navigate(routes.vehicle(alert.vehicleId!, "maintenance"))
+                  : undefined
+              }
               openLabel={alert.vehicleName ? `Open ${alert.vehicleName}` : undefined}
               subtitle={alert.message}
               title={

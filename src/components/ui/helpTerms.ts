@@ -30,8 +30,7 @@ export const helpTerms: Record<string, string> = {
   "brake pads":
     "The parts that squeeze the wheels to slow the vehicle down. They wear away with use and have to be replaced.",
 
-  coolant:
-    "The liquid that stops the engine overheating. Sometimes called radiator fluid.",
+  coolant: "The liquid that stops the engine overheating. Sometimes called radiator fluid.",
 
   "transmission fluid": "The oil that keeps the gearbox changing gears smoothly.",
 

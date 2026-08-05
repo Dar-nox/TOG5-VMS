@@ -234,14 +234,8 @@ export function FuelTab({ vehicle }: { vehicle: VehicleRecord }) {
       {summary && summary.officialLogCount > 0 ? (
         <Card>
           <StatRow>
-            <Stat
-              label="Latest"
-              value={fmt.efficiency(summary.latestKmPerLiter)}
-            />
-            <Stat
-              label="Recent average"
-              value={fmt.efficiency(summary.recentAverageKmPerLiter)}
-            />
+            <Stat label="Latest" value={fmt.efficiency(summary.latestKmPerLiter)} />
+            <Stat label="Recent average" value={fmt.efficiency(summary.recentAverageKmPerLiter)} />
             <Stat label="Full-tank logs" value={summary.officialLogCount} />
           </StatRow>
 

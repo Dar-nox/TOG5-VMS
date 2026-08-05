@@ -255,11 +255,7 @@ export function MaintenanceTab({ vehicle }: { vehicle: VehicleRecord }) {
                 key={setting.id}
                 meta={
                   <>
-                    <MetaItem
-                      label="Next due"
-                      numeric
-                      value={fmt.date(schedule?.nextDueDate)}
-                    />
+                    <MetaItem label="Next due" numeric value={fmt.date(schedule?.nextDueDate)} />
                     <MetaItem
                       label="At odometer"
                       numeric
@@ -270,10 +266,7 @@ export function MaintenanceTab({ vehicle }: { vehicle: VehicleRecord }) {
                       numeric
                       value={fmt.date(schedule?.lastCompletedDate)}
                     />
-                    <MetaItem
-                      label="Every"
-                      value={intervalText(setting, fmt.distanceLabel)}
-                    />
+                    <MetaItem label="Every" value={intervalText(setting, fmt.distanceLabel)} />
                   </>
                 }
                 subtitle={
@@ -442,12 +435,7 @@ function LogForm({
         <ErrorSummary issues={issues} />
 
         <FieldGrid>
-          <DateField
-            label="Date done"
-            onChange={setCompletedDate}
-            required
-            value={completedDate}
-          />
+          <DateField label="Date done" onChange={setCompletedDate} required value={completedDate} />
           <NumberField
             label="Odometer"
             onChange={setOdometer}

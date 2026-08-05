@@ -3,12 +3,7 @@ import { useNavigate, useParams } from "react-router";
 import { useFormat } from "../providers/formatContext";
 import { useToast } from "../providers/toastContext";
 import { validateVehicleCreation } from "../../domain";
-import type {
-  Drivetrain,
-  TransmissionType,
-  VehicleFuelType,
-  VehicleType,
-} from "../../domain";
+import type { Drivetrain, TransmissionType, VehicleFuelType, VehicleType } from "../../domain";
 import { messageFromError } from "../../lib/errors";
 import { routes } from "../../lib/routes";
 import { trimToUndefined } from "../../lib/text";
@@ -306,9 +301,7 @@ export default function VehicleEditorPage() {
                 {issues.primaryPhotoId}
               </p>
             ) : (
-              <p className="text-xs text-muted">
-                How everyone recognises this vehicle in the app.
-              </p>
+              <p className="text-xs text-muted">How everyone recognises this vehicle in the app.</p>
             )}
           </div>
         </div>
