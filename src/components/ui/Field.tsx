@@ -87,8 +87,9 @@ type TextFieldProps = BaseProps & {
   placeholder?: string;
   autoComplete?: string;
   // `search` gets the phone keyboard a Search key and, on desktop, the browser's
-  // own clear button.
-  type?: "text" | "email" | "password" | "tel" | "search";
+  // own clear button. `time` gets the native clock picker, which is far better
+  // on a phone than anything worth building.
+  type?: "text" | "email" | "password" | "tel" | "search" | "time";
 };
 
 export function TextField({
