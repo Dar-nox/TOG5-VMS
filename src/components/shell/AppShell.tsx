@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router";
-import { useAuth } from "../../app/providers/authContext";
 import { cn } from "../../lib/cn";
+import { AccountBlock } from "./AccountBlock";
 import { BottomNav } from "./BottomNav";
 import { SideNav } from "./SideNav";
 
@@ -68,10 +68,8 @@ export function AppShell() {
   );
 }
 
-/** The phone's top strip: identity, and who is signed in. */
+/** The phone's top strip: identity, who is signed in, and the way out. */
 function MobileBar() {
-  const { user } = useAuth();
-
   return (
     <header
       className={cn(
@@ -82,7 +80,7 @@ function MobileBar() {
     >
       <img alt="" className="size-8 shrink-0 rounded-md" src="/icon-192.png" />
       <p className="min-w-0 flex-1 truncate text-sm font-semibold">TOG 5 Vehicle Care</p>
-      <p className="max-w-[8rem] truncate text-xs text-ink-300">{user?.displayName}</p>
+      <AccountBlock variant="bar" />
     </header>
   );
 }

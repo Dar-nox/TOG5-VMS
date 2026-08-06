@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "../../lib/cn";
 
 /**
@@ -33,6 +33,44 @@ export function Tabs<Id extends string>({
   className?: string;
 }) {
   const refs = useRef(new Map<Id, HTMLButtonElement>());
+  const strip = useRef<HTMLDivElement>(null);
+  const [overflow, setOverflow] = useState({ start: false, end: false });
+
+  // Seven vehicle tabs, four of them visible on a phone, and the scrollbar
+  // hidden on purpose — so nothing said the rest were there. The mask fades
+  // whichever edge has more behind it.
+  const measure = useCallback(() => {
+    const node = strip.current;
+
+    if (!node) {
+      return;
+    }
+
+    const remaining = node.scrollWidth - node.clientWidth - node.scrollLeft;
+
+    setOverflow({ start: node.scrollLeft > 1, end: remaining > 1 });
+  }, []);
+
+  useEffect(() => {
+    const node = strip.current;
+
+    if (!node) {
+      return;
+    }
+
+    measure();
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+
+    return () => observer.disconnect();
+  }, [measure, items]);
+
+  useEffect(() => {
+    // Arriving on a deep link to a tab that starts off-screen used to show the
+    // strip scrolled to the left with nothing appearing selected.
+    refs.current.get(active)?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [active]);
 
   function move(direction: 1 | -1) {
     const index = items.findIndex((item) => item.id === active);
@@ -40,6 +78,11 @@ export function Tabs<Id extends string>({
     onChange(next.id);
     refs.current.get(next.id)?.focus();
   }
+
+  const fade = [
+    overflow.start ? "transparent, black 1.5rem" : "black 0",
+    overflow.end ? "black calc(100% - 1.5rem), transparent" : "black 100%",
+  ].join(", ");
 
   return (
     <div
@@ -60,7 +103,13 @@ export function Tabs<Id extends string>({
           move(-1);
         }
       }}
+      onScroll={measure}
+      ref={strip}
       role="tablist"
+      style={{
+        maskImage: `linear-gradient(to right, ${fade})`,
+        WebkitMaskImage: `linear-gradient(to right, ${fade})`,
+      }}
     >
       {items.map((item) => {
         const selected = item.id === active;
