@@ -25,6 +25,9 @@ export function Card({
     <section
       className={cn(
         "@container min-w-0 rounded-md border border-border bg-surface shadow-card",
+        // On paper a shadow is a grey smudge, and a card split across two pages
+        // reads as two half-tables.
+        "print:break-inside-avoid print:shadow-none",
         padded && "p-4 @md:p-5",
         className,
       )}

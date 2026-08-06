@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router";
 import { useConfirm } from "../../../app/providers/confirmContext";
 import { useFormat } from "../../../app/providers/formatContext";
 import { useToast } from "../../../app/providers/toastContext";
 import { validateFuelLog } from "../../../domain";
 import type { FuelLogFuelType } from "../../../domain";
 import { messageFromError } from "../../../lib/errors";
+import { routes } from "../../../lib/routes";
 import { trimToUndefined } from "../../../lib/text";
 import {
   archiveFuelLog,
@@ -80,6 +82,8 @@ export function FuelTab({ vehicle }: { vehicle: VehicleRecord }) {
   const fmt = useFormat();
   const confirm = useConfirm();
   const toast = useToast();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [logs, setLogs] = useState<FuelLogRecord[]>([]);
   const [summary, setSummary] = useState<FuelEfficiencySummaryRecord | null>(null);
@@ -119,6 +123,21 @@ export function FuelTab({ vehicle }: { vehicle: VehicleRecord }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Arrived here from "Log fuel" on an open trip. The form opens by itself and
+  // the fill-up is booked against that trip — the whole point being that the
+  // driver is at the pump and should not have to find this screen and remember
+  // which trip they are on.
+  const fromTrip = searchParams.get("trip") ?? undefined;
+
+  useEffect(() => {
+    if (fromTrip) {
+      openForm();
+    }
+    // openForm is stable enough for this: it only ever resets the form, and
+    // re-running on every render would fight with typing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromTrip]);
 
   // Newest first, so the first row is the reading a new entry must exceed.
   const latestOdometer = logs.length > 0 ? logs[0].odometer : undefined;
@@ -184,7 +203,7 @@ export function FuelTab({ vehicle }: { vehicle: VehicleRecord }) {
         receiptDocumentId = receipt.id;
       }
 
-      const request = { ...prepared.request, receiptDocumentId };
+      const request = { ...prepared.request, receiptDocumentId, tripId: fromTrip };
 
       if (editing) {
         await updateFuelLog(editing.id, request);
@@ -195,6 +214,10 @@ export function FuelTab({ vehicle }: { vehicle: VehicleRecord }) {
       await load();
       closeForm();
       toast.success(editing ? "Fuel log updated." : "Fuel log saved.");
+
+      if (fromTrip) {
+        navigate(routes.vehicle(vehicle.id, "trips"));
+      }
     } catch (caught) {
       toast.error(messageFromError(caught));
     } finally {
@@ -208,7 +231,7 @@ export function FuelTab({ vehicle }: { vehicle: VehicleRecord }) {
     // only about the row you can see.
     const confirmed = await confirm({
       title: "Archive this fuel log?",
-      body: `${fmt.date(log.fuelDate)}, ${fmt.volume(log.liters)} for ${fmt.money(log.totalAmount)}. It will be left out of fuel efficiency and cost reports. Archived records can be restored.`,
+      body: `${fmt.date(log.fuelDate)}, ${fmt.volume(log.liters)} for ${fmt.money(log.totalAmount)}. It will be left out of fuel efficiency and cost reports, and cannot be brought back from the app.`,
       confirmLabel: "Archive log",
     });
 

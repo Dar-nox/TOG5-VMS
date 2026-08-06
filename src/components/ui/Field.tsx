@@ -86,7 +86,9 @@ type TextFieldProps = BaseProps & {
   onChange: (value: string) => void;
   placeholder?: string;
   autoComplete?: string;
-  type?: "text" | "email" | "password" | "tel";
+  // `search` gets the phone keyboard a Search key and, on desktop, the browser's
+  // own clear button.
+  type?: "text" | "email" | "password" | "tel" | "search";
 };
 
 export function TextField({

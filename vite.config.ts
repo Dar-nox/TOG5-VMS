@@ -36,6 +36,10 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+        // Adds the notificationclick handler for a pinned trip. Imported into
+        // the generated worker rather than replacing it, so precaching and
+        // updates stay Workbox's problem.
+        importScripts: ["sw-notifications.js"],
         // The shell is cached so the app opens instantly on a slow connection.
         //
         // Fleet data never is, and that is deliberate. The client accepted an

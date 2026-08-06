@@ -293,6 +293,32 @@
      it is the only thing telling somebody the app is still working. A frozen
      spinner says "finished" and is worse than no spinner, so anything marked
      essential keeps moving. */
+  /* Paper.
+   *
+   * A report the client hands to an accountant or files against a vehicle. The
+   * app chrome is marked `print:hidden` where it lives; what is left here is
+   * what only the page itself can say. */
+  @media print {
+    @page {
+      margin: 14mm;
+    }
+
+    html,
+    body {
+      /* The page tint costs a fortune in toner and reads as grey paper. */
+      background: white;
+    }
+
+    /* Screen keeps the workspace scrolling under a fixed shell; on paper that
+       becomes one very long first page with everything after it cut off. */
+    body,
+    #main {
+      display: block;
+      overflow: visible;
+      height: auto;
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *:not([data-motion="essential"]),
     *:not([data-motion="essential"])::before,

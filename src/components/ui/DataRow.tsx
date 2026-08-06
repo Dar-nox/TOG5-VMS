@@ -41,7 +41,7 @@ export function DataRow({
   className?: string;
 }) {
   const body = (
-    <>
+    <div className="flex min-w-0 flex-1 items-start gap-3">
       {media ? <div className="shrink-0">{media}</div> : null}
 
       <div className="min-w-0 flex-1">
@@ -49,20 +49,28 @@ export function DataRow({
         {subtitle ? <div className="mt-0.5 text-xs text-muted">{subtitle}</div> : null}
         {meta ? <MetaList>{meta}</MetaList> : null}
       </div>
-    </>
+    </div>
   );
 
+  // Actions sit beside the content only once the row is wide enough to hold
+  // both. Below that they go underneath, full width. Keeping them alongside was
+  // the phone bug: three `shrink-0` buttons claimed most of a 360px row, the
+  // title was left a couple of words per line, and anything that could not be
+  // broken — a long item name, a currency amount — painted under the buttons.
   const shell = cn(
-    "@container flex w-full min-w-0 items-start gap-3 rounded-md border border-border",
-    "bg-surface p-3 text-left @md:p-4",
+    "@container flex w-full min-w-0 flex-col gap-3 rounded-md border border-border",
+    "bg-surface p-3 text-left @md:flex-row @md:items-start @md:p-4",
+    "print:break-inside-avoid",
     className,
   );
+
+  const actionRow = cn("flex flex-wrap gap-2", "@md:shrink-0");
 
   if (onClick) {
     return (
       <div className={cn(shell, "relative")}>
         {body}
-        {actions ? <div className="relative z-1 flex shrink-0 gap-2">{actions}</div> : null}
+        {actions ? <div className={cn(actionRow, "relative z-1")}>{actions}</div> : null}
         {/* Covers the row so the whole thing is one target, while the action
             buttons stay above it and separately clickable. */}
         <button className="absolute inset-0 rounded-md" onClick={onClick} type="button">
@@ -75,7 +83,7 @@ export function DataRow({
   return (
     <div className={shell}>
       {body}
-      {actions ? <div className="flex shrink-0 flex-wrap gap-2">{actions}</div> : null}
+      {actions ? <div className={actionRow}>{actions}</div> : null}
     </div>
   );
 }

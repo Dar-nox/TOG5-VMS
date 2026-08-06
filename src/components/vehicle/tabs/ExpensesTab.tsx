@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router";
 import { useConfirm } from "../../../app/providers/confirmContext";
 import { useFormat } from "../../../app/providers/formatContext";
 import { useToast } from "../../../app/providers/toastContext";
 import type { ExpenseCategory } from "../../../domain";
 import { messageFromError } from "../../../lib/errors";
+import { routes } from "../../../lib/routes";
 import { labelFromKey, trimToUndefined } from "../../../lib/text";
 import {
   archiveExpense,
@@ -72,6 +74,8 @@ export function ExpensesTab({ vehicleId }: { vehicleId: string }) {
   const fmt = useFormat();
   const confirm = useConfirm();
   const toast = useToast();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -102,6 +106,16 @@ export function ExpensesTab({ vehicleId }: { vehicleId: string }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Arrived from "Add cost" on an open trip: the toll or the parking fee is
+  // booked against it. See FuelTab for the same pattern.
+  const fromTrip = searchParams.get("trip") ?? undefined;
+
+  useEffect(() => {
+    if (fromTrip) {
+      openForm();
+    }
+  }, [fromTrip]);
 
   function openForm(expense?: ExpenseRecord) {
     setEditing(expense ?? null);
@@ -156,6 +170,7 @@ export function ExpensesTab({ vehicleId }: { vehicleId: string }) {
       category: form.category as ExpenseCategory,
       description: form.description.trim(),
       amount,
+      tripId: fromTrip,
       notes: trimToUndefined(form.notes),
     };
 
@@ -172,6 +187,10 @@ export function ExpensesTab({ vehicleId }: { vehicleId: string }) {
       setFormOpen(false);
       setEditing(null);
       toast.success(editing ? "Expense updated." : "Expense saved.");
+
+      if (fromTrip) {
+        navigate(routes.vehicle(vehicleId, "trips"));
+      }
     } catch (caught) {
       toast.error(messageFromError(caught));
     } finally {
@@ -183,7 +202,7 @@ export function ExpensesTab({ vehicleId }: { vehicleId: string }) {
     // Another that went on a single tap with nothing asked.
     const confirmed = await confirm({
       title: "Archive this expense?",
-      body: `${expense.description} — ${fmt.money(expense.amount)} on ${fmt.date(expense.expenseDate)}. It will be left out of cost reports. Archived records can be restored.`,
+      body: `${expense.description} — ${fmt.money(expense.amount)} on ${fmt.date(expense.expenseDate)}. It will be left out of cost reports, and cannot be brought back from the app.`,
       confirmLabel: "Archive expense",
     });
 

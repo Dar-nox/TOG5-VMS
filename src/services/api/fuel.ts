@@ -47,6 +47,13 @@ export type FuelLogMutationRequest = {
   receiptNumber?: string;
   receiptDocumentId?: string;
   isFullTank: boolean;
+  /**
+   * Written, not read back: `fuel_logs_detailed` expanded its `f.*` when it was
+   * created, so a column added later does not appear in it. What a trip cost is
+   * summed in `trips_with_people` from the table itself, which is the only
+   * place the link is read.
+   */
+  tripId?: string;
   notes?: string;
 };
 
@@ -162,6 +169,7 @@ function toRow(request: FuelLogMutationRequest) {
     receipt_number: request.receiptNumber || null,
     receipt_document_id: request.receiptDocumentId || null,
     is_full_tank: request.isFullTank,
+    trip_id: request.tripId || null,
     notes: request.notes || null,
   };
 }

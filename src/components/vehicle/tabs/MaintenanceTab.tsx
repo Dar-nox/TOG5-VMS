@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useConfirm } from "../../../app/providers/confirmContext";
 import { useFormat } from "../../../app/providers/formatContext";
 import { useToast } from "../../../app/providers/toastContext";
+import { cn } from "../../../lib/cn";
 import { messageFromError } from "../../../lib/errors";
+import { ABSENT } from "../../../lib/format";
 import { labelFromKey, trimToUndefined } from "../../../lib/text";
 import {
   archiveVehicleMaintenanceSetting,
@@ -80,6 +82,7 @@ export function MaintenanceTab({ vehicle }: { vehicle: VehicleRecord }) {
   const [logging, setLogging] = useState<Reminder | null>(null);
   const [addingItem, setAddingItem] = useState(false);
   const [editingIntervals, setEditingIntervals] = useState<Reminder | null>(null);
+  const [query, setQuery] = useState("");
 
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -151,6 +154,21 @@ export function MaintenanceTab({ vehicle }: { vehicle: VehicleRecord }) {
 
   const panelOpen = Boolean(logging || addingItem || editingIntervals);
 
+  // A well-kept vehicle carries thirty-odd items, and the list is ordered by
+  // urgency rather than alphabetically — so finding one particular item means
+  // reading the whole thing. Matching the category as well as the name lets
+  // "brake" find the pads, the fluid and the inspection together.
+  const searchable = reminders.length > 5;
+  const needle = query.trim().toLowerCase();
+  const visible =
+    needle === ""
+      ? reminders
+      : reminders.filter(({ setting }) =>
+          `${setting.templateName} ${labelFromKey(setting.category ?? "")}`
+            .toLowerCase()
+            .includes(needle),
+        );
+
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -207,6 +225,16 @@ export function MaintenanceTab({ vehicle }: { vehicle: VehicleRecord }) {
         ) : null}
       </div>
 
+      {loading || !searchable ? null : (
+        <TextField
+          label="Search maintenance items"
+          onChange={setQuery}
+          placeholder="Brakes, oil, tyres…"
+          type="search"
+          value={query}
+        />
+      )}
+
       {loading ? (
         <SkeletonRows rows={3} />
       ) : reminders.length === 0 ? (
@@ -220,9 +248,18 @@ export function MaintenanceTab({ vehicle }: { vehicle: VehicleRecord }) {
           }
           title="Nothing is being tracked for this vehicle."
         />
+      ) : visible.length === 0 ? (
+        <EmptyState
+          action={
+            <Button onClick={() => setQuery("")} variant="secondary">
+              Clear the search
+            </Button>
+          }
+          title={`Nothing here matches “${query.trim()}”.`}
+        />
       ) : (
         <DataList>
-          {reminders.map((reminder) => {
+          {visible.map((reminder) => {
             const { setting, schedule } = reminder;
             const tracked =
               setting.customTimeIntervalDays != null || setting.customOdometerIntervalKm != null;
@@ -267,6 +304,28 @@ export function MaintenanceTab({ vehicle }: { vehicle: VehicleRecord }) {
                       value={fmt.date(schedule?.lastCompletedDate)}
                     />
                     <MetaItem label="Every" value={intervalText(setting, fmt.distanceLabel)} />
+                    <MetaItem
+                      label="Warns"
+                      value={
+                        <span
+                          className={cn(
+                            "flex flex-wrap items-center gap-1",
+                            warningIsTooEarly(setting) && "text-due",
+                          )}
+                        >
+                          {warnText(setting, fmt.distanceLabel)}
+                          {/* A warning that covers most of its own interval
+                              leaves the item amber almost permanently, which is
+                              how two of the client's items came to read "Due
+                              Soon" against a date in 2036. */}
+                          {warningIsTooEarly(setting) ? (
+                            <span title="This warns for most of the interval, so the item is almost always due soon.">
+                              ⚠
+                            </span>
+                          ) : null}
+                        </span>
+                      }
+                    />
                   </>
                 }
                 subtitle={
@@ -313,6 +372,37 @@ function byUrgency(a: Reminder, b: Reminder): number {
   };
 
   return rank(a) - rank(b);
+}
+
+/** How much notice this item gives, in the same shape as its interval. */
+function warnText(setting: VehicleMaintenanceSettingRecord, distanceLabel: string): string {
+  const parts: string[] = [];
+
+  if (setting.customTimeIntervalDays) {
+    parts.push(`${setting.effectiveDueSoonDays} days`);
+  }
+
+  if (setting.customOdometerIntervalKm) {
+    parts.push(`${setting.effectiveDueSoonKm.toLocaleString()} ${distanceLabel}`);
+  }
+
+  return parts.length > 0 ? `${parts.join(" or ")} early` : ABSENT;
+}
+
+/**
+ * A notice period worth more than half its own interval. Not wrong on its own —
+ * the database refuses only a window at or beyond the interval — but it means
+ * the item spends most of its life amber, so it is worth pointing at rather
+ * than leaving to be discovered nine years later.
+ */
+function warningIsTooEarly(setting: VehicleMaintenanceSettingRecord): boolean {
+  const days = setting.customTimeIntervalDays;
+  const km = setting.customOdometerIntervalKm;
+
+  return Boolean(
+    (days && setting.effectiveDueSoonDays > days / 2) ||
+    (km && setting.effectiveDueSoonKm > km / 2),
+  );
 }
 
 function intervalText(setting: VehicleMaintenanceSettingRecord, distanceLabel: string): string {
@@ -670,6 +760,12 @@ function IntervalForm({
       ? ""
       : String(reminder.setting.customOdometerIntervalKm),
   );
+  const [warnDays, setWarnDays] = useState(
+    reminder.setting.customDueSoonDays == null ? "" : String(reminder.setting.customDueSoonDays),
+  );
+  const [warnKm, setWarnKm] = useState(
+    reminder.setting.customDueSoonKm == null ? "" : String(reminder.setting.customDueSoonKm),
+  );
   const [issues, setIssues] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -679,7 +775,29 @@ function IntervalForm({
       return;
     }
 
-    setIssues([]);
+    // Caught here as well as in the database, because the server message
+    // arrives after a round trip and this is the mistake the whole rule exists
+    // for: a warning that starts the moment the work is logged.
+    const problems: string[] = [];
+
+    if (days && warnDays && Number(warnDays) >= Number(days)) {
+      problems.push(
+        `Warn me earlier than ${days} days, or the reminder starts the day the work is logged.`,
+      );
+    }
+
+    if (km && warnKm && Number(warnKm) >= Number(km)) {
+      problems.push(
+        `Warn me sooner than ${Number(km).toLocaleString()} ${fmt.distanceLabel}, or the reminder never goes quiet.`,
+      );
+    }
+
+    setIssues(problems);
+
+    if (problems.length > 0) {
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -688,6 +806,8 @@ function IntervalForm({
         templateId: reminder.setting.templateId,
         customTimeIntervalDays: Number(days) || undefined,
         customOdometerIntervalKm: Number(km) || undefined,
+        customDueSoonDays: warnDays === "" ? undefined : Number(warnDays),
+        customDueSoonKm: warnKm === "" ? undefined : Number(warnKm),
       });
 
       await onSaved();
@@ -714,6 +834,29 @@ function IntervalForm({
             optional
             unit={fmt.distanceLabel}
             value={km}
+          />
+        </FieldGrid>
+
+        {/* The desktop app had these and the rewrite dropped them, which left
+            the threshold unreachable: Settings only sets the default for new
+            reminders, so a wrong value on an existing one could not be seen or
+            corrected from anywhere in the app. */}
+        <FieldGrid>
+          <NumberField
+            label="Warn"
+            onChange={setWarnDays}
+            optional
+            placeholder={String(reminder.setting.effectiveDueSoonDays)}
+            unit="days early"
+            value={warnDays}
+          />
+          <NumberField
+            label="Or warn"
+            onChange={setWarnKm}
+            optional
+            placeholder={String(reminder.setting.effectiveDueSoonKm)}
+            unit={`${fmt.distanceLabel} early`}
+            value={warnKm}
           />
         </FieldGrid>
 

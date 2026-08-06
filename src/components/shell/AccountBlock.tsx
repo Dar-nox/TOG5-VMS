@@ -3,8 +3,20 @@ import { useAuth } from "../../app/providers/authContext";
 import { useConfirm } from "../../app/providers/confirmContext";
 import { cn } from "../../lib/cn";
 
-/** Who is signed in, and the way out. */
-export function AccountBlock({ collapsed = false }: { collapsed?: boolean }) {
+/**
+ * Who is signed in, and the way out.
+ *
+ * `bar` is the phone's top strip. It exists because sign-out lived only in the
+ * sidebar, and the sidebar is `hidden lg:block` — so on a phone there was no
+ * way out of the app at all, on any screen.
+ */
+export function AccountBlock({
+  collapsed = false,
+  variant = "sidebar",
+}: {
+  collapsed?: boolean;
+  variant?: "sidebar" | "bar";
+}) {
   const { user, signOut } = useAuth();
   const confirm = useConfirm();
   const [signingOut, setSigningOut] = useState(false);
@@ -35,6 +47,26 @@ export function AccountBlock({ collapsed = false }: { collapsed?: boolean }) {
     } finally {
       setSigningOut(false);
     }
+  }
+
+  if (variant === "bar") {
+    return (
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="min-w-0 max-w-[7rem] truncate text-xs text-ink-300">{name}</span>
+
+        <button
+          className={cn(
+            "-mr-1 shrink-0 rounded-md px-2 py-1.5 text-xs font-semibold",
+            "text-ink-200 hover:bg-navy-800 hover:text-inverse",
+          )}
+          disabled={signingOut}
+          onClick={() => void handleSignOut()}
+          type="button"
+        >
+          Sign out
+        </button>
+      </div>
+    );
   }
 
   return (

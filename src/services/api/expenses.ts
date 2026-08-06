@@ -7,7 +7,7 @@
  * there is now one view that decides it and every report reads that.
  */
 
-import { rpc, supabase, unwrap } from "./client";
+import { rpc, supabase, unwrap, unwrapVoid } from "./client";
 import type { ExpenseCategory } from "../../domain";
 
 export type RelatedRecordType = "fuel_log" | "maintenance_log" | "repair_record" | "other";
@@ -50,6 +50,12 @@ export type ExpenseMutationRequest = {
   receiptDocumentId?: string;
   relatedRecordType?: RelatedRecordType;
   relatedRecordId?: string;
+  /**
+   * The trip this was spent on, when it was recorded from one. Written after
+   * the row exists rather than through `save_expense`, which would mean
+   * restating that whole function to add one nullable column.
+   */
+  tripId?: string;
   notes?: string;
 };
 
@@ -157,7 +163,13 @@ export async function getExpense(id: string): Promise<ExpenseRecord> {
 }
 
 export async function createExpense(request: ExpenseMutationRequest): Promise<ExpenseRecord> {
-  return getExpense(await rpc<string>("save_expense", expenseArgs(request)));
+  const id = await rpc<string>("save_expense", expenseArgs(request));
+
+  if (request.tripId) {
+    unwrapVoid(await supabase.from("expenses").update({ trip_id: request.tripId }).eq("id", id));
+  }
+
+  return getExpense(id);
 }
 
 export async function updateExpense(

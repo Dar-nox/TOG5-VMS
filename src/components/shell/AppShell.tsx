@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router";
-import { useAuth } from "../../app/providers/authContext";
 import { cn } from "../../lib/cn";
+import { AccountBlock } from "./AccountBlock";
 import { BottomNav } from "./BottomNav";
 import { SideNav } from "./SideNav";
 
@@ -53,7 +53,7 @@ export function AppShell() {
         Skip to content
       </a>
 
-      <div className="hidden lg:block">
+      <div className="hidden lg:block print:hidden">
         <SideNav collapsed={collapsed} onToggle={toggle} />
       </div>
 
@@ -68,21 +68,19 @@ export function AppShell() {
   );
 }
 
-/** The phone's top strip: identity, and who is signed in. */
+/** The phone's top strip: identity, who is signed in, and the way out. */
 function MobileBar() {
-  const { user } = useAuth();
-
   return (
     <header
       className={cn(
         "sticky top-0 z-(--z-sticky) flex items-center gap-3 border-b border-border",
-        "bg-navy-900 px-4 py-2.5 text-inverse lg:hidden",
+        "bg-navy-900 px-4 py-2.5 text-inverse lg:hidden print:hidden",
         "pt-[calc(0.625rem+env(safe-area-inset-top))]",
       )}
     >
       <img alt="" className="size-8 shrink-0 rounded-md" src="/icon-192.png" />
       <p className="min-w-0 flex-1 truncate text-sm font-semibold">TOG 5 Vehicle Care</p>
-      <p className="max-w-[8rem] truncate text-xs text-ink-300">{user?.displayName}</p>
+      <AccountBlock variant="bar" />
     </header>
   );
 }

@@ -332,8 +332,83 @@ export function SettingsSections() {
         </DataList>
       </Card>
 
+      <YourNameCard />
+
       <PasswordCard />
     </>
+  );
+}
+
+/**
+ * Editing your own name was on the old Settings screen and was dropped when the
+ * screen was consolidated, leaving only the controls for other people's
+ * accounts. The name is what everyone else sees against every record you enter.
+ */
+function YourNameCard() {
+  const { user, retry } = useAuth();
+  const toast = useToast();
+  const [displayName, setDisplayName] = useState(user?.displayName ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  // A sign-in on another tab, or the first load finishing after this rendered.
+  useEffect(() => {
+    setDisplayName(user?.displayName ?? "");
+  }, [user?.displayName]);
+
+  const trimmed = displayName.trim();
+  const unchanged = trimmed === (user?.displayName ?? "");
+
+  async function handleSave() {
+    if (!user) {
+      return;
+    }
+
+    if (trimmed === "") {
+      setError("Enter the name other people should see.");
+      return;
+    }
+
+    setError(null);
+    setSaving(true);
+
+    try {
+      await updateUser({ id: user.id, displayName: trimmed });
+      await retry();
+      toast.success("Name updated.");
+    } catch (caught) {
+      toast.error(messageFromError(caught));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader title="Your name" />
+
+      <FieldGrid>
+        <TextField
+          autoComplete="name"
+          error={error ?? undefined}
+          hint="Shown next to everything you record."
+          label="Display name"
+          onChange={setDisplayName}
+          value={displayName}
+        />
+      </FieldGrid>
+
+      <ButtonRow className="mt-4">
+        <Button
+          disabled={unchanged}
+          loading={saving}
+          onClick={() => void handleSave()}
+          variant="primary"
+        >
+          Save name
+        </Button>
+      </ButtonRow>
+    </Card>
   );
 }
 
