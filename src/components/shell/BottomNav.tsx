@@ -20,7 +20,7 @@ export function BottomNav() {
       className={cn(
         "sticky bottom-0 z-(--z-sticky) grid grid-cols-5 border-t border-border bg-surface",
         // Clears the home indicator on phones that have one.
-        "pb-[env(safe-area-inset-bottom)] lg:hidden",
+        "pb-[env(safe-area-inset-bottom)] lg:hidden print:hidden",
       )}
     >
       {navigationItems.map((item) => {

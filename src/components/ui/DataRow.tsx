@@ -60,6 +60,7 @@ export function DataRow({
   const shell = cn(
     "@container flex w-full min-w-0 flex-col gap-3 rounded-md border border-border",
     "bg-surface p-3 text-left @md:flex-row @md:items-start @md:p-4",
+    "print:break-inside-avoid",
     className,
   );
 

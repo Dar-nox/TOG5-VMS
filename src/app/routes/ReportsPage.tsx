@@ -131,19 +131,42 @@ export default function ReportsPage() {
     }
   }
 
+  const vehicleName = vehicles.find((vehicle) => vehicle.id === vehicleId)?.vehicleName;
+
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
         <h1 className="text-xl font-semibold text-heading @md:text-2xl">Reports</h1>
 
         <ButtonRow>
+          {/* Printing is the browser's job; ours is to give it a page worth
+              printing. It is absent in the Android build, where window.print()
+              silently does nothing. */}
+          {canPrint() ? (
+            <Button onClick={() => window.print()} variant="secondary">
+              Print
+            </Button>
+          ) : null}
           <Button loading={exporting} onClick={() => void handleExport()}>
             {canPrint() ? "Download CSV" : "Share CSV"}
           </Button>
         </ButtonRow>
       </div>
 
-      <Card>
+      {/* Only on paper. A printout leaves the app behind, so it has to say what
+          it is, what it covers and when it was taken — otherwise it is a page
+          of figures nobody can place a month later. */}
+      <header className="hidden print:block">
+        <h1 className="text-2xl font-semibold text-heading">
+          TOG 5 — {tab === "costs" ? "Cost report" : "Trip report"}
+        </h1>
+        <p className="mt-1 text-sm text-muted">
+          {vehicleName ?? "Every vehicle"} · {describePeriod(startDate, endDate, fmt.date)} ·
+          Printed {fmt.dateTime(new Date().toISOString())}
+        </p>
+      </header>
+
+      <Card className="print:hidden">
         <FieldGrid>
           <SelectField
             label="Vehicle"
@@ -171,7 +194,13 @@ export default function ReportsPage() {
         />
       ) : null}
 
-      <Tabs active={tab} items={TABS} label="Report type" onChange={setTab} />
+      <Tabs
+        active={tab}
+        className="print:hidden"
+        items={TABS}
+        label="Report type"
+        onChange={setTab}
+      />
 
       {loading ? (
         <SkeletonRows rows={3} />
@@ -313,6 +342,31 @@ export default function ReportsPage() {
       )}
     </div>
   );
+}
+
+/**
+ * What period the figures cover, in words. "Everything recorded" is the honest
+ * reading of two empty date boxes, and it matters on paper: a total with no
+ * period against it invites somebody to assume it means this year.
+ */
+function describePeriod(
+  startDate: string,
+  endDate: string,
+  formatDate: (value?: string | null) => string,
+): string {
+  if (startDate && endDate) {
+    return `${formatDate(startDate)} to ${formatDate(endDate)}`;
+  }
+
+  if (startDate) {
+    return `From ${formatDate(startDate)}`;
+  }
+
+  if (endDate) {
+    return `Up to ${formatDate(endDate)}`;
+  }
+
+  return "Everything recorded";
 }
 
 /** RFC 4180: wrap in quotes and double any quote inside. */

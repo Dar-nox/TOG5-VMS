@@ -53,7 +53,7 @@ export function AppShell() {
         Skip to content
       </a>
 
-      <div className="hidden lg:block">
+      <div className="hidden lg:block print:hidden">
         <SideNav collapsed={collapsed} onToggle={toggle} />
       </div>
 
@@ -74,7 +74,7 @@ function MobileBar() {
     <header
       className={cn(
         "sticky top-0 z-(--z-sticky) flex items-center gap-3 border-b border-border",
-        "bg-navy-900 px-4 py-2.5 text-inverse lg:hidden",
+        "bg-navy-900 px-4 py-2.5 text-inverse lg:hidden print:hidden",
         "pt-[calc(0.625rem+env(safe-area-inset-top))]",
       )}
     >
