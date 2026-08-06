@@ -7168,3 +7168,87 @@ system stand either way.
   CSV share sheet. Not testable in a browser.
 - The database password passed through a chat transcript and should still be
   rotated.
+
+---
+
+## Client fixes — `feat/client-fixes-v0.4.0` (2026-08-06)
+
+Still 0.4.0. The client reviewed the overhauled interface, **kept the
+vehicle-centred structure**, and came back with a list. Nothing reverted.
+
+**Net: 1,725 lines added, 44 deleted** across 29 files.
+
+### What they found
+
+- **No sign-out on a phone.** `AccountBlock` renders only inside `SideNav`,
+  which is `hidden lg:block`. There was no way out of the app on a phone from
+  any screen.
+- **Rows crushing their own titles.** `DataRow` put actions beside the title as
+  `shrink-0`, so on a 360px screen three buttons took most of the row and
+  unbreakable text — a long item name, a peso amount — painted underneath them.
+  One component, every list in the app.
+- **A tab strip with no sign it scrolls.** Four of a vehicle's seven tabs
+  visible, snapping and hidden scrollbar, nothing to say the rest existed.
+- **"Due Soon" on work due in 2036.** Covered below.
+- Search, print, fleet-wide visibility of open trips, trip odometers, and money
+  spent on a trip — all missing rather than broken.
+
+### The due-soon bug
+
+`evaluate_due_status` calls anything within `due_soon_days` of its date due
+soon, and the two reported rows carry a warn window equal to their own
+3,600-day interval. Both statements on screen were true at once. The item was
+due soon from the day it was logged and would have stayed so for a decade, and
+because `due_soon` raises a real alert it had been padding the alerts screen and
+the dashboard count the whole time.
+
+The gap is ours: `evaluate_due_status` is never told the interval, which lives
+on the setting while the window lives on the schedule. They only meet in
+`recalculate_schedule_for_setting`, which never compared them. `fitted_warn_window`
+is now that invariant — a window supplied deliberately and at or beyond its
+interval is refused, one that merely fell back to the default is fitted, since a
+seven-day interval against the standard fourteen-day warning is the system's
+mismatch and not the user's mistake.
+
+**Where the data came from is not proven.** The app cannot write it: the
+reminder form sends no warn value and the server defaults to 14. It arrived with
+the records, which `migrate_from_backup.py` copies verbatim.
+
+The repair deliberately does **not** call `recalculate_schedule_for_setting` —
+that recomputes the next due date from today, which would shove every reminder
+in the fleet forward by a whole interval and lose when work is actually due.
+
+### Decisions
+
+- **Trip odometers are optional at both ends.** Departure fills in from the
+  vehicle. Only the closing reading moves the vehicle, and only ever forward, so
+  a trip closed late after a service has already advanced the reading keeps its
+  own number without winding the vehicle back. Below the departure reading is
+  refused; implausibly above asks first, that being the only direction that
+  cannot be undone automatically.
+- **Fuel stays in `fuel_logs`.** Recording a fill-up as an expense would carry
+  no litres, dropping it out of the efficiency chain and handing its kilometres
+  to the next full-tank log — quietly flattering the one number the client
+  watches.
+- **`fuel_logs.trip_id` and `expenses.trip_id` are `on delete set null`**, where
+  `trip_drivers` and its siblings cascade. A driver is part of a trip; a receipt
+  is a financial record and archiving the trip must not take the money with it.
+- **No odometer on expenses.** Fuel, service and trip close are the three
+  moments somebody is at the vehicle. An expense is typed at a desk, and every
+  extra entry point is another chance at a reading that cannot be walked back.
+- **The pinned trip is a local notification, not a push** — no push service, no
+  VAPID keys, no Edge Function, nothing scheduled. That is why it shipped and
+  web push did not.
+
+### Not done
+
+- **Push notifications.** Deferred by the client as low priority, and it is the
+  one item with no server-side foundation: no custom service worker, no
+  subscriptions table, and nothing running on a schedule —
+  `refresh_maintenance_alerts_for_all_vehicles()` only runs when somebody opens
+  the app, so there is no moment for a notification to fire from. Web push also
+  cannot reach the Capacitor APK; that needs Firebase.
+- **The SQL suite has not been run** against these migrations. `supabase/tests/run.sh`
+  needs Docker, which was not running. `warn_window.sql` is written and waiting.
+- Verification on a real phone, which is how this list was found in the first
+  place.
