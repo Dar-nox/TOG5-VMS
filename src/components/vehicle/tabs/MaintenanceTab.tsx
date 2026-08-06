@@ -841,32 +841,24 @@ function IntervalForm({
             the threshold unreachable: Settings only sets the default for new
             reminders, so a wrong value on an existing one could not be seen or
             corrected from anywhere in the app. */}
-        <fieldset className="flex flex-col gap-3 border-t border-border pt-4">
-          <legend className="text-sm font-semibold text-ink">
-            How much notice do you want before it is due?
-          </legend>
-
-          <FieldGrid>
-            <NumberField
-              hint={`Blank uses the fleet setting, ${reminder.setting.effectiveDueSoonDays} days.`}
-              label="Warn me"
-              onChange={setWarnDays}
-              optional
-              placeholder={String(reminder.setting.effectiveDueSoonDays)}
-              unit="days early"
-              value={warnDays}
-            />
-            <NumberField
-              hint={`Blank uses the fleet setting, ${reminder.setting.effectiveDueSoonKm.toLocaleString()} ${fmt.distanceLabel}.`}
-              label="Or warn me"
-              onChange={setWarnKm}
-              optional
-              placeholder={String(reminder.setting.effectiveDueSoonKm)}
-              unit={`${fmt.distanceLabel} early`}
-              value={warnKm}
-            />
-          </FieldGrid>
-        </fieldset>
+        <FieldGrid>
+          <NumberField
+            label="Warn"
+            onChange={setWarnDays}
+            optional
+            placeholder={String(reminder.setting.effectiveDueSoonDays)}
+            unit="days early"
+            value={warnDays}
+          />
+          <NumberField
+            label="Or warn"
+            onChange={setWarnKm}
+            optional
+            placeholder={String(reminder.setting.effectiveDueSoonKm)}
+            unit={`${fmt.distanceLabel} early`}
+            value={warnKm}
+          />
+        </FieldGrid>
 
         <ButtonRow>
           <Button onClick={onCancel}>Cancel</Button>
