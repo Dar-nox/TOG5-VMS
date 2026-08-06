@@ -4,7 +4,19 @@ import { useConfirm } from "../../app/providers/confirmContext";
 import { refreshDisplayPreferences } from "../../app/providers/preferenceEvents";
 import { useToast } from "../../app/providers/toastContext";
 import { messageFromError } from "../../lib/errors";
+import {
+  canReceivePush,
+  isSubscribed,
+  pushBlocked,
+  subscribeToPush,
+  unsubscribeFromPush,
+} from "../../lib/pushNotifications";
 import { labelFromKey } from "../../lib/text";
+import {
+  getNotificationPreferences,
+  saveNotificationPreferences,
+  type NotificationPreferences,
+} from "../../services/api/push";
 import { changeOwnPassword } from "../../services/api/auth";
 import {
   getAppSettings,
@@ -334,6 +346,8 @@ export function SettingsSections() {
 
       <YourNameCard />
 
+      <NotificationCard />
+
       <PasswordCard />
     </>
   );
@@ -408,6 +422,134 @@ function YourNameCard() {
           Save name
         </Button>
       </ButtonRow>
+    </Card>
+  );
+}
+
+/**
+ * Per device, not per person: a subscription belongs to the browser it was made
+ * in, so the office computer and the phone are switched on separately and the
+ * label has to say so.
+ */
+function NotificationCard() {
+  const toast = useToast();
+  const [on, setOn] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [preferences, setPreferences] = useState<NotificationPreferences | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    void isSubscribed().then(setOn);
+    void getNotificationPreferences()
+      .then(setPreferences)
+      .catch(() => undefined);
+  }, []);
+
+  async function change(update: Partial<NotificationPreferences>) {
+    if (!preferences) {
+      return;
+    }
+
+    const next = { ...preferences, ...update };
+    setPreferences(next);
+    setSaving(true);
+
+    try {
+      await saveNotificationPreferences(next);
+    } catch (caught) {
+      toast.error(messageFromError(caught));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function toggle() {
+    setBusy(true);
+
+    try {
+      if (on) {
+        await unsubscribeFromPush();
+        setOn(false);
+        toast.success("Notifications off for this device.");
+        return;
+      }
+
+      if (await subscribeToPush()) {
+        setOn(true);
+        toast.success("Notifications on for this device.");
+      } else {
+        toast.error(
+          pushBlocked()
+            ? "Notifications are switched off for this app in your browser settings."
+            : "This device did not allow notifications.",
+        );
+      }
+    } catch (caught) {
+      toast.error(messageFromError(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!canReceivePush()) {
+    return null;
+  }
+
+  return (
+    <Card>
+      <CardHeader title="Notifications" />
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-ink">{on ? "On for this device." : "Off for this device."}</p>
+
+        <Button loading={busy} onClick={() => void toggle()} variant={on ? "secondary" : "primary"}>
+          {on ? "Turn off" : "Turn on"}
+        </Button>
+      </div>
+
+      {/* Shown only once there is somewhere for a notification to arrive.
+          Settings for a thing that is switched off are furniture. */}
+      {on && preferences ? (
+        <FieldGrid className="mt-5 border-t border-border pt-4">
+          <TextField
+            disabled={saving}
+            label="Send at"
+            onChange={(value) => void change({ sendAt: value })}
+            type="time"
+            value={preferences.sendAt}
+          />
+          <SelectField
+            disabled={saving}
+            label="Tell me about"
+            onChange={(value) => void change({ scope: value === "overdue" ? "overdue" : "all" })}
+            options={[
+              { value: "all", label: "Anything due soon or overdue" },
+              { value: "overdue", label: "Only what is overdue" },
+            ]}
+            value={preferences.scope}
+          />
+          <SelectField
+            disabled={saving}
+            label="Which days"
+            onChange={(value) => void change({ weekdaysOnly: value === "weekdays" })}
+            options={[
+              { value: "every", label: "Every day" },
+              { value: "weekdays", label: "Weekdays only" },
+            ]}
+            value={preferences.weekdaysOnly ? "weekdays" : "every"}
+          />
+          <NumberField
+            disabled={saving}
+            label="Warn about trips still open after"
+            onChange={(value) =>
+              void change({ openTripHours: value === "" ? null : Number(value) || null })
+            }
+            optional
+            unit="hours"
+            value={preferences.openTripHours == null ? "" : String(preferences.openTripHours)}
+          />
+        </FieldGrid>
+      ) : null}
     </Card>
   );
 }
