@@ -6,9 +6,20 @@ import { messageFromError } from "../../lib/errors";
 import { routes } from "../../lib/routes";
 import { canPrint, saveMessage } from "../../lib/saveFile";
 import { labelFromKey } from "../../lib/text";
-import { getReportsOverview, type ReportsOverview } from "../../services/api/expenses";
+import {
+  getReportsOverview,
+  listCostEvents,
+  type CostEventRecord,
+  type ReportsOverview,
+} from "../../services/api/expenses";
 import { exportReportCsv } from "../../services/api/reports";
-import { getTripReportsOverview, type TripReportsOverview } from "../../services/api/trips";
+import {
+  getTripReportsOverview,
+  listTrips,
+  type TripRecord,
+  type TripReportsOverview,
+} from "../../services/api/trips";
+import { ReportDocument } from "../../components/reports/ReportDocument";
 import { listVehicles, type VehicleRecord } from "../../services/api/vehicles";
 import { Button, ButtonRow } from "../../components/ui/Button";
 import { Card, CardHeader, Stat, StatRow } from "../../components/ui/Card";
@@ -51,7 +62,9 @@ export default function ReportsPage() {
   const [endDate, setEndDate] = useState("");
 
   const [costs, setCosts] = useState<ReportsOverview | null>(null);
+  const [costEvents, setCostEvents] = useState<CostEventRecord[]>([]);
   const [trips, setTrips] = useState<TripReportsOverview | null>(null);
+  const [tripRecords, setTripRecords] = useState<TripRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -72,15 +85,20 @@ export default function ReportsPage() {
     };
 
     try {
-      // Both at once. The old screen ran three independent loads and could
-      // show three stacked "Loading…" banners at the same time.
-      const [costReport, tripReport] = await Promise.all([
+      // Four at once, not four spinners. The two summaries plus every
+      // underlying record: the old screen showed a sample of costs and called
+      // it a report, and a sample is not what somebody looks a figure up in.
+      const [costReport, tripReport, events, tripDetail] = await Promise.all([
         getReportsOverview(filter),
         getTripReportsOverview(filter),
+        listCostEvents(filter),
+        listTrips(filter),
       ]);
 
       setCosts(costReport);
       setTrips(tripReport);
+      setCostEvents(events);
+      setTripRecords(tripDetail);
       setError(null);
     } catch (caught) {
       setError(messageFromError(caught));
@@ -153,18 +171,15 @@ export default function ReportsPage() {
         </ButtonRow>
       </div>
 
-      {/* Only on paper. A printout leaves the app behind, so it has to say what
-          it is, what it covers and when it was taken — otherwise it is a page
-          of figures nobody can place a month later. */}
-      <header className="hidden print:block">
-        <h1 className="text-2xl font-semibold text-heading">
-          TOG 5 — {tab === "costs" ? "Cost report" : "Trip report"}
-        </h1>
-        <p className="mt-1 text-sm text-muted">
-          {vehicleName ?? "Every vehicle"} · {describePeriod(startDate, endDate, fmt.date)} ·
-          Printed {fmt.dateTime(new Date().toISOString())}
-        </p>
-      </header>
+      <ReportDocument
+        costEvents={costEvents}
+        costs={costs}
+        kind={tab}
+        period={describePeriod(startDate, endDate, fmt.date)}
+        tripRecords={tripRecords}
+        trips={trips}
+        vehicleName={vehicleName ?? "Every vehicle"}
+      />
 
       <Card className="print:hidden">
         <FieldGrid>
@@ -205,7 +220,9 @@ export default function ReportsPage() {
       {loading ? (
         <SkeletonRows rows={3} />
       ) : (
-        <>
+        // The document above replaces all of this on paper, rather than the
+        // screen being printed with its furniture removed.
+        <div className="flex flex-col gap-5 print:hidden">
           <TabPanel active={tab} id="costs">
             {costs ? (
               <div className="flex flex-col gap-5">
@@ -285,6 +302,31 @@ export default function ReportsPage() {
                     </DataList>
                   )}
                 </Card>
+
+                <Card>
+                  <CardHeader title={`Every cost (${costEvents.length})`} />
+
+                  {costEvents.length === 0 ? (
+                    <EmptyState title="No costs recorded for this period." />
+                  ) : (
+                    <DataList>
+                      {costEvents.map((event) => (
+                        <DataRow
+                          key={`${event.sourceType}-${event.sourceId}`}
+                          meta={
+                            <>
+                              <MetaItem label="Vehicle" value={event.vehicleName ?? "—"} />
+                              <MetaItem label="Date" numeric value={fmt.date(event.eventDate)} />
+                              <MetaItem label="Type" value={labelFromKey(event.sourceType)} />
+                              <MetaItem label="Amount" numeric value={fmt.money(event.amount)} />
+                            </>
+                          }
+                          title={event.description}
+                        />
+                      ))}
+                    </DataList>
+                  )}
+                </Card>
               </div>
             ) : null}
           </TabPanel>
@@ -335,10 +377,58 @@ export default function ReportsPage() {
                     </DataList>
                   )}
                 </Card>
+
+                <Card>
+                  <CardHeader title={`Every trip (${tripRecords.length})`} />
+
+                  {tripRecords.length === 0 ? (
+                    <EmptyState title="No trips in this period." />
+                  ) : (
+                    <DataList>
+                      {tripRecords.map((trip) => (
+                        <DataRow
+                          key={trip.id}
+                          meta={
+                            <>
+                              <MetaItem label="Vehicle" value={trip.vehicleName} />
+                              <MetaItem
+                                label="Left"
+                                numeric
+                                value={fmt.dateTime(trip.departureTime)}
+                              />
+                              <MetaItem
+                                label="Back"
+                                numeric
+                                value={
+                                  trip.returnTime ? fmt.dateTime(trip.returnTime) : "Still out"
+                                }
+                              />
+                              <MetaItem label="Driver" value={trip.drivers.join(", ") || "—"} />
+                              <MetaItem
+                                label="Passengers"
+                                value={trip.passengers.join(", ") || "—"}
+                              />
+                              <MetaItem
+                                label="Went to"
+                                value={trip.destinations.join(", ") || "—"}
+                              />
+                              <MetaItem
+                                label="Distance"
+                                numeric
+                                value={fmt.distance(trip.distanceKm)}
+                              />
+                            </>
+                          }
+                          title={trip.reason}
+                        />
+                      ))}
+                    </DataList>
+                  )}
+                </Card>
               </div>
             ) : null}
           </TabPanel>
-        </>
+        </div>
       )}
     </div>
   );

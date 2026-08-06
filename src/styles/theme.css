@@ -293,6 +293,23 @@
      it is the only thing telling somebody the app is still working. A frozen
      spinner says "finished" and is worse than no spinner, so anything marked
      essential keeps moving. */
+  /* Number fields carry their unit inside the box — "days early", "km", "L" —
+   * and the browser's spinner arrows are drawn on top of it. They are also
+   * useless here: nobody nudges an odometer reading to 216,880 one click at a
+   * time, and on a phone they do not exist at all. The numeric keypad, which is
+   * what actually helps, comes from inputMode and is unaffected. */
+  input[type="number"] {
+    appearance: textfield;
+    -moz-appearance: textfield;
+  }
+
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    appearance: none;
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
   /* Paper.
    *
    * A report the client hands to an accountant or files against a vehicle. The
