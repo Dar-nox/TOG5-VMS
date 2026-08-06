@@ -154,6 +154,33 @@ export async function listExpenses(filter?: ExpenseListFilter): Promise<ExpenseR
   );
 }
 
+/**
+ * Every cost in the period, line by line, from all four sources.
+ *
+ * `reports_overview` returns a `recentCostEvents` sample for the screen. A
+ * printed report is a document somebody files or hands to an accountant, and a
+ * sample of the costs is not a record of them — so the document reads the view
+ * directly.
+ */
+export async function listCostEvents(filter?: ExpenseListFilter): Promise<CostEventRecord[]> {
+  let query = supabase.from("cost_events").select("*");
+  const clean = cleanFilter(filter);
+
+  if (clean?.vehicleId) {
+    query = query.eq("vehicle_id", clean.vehicleId);
+  }
+
+  if (clean?.startDate) {
+    query = query.gte("event_date", clean.startDate);
+  }
+
+  if (clean?.endDate) {
+    query = query.lte("event_date", clean.endDate);
+  }
+
+  return unwrap(await query.order("event_date", { ascending: false }));
+}
+
 export async function listExpensesForVehicle(vehicleId: string): Promise<ExpenseRecord[]> {
   return listExpenses({ vehicleId });
 }
