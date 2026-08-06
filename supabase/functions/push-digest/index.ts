@@ -11,9 +11,13 @@
  * secret. It is not reachable by the app and holds no session — the service
  * role key it uses is injected by Supabase and never leaves this process.
  *
- * BEFORE RELYING ON THIS: the web-push library below has not been exercised on
- * a deployed function. Several web-push packages are Node-only and fail under
- * Deno on crypto; this one is written for Deno's Web Crypto. Deploy it and send
+ * Verified on the deployed function: it boots, rejects a wrong secret with 401,
+ * and returns `{sent: 0}` when nothing is due. That covers the import — several
+ * web-push packages are Node-only and die under Deno on crypto, and this one
+ * does not.
+ *
+ * STILL UNEXERCISED: the signing and encryption path, which only runs when
+ * there is something to send. Subscribe a browser, make something due, and send
  * one real notification before scheduling anything.
  */
 
