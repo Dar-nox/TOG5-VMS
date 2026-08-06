@@ -161,7 +161,7 @@ export function TripsTab({ vehicleId }: { vehicleId: string }) {
   async function handleArchive(trip: TripRecord) {
     const confirmed = await confirm({
       title: "Archive this trip?",
-      body: `${trip.reason} — ${fmt.dateTime(trip.departureTime)}. It will be left out of trip reports. Archived records can be restored.`,
+      body: `${trip.reason} — ${fmt.dateTime(trip.departureTime)}. It will be left out of trip reports, and cannot be brought back from the app.`,
       confirmLabel: "Archive trip",
     });
 

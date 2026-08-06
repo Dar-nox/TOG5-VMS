@@ -183,7 +183,7 @@ export function ExpensesTab({ vehicleId }: { vehicleId: string }) {
     // Another that went on a single tap with nothing asked.
     const confirmed = await confirm({
       title: "Archive this expense?",
-      body: `${expense.description} — ${fmt.money(expense.amount)} on ${fmt.date(expense.expenseDate)}. It will be left out of cost reports. Archived records can be restored.`,
+      body: `${expense.description} — ${fmt.money(expense.amount)} on ${fmt.date(expense.expenseDate)}. It will be left out of cost reports, and cannot be brought back from the app.`,
       confirmLabel: "Archive expense",
     });
 

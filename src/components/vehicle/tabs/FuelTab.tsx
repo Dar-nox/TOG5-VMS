@@ -208,7 +208,7 @@ export function FuelTab({ vehicle }: { vehicle: VehicleRecord }) {
     // only about the row you can see.
     const confirmed = await confirm({
       title: "Archive this fuel log?",
-      body: `${fmt.date(log.fuelDate)}, ${fmt.volume(log.liters)} for ${fmt.money(log.totalAmount)}. It will be left out of fuel efficiency and cost reports. Archived records can be restored.`,
+      body: `${fmt.date(log.fuelDate)}, ${fmt.volume(log.liters)} for ${fmt.money(log.totalAmount)}. It will be left out of fuel efficiency and cost reports, and cannot be brought back from the app.`,
       confirmLabel: "Archive log",
     });
 
