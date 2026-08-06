@@ -15,11 +15,22 @@ straight away. Nothing at the office has to stay switched on.
 
 **What this means day to day:**
 
-* Everyone has their own account and password.
-* You need an internet connection. There is no offline mode — if there is no
+- Everyone has their own account and password.
+- You need an internet connection. There is no offline mode — if there is no
   signal the app says so rather than pretending to save.
-* Photos and receipts are stored online, not in a folder on a PC.
-* Backups work differently. See section 11.
+- Photos and receipts are stored online, not in a folder on a PC.
+- Backups work differently. See section 12.
+
+**The screens were rebuilt as well**, for phones as much as for computers:
+
+- Everything about one vehicle now lives on that vehicle's own page, in tabs.
+  There are five places to go instead of eleven. See section 4.
+- Trips record the odometer when a vehicle leaves and when it comes back, and
+  fuel or costs can be recorded from inside an open trip.
+- Reports print as a proper document, and list every underlying record rather
+  than totals alone.
+- You can be sent a notification when something needs attention, if you want
+  one.
 
 Your existing records were all moved across: ten vehicles, their maintenance
 items and reminders, service history, fuel logs, trips, photos and receipts.
@@ -40,7 +51,7 @@ a phone.
 
 Use your email address and password.
 
-If the app says *"That email and password combination did not work"*, it does
+If the app says _"That email and password combination did not work"_, it does
 not tell you which of the two was wrong. That is deliberate — otherwise the
 sign-in form becomes a way for a stranger to find out who has an account.
 
@@ -62,35 +73,45 @@ will not help.
 
 ## 3. Who can do what
 
-| | Owner | Manager | Viewer |
-|---|---|---|---|
-| Record vehicles, fuel, trips, maintenance | yes | yes | yes |
-| Let people in, change roles | yes | no | no |
-| Change settings everyone shares | yes | no | no |
+|                                           | Owner | Manager | Viewer |
+| ----------------------------------------- | ----- | ------- | ------ |
+| Record vehicles, fuel, trips, maintenance | yes   | yes     | yes    |
+| Let people in, change roles               | yes   | no      | no     |
+| Change settings everyone shares           | yes   | no      | no     |
 
 Manager and viewer are the same today. The difference exists so limits can be
 added later without a rebuild.
 
 ## 4. Navigation
 
-The side menu:
+There are five places to go. On a computer they are down the left; on a phone
+they are along the bottom, in reach of a thumb.
 
-- **Dashboard** — the fleet at a glance.
-- **Vehicles** — add and manage vehicles.
-- **Fuel Logs** — fuel purchases and efficiency.
-- **Trips** — time out, drivers, passengers, destinations, returns.
-- **Maintenance** — log work and manage items and reminders.
-- **Service History** — completed maintenance.
-- **Expenses** — costs not already recorded elsewhere.
-- **Reports** — cost and trip reports, printing, CSV.
-- **Alerts** — what needs attention.
-- **Backup** — take a copy of everything.
-- **Settings** — your account, people, and shared preferences.
+- **Dashboard** — what needs attention today, and which vehicles are out.
+- **Vehicles** — every vehicle, and everything about each one.
+- **Alerts** — what is due or overdue.
+- **Reports** — costs and trips across the whole fleet, printable.
+- **Settings** — your account, your notifications, people, shared preferences,
+  and the export.
+
+**Everything about a vehicle is on that vehicle's page**, in tabs across the
+top: Overview, Fuel, Maintenance, Service history, Trips, Expenses. So to record
+a fill-up you open the van and then Fuel, rather than opening a fuel screen and
+choosing the van from a list.
+
+If there are more tabs than fit, the strip scrolls sideways and fades at the
+edge to show there is more.
+
+**Signing out** is top right on a phone, bottom left on a computer.
 
 ## 5. Dashboard
 
-Vehicle count, active alerts, fuel efficiency, monthly costs, export status,
-things needing attention, and recent activity — including who did what.
+What needs attention today, which vehicles are out on the road, month-to-date
+costs, and anything worth setting up.
+
+**Out on the road** lists every vehicle currently away — driver, destination,
+how long it has been gone, and what it has cost so far. Longest out first.
+Tapping one opens that vehicle's trip.
 
 Everything updates as soon as anybody records something.
 
@@ -109,11 +130,17 @@ against, so keeping it current matters more than anything else in the app.
 
 It moves forward on its own when you:
 
-* record a **fuel log** with a higher reading, or
-* record **completed maintenance** at a higher reading.
+- record a **fuel log** with a higher reading,
+- record **completed maintenance** at a higher reading, or
+- **close a trip** with a higher reading.
 
 It never goes backwards. A fill-up entered late, with an older reading, will
-not wind the vehicle back.
+not wind the vehicle back — and neither will a trip closed days after it
+finished. The trip keeps its own reading either way, so the distance it
+travelled is still right.
+
+The only way it goes down is somebody editing the vehicle by hand, which is
+worth knowing if a reading is ever typed in far too high.
 
 Whenever it moves, every reminder on that vehicle is re-checked and alerts
 appear immediately — no matter who moved it or which screen they were on.
@@ -131,11 +158,23 @@ why rather than leaving a blank.
 
 DEF/AdBlue is recorded but never counted as fuel consumption.
 
+You can also record a fill-up **from inside an open trip** — see section 9. It
+saves nothing different; it just fills in the vehicle, the date and the reading
+for you, and ties the receipt to that trip.
+
 ## 8. Maintenance
+
+### Finding an item
+
+A well-kept vehicle carries thirty-odd maintenance items, and the list is
+ordered by what is most urgent rather than alphabetically. Once there are more
+than five, a search box appears above it. Typing "brake" finds the pads, the
+fluid and the inspection together, because it matches the category as well as
+the name.
 
 ### Items and reminders
 
-A *maintenance item* is a job — "Engine Oil Change". A *reminder* is that job
+A _maintenance item_ is a job — "Engine Oil Change". A _reminder_ is that job
 set up on one vehicle, with its own interval in days or kilometres.
 
 The list shows items your fleet actually uses, not every item the app knows
@@ -144,6 +183,22 @@ about.
 Items adapt to the vehicle. A diesel truck is never told to change its spark
 plugs; an EV is never told to change its oil. Where it is unclear the app lets
 you add it anyway and warns you.
+
+### How much notice you get
+
+Each reminder has two numbers, and they do different jobs:
+
+- **Every** — how often the work is due. "Every 180 days or 5,000 km".
+- **Warn** — how much notice you want. "Warn 14 days early" means the item
+  turns amber for the last fortnight before it is due.
+
+Both are on the **Intervals** button, and each row shows what it is set to. Leave
+the warn boxes empty to use the fleet setting from Settings.
+
+The warning has to be shorter than the interval. Ask to be warned 170 days
+before something due every 180 days and the item is amber almost permanently,
+which makes the colour meaningless — so the app refuses it, and marks any
+reminder whose warning covers more than half its own interval.
 
 ### Logging work
 
@@ -154,7 +209,44 @@ If the vehicle has a reminder for that job, completing it moves the reminder
 forward and clears its alert. If it does not, the work is still recorded — the
 app tells you to set a reminder if you want future dates tracked.
 
-## 9. Alerts
+## 9. Trips
+
+A trip is a vehicle going out and coming back: when it left, who drove, who went
+along, where to, and why. Drivers, passengers and destinations each get their
+own box, with a spare one at the end — type in it and another appears.
+
+Only one trip can be open per vehicle at a time.
+
+### The readings
+
+Starting a trip fills in the odometer from the vehicle, so usually you leave it
+alone. Closing one asks for the reading again, and **that** is the number that
+moves the vehicle forward.
+
+Both can be left empty if nobody looked. A reading below the one the trip
+started on is refused, and one implausibly far above asks whether you are sure —
+too high is the only mistake that cannot be undone by typing over it.
+
+### Fuel and costs on a trip
+
+An open trip has **Log fuel** and **Add cost**. Both open the ordinary form with
+the vehicle, date and reading already filled in, and tie what you record to that
+trip — so the trip shows what it cost, fuel and tolls together.
+
+You do not have to use them. The Fuel and Expenses tabs work on their own
+exactly as before, which is what you want for a yard top-up or a receipt found
+in a pocket a week later.
+
+### Keeping a trip in reach (phones)
+
+On a phone an open trip can be **pinned**. It sits in your notification shade
+alongside everything else, and tapping it opens the trip — including after the
+app has been closed. Unpin it, or close the trip, and it goes.
+
+A trip closed by somebody else on another device clears from your phone the next
+time you open the app rather than the moment they do it.
+
+## 10. Alerts
 
 Raised when maintenance is due soon or overdue, and when fuel efficiency drops
 noticeably.
@@ -163,19 +255,38 @@ noticeably.
 have dealt with something outside the app. If you want it back, complete the
 work properly or set the reminder up again.
 
-## 10. Reports
+## 11. Reports
 
-Cost and trip reports, filtered by vehicle and date, printable, and exportable
-as CSV.
+Costs and trips across the whole fleet, filtered by vehicle and by date.
 
-The CSV downloads to wherever your device saves downloads. On a phone that is
-usually the Downloads folder.
+Both tabs show the totals **and every record behind them** — every cost with its
+date, vehicle and description; every trip with its driver, passengers,
+destinations, purpose and distance. The summaries are there to be read at a
+glance, the lists to look something up.
+
+### Printing
+
+**Print** produces a document, not a screenshot of the screen: the fleet name, a
+title, the vehicles and period it covers, when it was taken, ruled tables whose
+headings repeat if a table runs over a page, totals, and space to sign.
+
+Print whichever tab you are on. Printing is not available in the Android app;
+open the site in Chrome for that.
+
+There are no page numbers. Browsers do not offer them, so every page carries the
+report name and period instead.
+
+### CSV
+
+**Download CSV** gives the per-vehicle cost summary as a spreadsheet file. On a
+phone it goes through the share sheet instead of downloading, so you can send it
+straight to email or save it where you like.
 
 **Costs are never counted twice.** An expense marked as matching a fuel log or
 service record is not added on top of it, so the totals stay honest even when
 the same cost was typed in twice.
 
-## 11. Backup — read this one
+## 12. Backup — read this one
 
 **Nothing takes an automatic copy of your records.** The plan this runs on does
 not include automatic backups.
@@ -193,9 +304,14 @@ Putting an export back is not something the app can do by itself. If it ever
 comes to that, give the file to whoever looks after the system; it has
 everything needed.
 
-## 12. Settings
+## 13. Settings
 
-**Your account** — your name, and your password. Change your password here.
+**Your name** — what everybody else sees against everything you record. Change
+it here.
+
+**Your password** — change it here.
+
+**Notifications** — see section 14.
 
 **People** (owners only) — who is waiting to be let in, who is working, and
 what each person may do. Switching somebody off keeps everything they recorded;
@@ -208,24 +324,60 @@ ahead reminders warn, and which alerts are created. These apply to everybody.
 
 **Exports** — how often to be reminded, and when the last one was taken.
 
-## 13. When something goes wrong
+## 14. Notifications
 
-| What you see | What it means |
-|---|---|
-| "That email and password combination did not work" | One of the two is wrong. It will not say which. |
-| "Waiting to be let in" | Your account exists but an owner has not approved it. |
-| "This account is switched off" | An owner disabled it. Your records are intact. |
-| "Cannot reach TOG 5 VMS" | A connection problem. Not your password. |
-| Everything is empty after signing in | Usually the same as "waiting to be let in". |
-| "TOG 5 VMS is not configured" | The app was built without its database settings. Whoever deployed it needs to fix that. |
+The app can send you a notification when something needs attention, so you are
+told without having to open it and look.
+
+**It is off until you turn it on**, and it is per device: the office computer
+and your phone are switched on separately, because a notification belongs to the
+browser it was set up in. Your phone will ask permission the first time. If you
+say no, the app cannot ask again — you would have to allow it in the browser's
+own settings.
+
+Once it is on, you choose:
+
+|                            |                                                                                                                        |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| **Send at**                | What time it arrives.                                                                                                  |
+| **Tell me about**          | Anything due soon and overdue, or only what is overdue.                                                                |
+| **Which days**             | Every day, or weekdays only.                                                                                           |
+| **Trips still open after** | Hours a trip may stay out before it is mentioned. Usually it means somebody forgot to close it. Leave empty to ignore. |
+
+These are yours, not the fleet's — an owner and a driver can want different
+things.
+
+**One message a day, not one per item.** It names how much needs attention and
+which vehicles, and opens Alerts when tapped. If nothing is due, nothing is
+sent: a daily message saying all is well is how people learn to ignore it.
+
+It works on Android with the app added to your home screen, and on a computer
+while the browser is running. On iPhone it is unreliable and not promised.
+
+## 15. When something goes wrong
+
+| What you see                                       | What it means                                                                           |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| "That email and password combination did not work" | One of the two is wrong. It will not say which.                                         |
+| "Waiting to be let in"                             | Your account exists but an owner has not approved it.                                   |
+| "This account is switched off"                     | An owner disabled it. Your records are intact.                                          |
+| "Cannot reach TOG 5 VMS"                           | A connection problem. Not your password.                                                |
+| Everything is empty after signing in               | Usually the same as "waiting to be let in".                                             |
+| "TOG 5 VMS is not configured"                      | The app was built without its database settings. Whoever deployed it needs to fix that. |
 
 If the app has not been used for a while it may take a few seconds to wake up
 the first time. That is normal on the free plan.
 
-## 14. What it deliberately does not do
+## 16. What it deliberately does not do
 
 - Work without an internet connection.
 - Track vehicles by GPS.
 - Read receipts automatically.
 - Look up manufacturer schedules.
-- Send anything to anyone outside your fleet.
+- Send your records to anyone outside your fleet.
+
+One honest caveat on the last one, if you turn notifications on: the message has
+to travel through your phone maker's notification service, the same one every
+other app uses. It is scrambled before it leaves and can only be unscrambled by
+your own phone, so they carry it without being able to read it. Nothing else in
+the app ever leaves.
