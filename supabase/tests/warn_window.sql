@@ -75,4 +75,64 @@ begin
     'an unasked-for default is fitted to the interval, not refused';
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- Fitted however the row arrives
+-- ---------------------------------------------------------------------------
+--
+-- The case this exists for is go-live day: migrate_from_backup.py inserts
+-- straight through PostgREST, so it never passes the functions above. If the
+-- rule lived only there, importing the client's records would bring the fault
+-- back and undo the correction that was written for exactly those records.
+do $$
+declare
+  vehicle uuid;
+  template uuid;
+  setting uuid;
+  stored integer;
+begin
+  insert into public.vehicles (vehicle_name, vehicle_type, fuel_type, current_odometer)
+  values ('Import test van', 'van', 'diesel', 100000)
+  returning id into vehicle;
+
+  -- Straight into the table, exactly as the importer does it.
+  insert into public.maintenance_templates
+    (name, category, default_time_interval_days, default_odometer_interval_km,
+     default_due_soon_days, default_due_soon_km)
+  values ('Imported item', 'engine_oil', 3600, 100000, 3600, 100000)
+  returning id into template;
+
+  select default_due_soon_days into stored
+  from public.maintenance_templates where id = template;
+  assert stored = 14, 'an imported item should not warn for its whole interval, got ' || stored;
+
+  insert into public.vehicle_maintenance_settings
+    (vehicle_id, template_id, status, custom_time_interval_days,
+     custom_odometer_interval_km, custom_due_soon_days, custom_due_soon_km)
+  values (vehicle, template, 'active', 3600, 100000, 3600, 100000)
+  returning id into setting;
+
+  select custom_due_soon_days into stored
+  from public.vehicle_maintenance_settings where id = setting;
+  assert stored = 14, 'an imported reminder should be fitted too, got ' || stored;
+
+  insert into public.maintenance_schedules
+    (vehicle_id, template_id, vehicle_maintenance_setting_id,
+     next_due_date, next_due_odometer, due_soon_days, due_soon_km, status, priority)
+  values (vehicle, template, setting,
+          current_date + 3583, 316867, 3600, 100000, 'due_soon', 'medium');
+
+  select due_soon_days into stored
+  from public.maintenance_schedules where vehicle_maintenance_setting_id = setting;
+  assert stored = 14,
+    'a schedule borrows its interval from the setting it came from, got ' || stored;
+
+  assert (select (public.evaluate_due_status(
+                    current_date, v.current_odometer, m.next_due_date, m.next_due_odometer,
+                    m.due_soon_days, m.due_soon_km, false)).status
+          from public.maintenance_schedules m
+          join public.vehicles v on v.id = m.vehicle_id
+          where m.vehicle_maintenance_setting_id = setting) = 'not_due',
+    'the reported row, imported afresh, must no longer read due soon';
+end $$;
+
 select 'warn windows stay shorter than their intervals' as result;

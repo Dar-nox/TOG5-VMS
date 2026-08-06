@@ -373,6 +373,87 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
+-- The rule, enforced by the table rather than by whoever writes to it
+-- ---------------------------------------------------------------------------
+--
+-- The functions above cover the app. They do not cover migrate_from_backup.py,
+-- which inserts straight through PostgREST — so importing the client's real
+-- records on go-live day would bring these values back, along with any others
+-- the desktop app wrote the same way, and the correction below would be undone
+-- by the very thing it was written for.
+--
+-- A trigger holds however the row arrives.
+
+create or replace function public.fit_warn_window_to_interval()
+returns trigger
+language plpgsql
+as $$
+declare
+  interval_days integer;
+  interval_km integer;
+begin
+  if tg_table_name = 'maintenance_schedules' then
+    -- A schedule does not carry its own interval, so it borrows the one it was
+    -- derived from. The importer writes settings before schedules, so this is
+    -- there to be read.
+    select coalesce(s.custom_time_interval_days, t.default_time_interval_days),
+           coalesce(s.custom_odometer_interval_km, t.default_odometer_interval_km)
+    into interval_days, interval_km
+    from public.maintenance_templates t
+    left join public.vehicle_maintenance_settings s
+      on s.id = new.vehicle_maintenance_setting_id
+    where t.id = new.template_id;
+
+    new.due_soon_days := public.fitted_warn_window(
+      new.due_soon_days, interval_days, public.setting_int('default_due_soon_days', 14));
+    new.due_soon_km := public.fitted_warn_window(
+      new.due_soon_km, interval_km, public.setting_int('default_due_soon_km', 500));
+
+    return new;
+  end if;
+
+  if tg_table_name = 'maintenance_templates' then
+    new.default_due_soon_days := public.fitted_warn_window(
+      new.default_due_soon_days, new.default_time_interval_days,
+      public.setting_int('default_due_soon_days', 14));
+    new.default_due_soon_km := public.fitted_warn_window(
+      new.default_due_soon_km, new.default_odometer_interval_km,
+      public.setting_int('default_due_soon_km', 500));
+  else
+    new.custom_due_soon_days := public.fitted_warn_window(
+      new.custom_due_soon_days, new.custom_time_interval_days,
+      public.setting_int('default_due_soon_days', 14));
+    new.custom_due_soon_km := public.fitted_warn_window(
+      new.custom_due_soon_km, new.custom_odometer_interval_km,
+      public.setting_int('default_due_soon_km', 500));
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists fit_warn_window on public.maintenance_templates;
+drop trigger if exists fit_warn_window on public.vehicle_maintenance_settings;
+drop trigger if exists fit_warn_window on public.maintenance_schedules;
+
+create trigger fit_warn_window
+  before insert or update on public.maintenance_templates
+  for each row
+  execute function public.fit_warn_window_to_interval();
+
+create trigger fit_warn_window
+  before insert or update on public.vehicle_maintenance_settings
+  for each row
+  execute function public.fit_warn_window_to_interval();
+
+-- The importer writes schedules directly too, carrying whatever the desktop
+-- app stored on each one.
+create trigger fit_warn_window
+  before insert or update on public.maintenance_schedules
+  for each row
+  execute function public.fit_warn_window_to_interval();
+
+-- ---------------------------------------------------------------------------
 -- Correcting what is already stored
 -- ---------------------------------------------------------------------------
 --
