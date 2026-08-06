@@ -9,6 +9,14 @@ export default tseslint.config(
   { ignores: ["dist", "target", "src-tauri/target"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
+  // Service worker code. It runs in a worker rather than a page, so `self` and
+  // the rest of the worker globals are what it has instead of `window`.
+  {
+    files: ["public/sw-*.js"],
+    languageOptions: {
+      globals: { self: "readonly", clients: "readonly" },
+    },
+  },
   {
     files: ["**/*.{ts,tsx}"],
     plugins: {

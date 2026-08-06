@@ -8,6 +8,14 @@ import { ABSENT } from "../../../lib/format";
 import { routes } from "../../../lib/routes";
 import { trimToUndefined } from "../../../lib/text";
 import {
+  canPinTrips,
+  isPinned,
+  pinTrip,
+  pinningBlocked,
+  reconcilePins,
+  unpinTrip,
+} from "../../../lib/tripPin";
+import {
   archiveTrip,
   completeTrip,
   listTrips,
@@ -66,6 +74,7 @@ export function TripsTab({ vehicle }: { vehicle: VehicleRecord }) {
   const [returnNotes, setReturnNotes] = useState("");
   const [returnOdometer, setReturnOdometer] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [pinned, setPinned] = useState<Set<string>>(new Set());
 
   const formRef = useRef<HTMLDivElement>(null);
 
@@ -73,8 +82,26 @@ export function TripsTab({ vehicle }: { vehicle: VehicleRecord }) {
     setLoading(true);
 
     try {
-      setTrips(await listTrips({ vehicleId }));
+      const records = await listTrips({ vehicleId });
+      setTrips(records);
       setError(null);
+
+      // A trip closed on the office computer leaves a notification sitting on
+      // the driver's phone naming a journey that finished yesterday. Nothing
+      // tells the phone, so the tidying happens the next time it looks.
+      const stillOpen = records.filter((trip) => trip.status === "open");
+      await reconcilePins(stillOpen.map((trip) => trip.id));
+      setPinned(
+        new Set(
+          (
+            await Promise.all(
+              stillOpen.map(async (trip) => [trip.id, await isPinned(trip.id)] as const),
+            )
+          )
+            .filter(([, on]) => on)
+            .map(([id]) => id),
+        ),
+      );
     } catch (caught) {
       setError(messageFromError(caught));
     } finally {
@@ -203,6 +230,37 @@ export function TripsTab({ vehicle }: { vehicle: VehicleRecord }) {
     } finally {
       setBusyId(null);
     }
+  }
+
+  async function handlePin(trip: TripRecord) {
+    if (pinned.has(trip.id)) {
+      await unpinTrip(trip.id);
+      setPinned((current) => {
+        const next = new Set(current);
+        next.delete(trip.id);
+        return next;
+      });
+      return;
+    }
+
+    const shown = await pinTrip({
+      id: trip.id,
+      vehicleName: trip.vehicleName,
+      reason: trip.reason,
+      destinations: trip.destinations,
+      url: `${window.location.origin}${routes.vehicle(vehicleId, "trips")}`,
+    });
+
+    if (!shown) {
+      toast.error(
+        pinningBlocked()
+          ? "Notifications are switched off for this app in your phone's settings."
+          : "Your phone did not allow the notification.",
+      );
+      return;
+    }
+
+    setPinned((current) => new Set(current).add(trip.id));
   }
 
   async function handleArchive(trip: TripRecord) {
@@ -337,6 +395,13 @@ export function TripsTab({ vehicle }: { vehicle: VehicleRecord }) {
                       actions={
                         returning?.id === trip.id ? null : (
                           <>
+                            {/* Phones only. On a desktop the app is already a
+                                window somebody is looking at. */}
+                            {canPinTrips() ? (
+                              <Button onClick={() => void handlePin(trip)} variant="quiet">
+                                {pinned.has(trip.id) ? "Unpin" : "Pin to phone"}
+                              </Button>
+                            ) : null}
                             {/* Getting fuel is why the vehicle went out, so the
                                 receipt belongs to the trip rather than to a
                                 separate screen somebody has to remember. */}
