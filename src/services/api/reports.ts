@@ -2,42 +2,34 @@
  * Saving a report as a CSV file.
  *
  * The desktop build wrote the file itself and could then offer to open the
- * folder it was in. A browser has no such folder — the file goes wherever that
- * browser puts downloads, and on a phone that is the only place it can go. So
- * this hands the file to the browser and says where it went, rather than
- * pretending to a path it does not know.
+ * folder it was in. Neither a browser nor a phone has such a folder, so this
+ * hands the file over and says honestly where it went — see `lib/saveFile`,
+ * which is also where the Android half of the problem is dealt with.
  */
+
+import { saveTextFile, type SaveOutcome } from "../../lib/saveFile";
+
+/**
+ * What makes Excel open a UTF-8 CSV as UTF-8. Without it a peso sign or the ñ
+ * in a vehicle name arrives as mojibake. Written as an escape rather than the
+ * character itself, which is invisible in an editor and reads as a stray
+ * whitespace bug to anyone reviewing it.
+ */
+const BYTE_ORDER_MARK = "\uFEFF";
 
 export type ExportReportCsvRequest = {
   filename: string;
   csvContents: string;
 };
 
-export type ExportReportCsvResponse = {
-  filename: string;
-  sizeBytes: number;
-};
+export type ExportReportCsvResponse = SaveOutcome;
 
 export async function exportReportCsv(
   request: ExportReportCsvRequest,
 ): Promise<ExportReportCsvResponse> {
-  // The byte order mark is what makes Excel open a UTF-8 CSV as UTF-8. Without
-  // it, a peso sign or an ñ in a vehicle name arrives as mojibake.
-  const blob = new Blob(["﻿", request.csvContents], {
-    type: "text/csv;charset=utf-8",
-  });
-
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = request.filename;
-  document.body.append(link);
-  link.click();
-  link.remove();
-
-  // Revoking immediately can cancel the download in some browsers, so this
-  // waits for the current task to finish first.
-  setTimeout(() => URL.revokeObjectURL(url), 0);
-
-  return { filename: request.filename, sizeBytes: blob.size };
+  return saveTextFile(
+    request.filename,
+    `${BYTE_ORDER_MARK}${request.csvContents}`,
+    "text/csv;charset=utf-8",
+  );
 }

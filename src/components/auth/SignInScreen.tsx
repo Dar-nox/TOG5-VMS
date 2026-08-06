@@ -1,6 +1,11 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useAuth } from "../../app/providers/authContext";
+import { messageFromError } from "../../lib/errors";
+import { Button } from "../ui/Button";
+import { TextField } from "../ui/Field";
+import { ErrorBlock } from "../ui/States";
+import { AuthShell } from "./AuthShell";
 
 export function SignInScreen() {
   const { signIn } = useAuth();
@@ -17,61 +22,42 @@ export function SignInScreen() {
     try {
       await signIn(email, password);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : String(error));
+      setErrorMessage(messageFromError(error));
       setBusy(false);
     }
   }
 
   return (
-    <div className="sign-in-screen">
-      <form className="sign-in-card" onSubmit={(event) => void handleSubmit(event)}>
-        <div className="sign-in-brand">
-          <div className="brand-mark" aria-hidden="true">
-            VMS
-          </div>
-          <div>
-            <p>TOG 5</p>
-            <strong>Vehicle Care</strong>
-          </div>
-        </div>
+    <AuthShell title="Sign in">
+      <form className="flex flex-col gap-4" onSubmit={(event) => void handleSubmit(event)}>
+        <p className="text-sm text-muted">
+          Use the email and password you were given for TOG 5 VMS.
+        </p>
 
-        <div className="sign-in-intro">
-          <h1>Sign in</h1>
-          <p>Use the email and password you were given for TOG 5 VMS.</p>
-        </div>
+        <TextField
+          autoComplete="username"
+          label="Email"
+          onChange={setEmail}
+          required
+          type="email"
+          value={email}
+        />
 
-        <label className="form-field">
-          <span>Email</span>
-          <input
-            autoComplete="username"
-            autoFocus
-            inputMode="email"
-            name="email"
-            onChange={(event) => setEmail(event.target.value)}
-            required
-            type="email"
-            value={email}
-          />
-        </label>
+        <TextField
+          autoComplete="current-password"
+          label="Password"
+          onChange={setPassword}
+          required
+          type="password"
+          value={password}
+        />
 
-        <label className="form-field">
-          <span>Password</span>
-          <input
-            autoComplete="current-password"
-            name="password"
-            onChange={(event) => setPassword(event.target.value)}
-            required
-            type="password"
-            value={password}
-          />
-        </label>
+        {errorMessage ? <ErrorBlock message={errorMessage} /> : null}
 
-        {errorMessage ? <div className="inline-error compact">{errorMessage}</div> : null}
-
-        <button className="primary-button" disabled={busy} type="submit">
-          {busy ? "Signing in..." : "Sign in"}
-        </button>
+        <Button block loading={busy} type="submit" variant="primary">
+          Sign in
+        </Button>
       </form>
-    </div>
+    </AuthShell>
   );
 }

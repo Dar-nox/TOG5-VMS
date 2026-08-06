@@ -7,11 +7,14 @@
  * backup system.
  *
  * It still matters, more than it did. The free plan takes no automatic copies,
- * so this download is the only copy of their records the client holds. Each
- * export is recorded in the database, which is what lets Settings say how long
- * it has been since the last one.
+ * so this file is the only copy of their records the client holds. Each export
+ * is recorded in the database, which is what lets Settings say how long it has
+ * been since the last one — and it is recorded only once the file has actually
+ * left, because a reminder reset by an export nobody has is worse than no
+ * reminder.
  */
 
+import { saveTextFile } from "../../lib/saveFile";
 import { rpc, supabase, unwrap } from "./client";
 
 /** Every table worth keeping, in an order that reads sensibly in the file. */
@@ -88,21 +91,27 @@ export async function exportAllData(): Promise<ExportSummary> {
     tables,
   };
 
-  const blob = new Blob([JSON.stringify(contents, null, 2)], {
-    type: "application/json",
-  });
   const filename = `tog5-vms-export-${exportedAt.slice(0, 10)}.json`;
 
-  download(blob, filename);
+  const outcome = await saveTextFile(
+    filename,
+    JSON.stringify(contents, null, 2),
+    "application/json",
+  );
 
-  // Recorded only after the file has been handed over, so a failed read never
-  // resets the reminder clock on an export that did not happen.
+  // Recorded only after the file has actually been handed over, so neither a
+  // failed read nor a dismissed share sheet resets the reminder clock on an
+  // export the client does not have.
+  if (outcome.via === "cancelled") {
+    throw new Error("The export was not saved. Nothing has changed.");
+  }
+
   await rpc<string>("record_data_export", { record_counts: recordCounts });
 
   return {
     exportedAt,
     filename,
-    sizeBytes: blob.size,
+    sizeBytes: outcome.sizeBytes,
     recordCounts,
     totalRecords: Object.values(recordCounts).reduce((sum, count) => sum + count, 0),
   };
@@ -129,15 +138,4 @@ export async function getStorageSummary(): Promise<StorageSummary> {
     photoCount: photos.count ?? 0,
     documentCount: documents.count ?? 0,
   };
-}
-
-function download(blob: Blob, filename: string): void {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
 }

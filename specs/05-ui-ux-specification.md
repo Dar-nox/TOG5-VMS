@@ -2,248 +2,140 @@
 
 ## UX Priority
 
-TOG 5 VMS must be easy to use for people who are not highly technical.
-
-Design principle:
+TOG 5 VMS must be easy to use for people who are not highly technical, on a
+phone as readily as on a computer.
 
 > The system should guide users, not overwhelm them.
 
-## Visual Identity
+**Guiding is not the same as explaining.** The previous version of this
+document asked for short explanations of thirteen mechanic's terms. That was
+right, and the way it was delivered was wrong: the app ended up with roughly
+eighty-five blocks of instructional prose, a paragraph under every heading, an
+essay in every empty state, and one list row that gave click-by-click
+instructions. The client asked for all of it to be removed.
 
-Use a clean, practical office/dashboard style.
+The rule now: **an interface that has to explain how to operate it is wrong.**
+Fix the interface. Keep explanations for the subject matter — what a glow plug
+is — and attach them to the word, on request.
 
-Recommended UI qualities:
+## Design System
 
-1. Large readable text.
-2. Clear action buttons.
-3. Vehicle photos prominently displayed.
-4. Simple color-coded statuses.
-5. Minimal mechanic jargon unless explained.
-6. Consistent layout.
-7. Responsive desktop layout.
+Everything visual comes from `src/styles/theme.css`. No screen defines a
+colour, a size, or a spacing value of its own.
+
+- **Palette** — navy `#102833` and gold `#E0A32E`, taken from the app icon.
+  Gold marks the one primary action on a screen and nothing else.
+- **Type** — IBM Plex Sans for interface text, IBM Plex Mono for every measured
+  value. Self-hosted and subsetted by `scripts/subset-fonts.py`, which exists
+  because packaged subsets of Plex drop U+20B1, the peso sign.
+- **Measured values are set in the mono face.** Odometers, litres, km/L,
+  currency and dates. Both faces share a 600-unit digit, so figures line up in
+  columns.
+- Eight type sizes, a 4px spacing grid, three radii, one shadow.
+
+## Layout Rules
+
+These are not style preferences. Each one is a bug that was reported.
+
+1. **Use container queries, never viewport breakpoints,** for anything inside
+   the content area. The old layout keyed its breakpoints to the window while
+   its grids sat in a column ~500px narrower, which is what made content
+   overlap between 761px and 1120px — and at 125% browser zoom.
+2. **Never put an unbreakable string in a fixed-width box.** A currency amount
+   has no break opportunity. Use `Stat` or `MetaItem`, which wrap.
+3. **No `line-height: 1`** on anything that can wrap.
+4. **Use `dvh`, never `vh`.** On a phone `100vh` is the viewport with the
+   address bar hidden.
+5. **Nothing gets a `min-width` in pixels.**
+6. Everything must work at 320px wide and at 400% zoom.
 
 ## Navigation
 
-Use a sidebar with these sections:
+Five destinations: **Dashboard · Vehicles · Alerts · Reports · Settings.**
 
-1. Dashboard.
-2. Vehicles.
-3. Fuel Logs.
-4. Maintenance.
-5. Service History.
-6. Expenses.
-7. Reports.
-8. Alerts.
-9. Backup.
-10. Settings.
+Fuel, trips, maintenance, service history and expenses are not destinations.
+They are facts about a vehicle and live in tabs inside one. A task starts with
+"which van?", not with filtering a fleet-wide table down to one.
 
-## Global Layout
+- Desktop: a sidebar, collapsible only when asked.
+- Phone: five labelled icons in a bottom bar.
+- The route carries the vehicle and the tab, so links work and the back button
+  steps through the app rather than out of it.
 
-Recommended structure:
+## Screen Structure
 
-```text
-Top Bar
-  App name, search, notifications, current user
+Every screen: one `<h1>`, then the content. No eyebrow, no subtitle, no
+description of what the screen is for.
 
-Sidebar
-  Main navigation
+Use the primitives in `src/components/ui/`. If a screen needs something they do
+not offer, add it there rather than inventing a local variant — the previous
+interface had fifteen versions of "a row with a title and some meta".
 
-Content Area
-  Current page
+## Status Colours
 
-Status Area
-  Optional footer for backup status/app version
-```
+Green OK · Amber due soon · Red overdue · Blue informational · Grey archived.
 
-## Dashboard UX
+Never colour alone: a `Badge` always contains words. Mappings live in
+`src/components/ui/tones.ts` so no screen invents its own.
 
-Dashboard should answer these questions quickly:
+## Forms
 
-1. Which vehicles need attention?
-2. What maintenance is overdue?
-3. What maintenance is due soon?
-4. Are fuel costs or fuel efficiency changing?
-5. Are any legal documents expiring?
-6. Has backup been done recently?
+- Mark **optional** fields. Most fields in these forms are required, and an
+  asterisk on nine of ten is noise.
+- Errors appear against the field they belong to **and** in a summary.
+- Every numeric field sets `inputMode` so a phone shows a numeric keypad.
+- Prefer a date and a time control over `datetime-local`.
+- Fields that are usually left blank go behind one disclosure button.
+- Opening a form for editing must scroll to it.
 
-Use cards such as:
+## Destructive Actions
 
-1. Overdue Maintenance.
-2. Due Soon.
-3. Fuel Efficiency Warnings.
-4. Monthly Expenses.
-5. Backup Status.
+Confirm every one, in a centred dialog — `useConfirm()`.
 
-## Vehicle List UX
+The confirmation names the record, says what will be affected, and says that
+archived records can be restored. "Are you sure?" is not acceptable: it carries
+no information. Focus starts on Cancel.
 
-Vehicle list items/cards should show:
+Confirmations work only while they stay rare. Nothing routine opens one.
 
-1. Vehicle photo.
-2. Vehicle name.
-3. Optional plate number.
-4. Vehicle type.
-5. Fuel type.
-6. Status.
-7. Next due maintenance.
+## Feedback
 
-The photo and name should be more visually prominent than plate number.
+- Success and failure go through `useToast()`. Success clears itself; failure
+  waits to be dismissed.
+- Say what happened: "Recorded. Next due 12/09/2026", not "Saved".
+- Loading shows a skeleton shaped like what is coming. Buttons keep their label
+  and show a spinner — never a gerund, which changes the button's width.
 
-## Vehicle Profile UX
+## Photos
 
-Use tabs:
+The vehicle picture is required: it and the name are how staff recognise a van.
+Capture leads with **Take photo** (`capture="environment"`), with a file picker
+second. The plate number is never required.
 
-1. Overview.
-2. Fuel Logs.
-3. Maintenance.
-4. Service History.
-5. Expenses.
-6. Documents.
-7. Notes.
+## Help Text
 
-Overview should show:
+Thirteen mechanic's terms are explained in
+`src/components/ui/helpTerms.ts` and shown by `HelpTerm`, which attaches the
+explanation to the word and reveals it on request.
 
-1. Large vehicle photo.
-2. Vehicle name.
-3. Status.
-4. Current odometer.
-5. Fuel type.
-6. Next maintenance.
-7. Recent alerts.
+Nothing else on a screen explains the screen.
 
-## Add Vehicle Wizard
+## Accessibility
 
-Use a wizard instead of one long form.
-
-Steps:
-
-1. Upload vehicle picture.
-2. Vehicle name and basic details.
-3. Vehicle type/fuel/transmission/drivetrain.
-4. Feature checkboxes.
-5. Odometer.
-6. Maintenance template selection.
-7. Review suggested maintenance.
-8. Save.
-
-## Fuel Log Form UX
-
-The form should be quick and clear.
-
-Fields to show first:
-
-1. Vehicle selector with picture.
-2. Date/time.
-3. Odometer.
-4. Liters.
-5. Total amount.
-6. Full tank checkbox.
-7. Receipt upload.
-
-Advanced/optional fields can be collapsed:
-
-1. Fuel station.
-2. Receipt number.
-3. Price per liter.
-4. Notes.
-
-## Maintenance UX
-
-Maintenance pages should include:
-
-1. Calendar/list toggle.
-2. Due soon filter.
-3. Overdue filter.
-4. Vehicle filter.
-5. Maintenance category filter.
-6. Mark as completed action.
-7. Snooze/reschedule action.
-
-Each maintenance item should clearly show:
-
-1. Vehicle photo/name.
-2. Task name.
-3. Due date.
-4. Due odometer.
-5. Remaining days/km.
-6. Status.
-7. Priority.
-
-## Alert UX
-
-Alert messages must be plain language.
-
-Bad:
-
-`maintenance_schedule status threshold exceeded`
-
-Good:
-
-`Oil Change is overdue for Toyota Hiace by 8 days.`
-
-Alert actions:
-
-1. View vehicle.
-2. Complete maintenance.
-3. Snooze.
-4. Dismiss.
-
-## Status Colors
-
-Use consistent colors:
-
-1. Green — OK.
-2. Yellow — Due soon.
-3. Red — Overdue/critical.
-4. Blue — Informational.
-5. Gray — Inactive/archived.
-
-Do not rely on color alone. Also use labels/icons.
-
-## Forms and Validation
-
-Forms should:
-
-1. Clearly mark required fields.
-2. Avoid too many fields at once.
-3. Use dropdowns for standard choices.
-4. Use friendly validation messages.
-5. Warn before destructive actions.
-6. Prevent accidental navigation away from unsaved forms.
-
-## Required Tooltips / Help Text
-
-Provide short explanations for:
-
-1. Odometer.
-2. Fuel efficiency.
-3. Full tank.
-4. Tire rotation.
-5. Brake pads.
-6. Coolant.
-7. Transmission fluid.
-8. Differential oil.
-9. Preventive maintenance.
-10. Spark plug.
-11. Glow plug.
-12. DEF/AdBlue.
-13. Diesel particulate filter.
-
-## Accessibility Basics
-
-1. Buttons must have readable labels.
-2. Forms must have labels.
-3. Text contrast should be sufficient.
-4. Keyboard navigation should be reasonable.
-5. Do not use tiny text for important warnings.
+- Visible focus on everything. Never `outline: none` on `:focus-visible`.
+- All text at least 4.5:1 against its background; verify, do not estimate.
+- Real buttons and links, never a clickable `div`.
+- `aria-current` on the active navigation item; focus moves to the content on
+  navigation; a skip link.
+- Touch targets at least 44px with 8px between them.
+- Motion respects `prefers-reduced-motion`, except where it is the only signal
+  that the app is still working.
 
 ## Empty States
 
-Every empty page should tell the user what to do next.
+One short line, and the action if there is one.
 
-Example:
+> No fuel logged for this vehicle yet.
+> [Log the first fill-up]
 
-```text
-No fuel logs yet.
-Add your first fuel log to start tracking fuel efficiency.
-[Add Fuel Log]
-```
+Not an explanation of what would appear here.

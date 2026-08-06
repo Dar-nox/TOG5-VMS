@@ -53,10 +53,35 @@ speculative ones.
     plug, or exhaust maintenance.
 15. Allow user override with warning when applicability is questionable.
 16. Prefer clear, simple UI over dense technical screens. Assume a phone.
+    Everything the computer can do, the phone must do.
 17. Validate odometer, required fields, costs, dates, and fuel quantities.
 18. When changing data structures, update related types, migrations, seed data,
     and tests together.
 19. After a phase or milestone, update `specs/live-update.md`.
+
+## Interface
+
+`specs/05-ui-ux-specification.md` is the authority. The short version:
+
+1. **Every value comes from `src/styles/theme.css`.** No screen defines a
+   colour, a size or a spacing value. The stylesheet this replaced had 64 hex
+   colours, 28 font sizes and no custom properties, which is the entire
+   explanation for how inconsistent it looked.
+2. **Build from `src/components/ui/`.** If a primitive is missing, add it
+   there. Do not write a local variant — the old interface had fifteen
+   versions of one row.
+3. **Container queries, never viewport breakpoints,** inside the content area.
+   Viewport breakpoints on content that sits beside a sidebar is what made
+   things overlap, including at ordinary Windows zoom levels.
+4. **Never put an unbreakable string in a fixed-width box.** Amounts and
+   odometer readings cannot wrap unless you let them.
+5. **Confirm every destructive action** with `useConfirm()`, naming the record
+   and saying it can be restored.
+6. **Do not explain the app inside the app.** No paragraph under a heading, no
+   essay in an empty state, no instructions naming buttons. If a screen needs
+   explaining, fix the screen. Explanations of mechanical terms belong in
+   `helpTerms.ts`, attached to the word.
+7. **Measured values are set in the mono face** so figures line up.
 
 ## Online Only
 
