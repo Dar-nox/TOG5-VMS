@@ -159,7 +159,7 @@ export default function VehiclePage() {
         <ServiceHistoryTab vehicleId={vehicleId} />
       </TabPanel>
       <TabPanel active={active} id="trips">
-        <TripsTab vehicleId={vehicleId} />
+        <TripsTab vehicle={vehicle} />
       </TabPanel>
       <TabPanel active={active} id="expenses">
         <ExpensesTab vehicleId={vehicleId} />

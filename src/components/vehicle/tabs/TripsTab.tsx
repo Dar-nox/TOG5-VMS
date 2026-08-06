@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router";
 import { useConfirm } from "../../../app/providers/confirmContext";
 import { useFormat } from "../../../app/providers/formatContext";
 import { useToast } from "../../../app/providers/toastContext";
 import { messageFromError } from "../../../lib/errors";
+import { ABSENT } from "../../../lib/format";
+import { routes } from "../../../lib/routes";
 import { trimToUndefined } from "../../../lib/text";
 import {
   archiveTrip,
@@ -11,11 +14,19 @@ import {
   startTrip,
   type TripRecord,
 } from "../../../services/api/trips";
+import type { VehicleRecord } from "../../../services/api/vehicles";
 import { Badge } from "../../ui/Badge";
 import { Button, ButtonRow } from "../../ui/Button";
 import { Card, CardHeader } from "../../ui/Card";
 import { DataList, DataRow, MetaItem } from "../../ui/DataRow";
-import { DateTimeField, FieldGrid, FieldGridFull, TextAreaField, TextField } from "../../ui/Field";
+import {
+  DateTimeField,
+  FieldGrid,
+  FieldGridFull,
+  NumberField,
+  TextAreaField,
+  TextField,
+} from "../../ui/Field";
 import { SkeletonRows } from "../../ui/Spinner";
 import { EmptyState, ErrorBlock, ErrorSummary } from "../../ui/States";
 import { PeopleField } from "./PeopleField";
@@ -28,10 +39,12 @@ import { PeopleField } from "./PeopleField";
  * explaining that no odometer or distance tracking happens here — an
  * explanation of a feature that does not exist.
  */
-export function TripsTab({ vehicleId }: { vehicleId: string }) {
+export function TripsTab({ vehicle }: { vehicle: VehicleRecord }) {
+  const vehicleId = vehicle.id;
   const fmt = useFormat();
   const confirm = useConfirm();
   const toast = useToast();
+  const navigate = useNavigate();
 
   const [trips, setTrips] = useState<TripRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,12 +57,14 @@ export function TripsTab({ vehicleId }: { vehicleId: string }) {
   const [passengers, setPassengers] = useState<string[]>([]);
   const [destinations, setDestinations] = useState<string[]>([""]);
   const [departureNotes, setDepartureNotes] = useState("");
+  const [departureOdometer, setDepartureOdometer] = useState("");
   const [issues, setIssues] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
   const [returning, setReturning] = useState<TripRecord | null>(null);
   const [returnTime, setReturnTime] = useState(nowForInput);
   const [returnNotes, setReturnNotes] = useState("");
+  const [returnOdometer, setReturnOdometer] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const formRef = useRef<HTMLDivElement>(null);
@@ -81,6 +96,9 @@ export function TripsTab({ vehicleId }: { vehicleId: string }) {
     setPassengers([]);
     setDestinations([""]);
     setDepartureNotes("");
+    // The app already knows this number; nobody should have to walk out to the
+    // vehicle and read it back.
+    setDepartureOdometer(String(vehicle.currentOdometer));
     setIssues([]);
     setFormOpen(true);
 
@@ -126,6 +144,7 @@ export function TripsTab({ vehicleId }: { vehicleId: string }) {
         reason: reason.trim(),
         destinations: cleanDestinations,
         departureNotes: trimToUndefined(departureNotes),
+        departureOdometer: readingOf(departureOdometer),
       });
 
       await load();
@@ -139,17 +158,45 @@ export function TripsTab({ vehicleId }: { vehicleId: string }) {
   }
 
   async function handleComplete(trip: TripRecord) {
+    const reading = readingOf(returnOdometer);
+    const left = trip.departureOdometer ?? vehicle.currentOdometer;
+
+    if (reading != null && reading < left) {
+      toast.error(
+        `The vehicle cannot come back on a lower reading than it left on (${fmt.distance(left)}).`,
+      );
+      return;
+    }
+
+    // A reading is the one thing here that cannot be corrected by typing over
+    // it: the odometer only ever moves forward, so 21688 typed as 216880 has to
+    // be unpicked on the vehicle screen. Worth one question.
+    if (reading != null && reading - left > IMPLAUSIBLE_KM) {
+      const confirmed = await confirm({
+        title: "Is that reading right?",
+        body: `That is ${fmt.distance(reading - left)} since the vehicle left, which is a long way for one trip. A reading that is too high can only be undone by editing the vehicle.`,
+        confirmLabel: "Yes, close the trip",
+        tone: "primary",
+      });
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
     setBusyId(trip.id);
 
     try {
       await completeTrip(trip.id, {
         returnTime,
         returnNotes: trimToUndefined(returnNotes),
+        returnOdometer: reading,
       });
 
       await load();
       setReturning(null);
       setReturnNotes("");
+      setReturnOdometer("");
       toast.success("Trip closed.");
     } catch (caught) {
       toast.error(messageFromError(caught));
@@ -217,6 +264,14 @@ export function TripsTab({ vehicleId }: { vehicleId: string }) {
                   required
                   value={reason}
                 />
+                <NumberField
+                  hint="Filled in from the vehicle. Change it if the dash says otherwise."
+                  label="Odometer now"
+                  onChange={setDepartureOdometer}
+                  optional
+                  unit={fmt.distanceLabel}
+                  value={departureOdometer}
+                />
 
                 <FieldGridFull>
                   <PeopleField
@@ -281,21 +336,57 @@ export function TripsTab({ vehicleId }: { vehicleId: string }) {
                     <DataRow
                       actions={
                         returning?.id === trip.id ? null : (
-                          <Button
-                            onClick={() => {
-                              setReturning(trip);
-                              setReturnTime(nowForInput());
-                            }}
-                          >
-                            Record return
-                          </Button>
+                          <>
+                            {/* Getting fuel is why the vehicle went out, so the
+                                receipt belongs to the trip rather than to a
+                                separate screen somebody has to remember. */}
+                            <Button
+                              onClick={() =>
+                                void navigate(
+                                  `${routes.vehicle(vehicleId, "fuel")}?trip=${trip.id}`,
+                                )
+                              }
+                              variant="quiet"
+                            >
+                              Log fuel
+                            </Button>
+                            <Button
+                              onClick={() =>
+                                void navigate(
+                                  `${routes.vehicle(vehicleId, "expenses")}?trip=${trip.id}`,
+                                )
+                              }
+                              variant="quiet"
+                            >
+                              Add cost
+                            </Button>
+                            <Button
+                              onClick={() => {
+                                setReturning(trip);
+                                setReturnTime(nowForInput());
+                                setReturnOdometer("");
+                              }}
+                            >
+                              Record return
+                            </Button>
+                          </>
                         )
                       }
                       meta={
                         <>
                           <MetaItem label="Left" numeric value={fmt.dateTime(trip.departureTime)} />
+                          <MetaItem
+                            label="Odometer out"
+                            numeric
+                            value={fmt.distance(trip.departureOdometer)}
+                          />
                           <MetaItem label="Driver" value={trip.drivers.join(", ") || "—"} />
                           <MetaItem label="Going to" value={trip.destinations.join(", ") || "—"} />
+                          <MetaItem
+                            label="Spent so far"
+                            numeric
+                            value={fmt.money(trip.fuelTotal + trip.expenseTotal)}
+                          />
                         </>
                       }
                       title={
@@ -314,6 +405,16 @@ export function TripsTab({ vehicleId }: { vehicleId: string }) {
                             onChange={setReturnTime}
                             required
                             value={returnTime}
+                          />
+                          <NumberField
+                            hint={`Moves the vehicle's odometer on from ${fmt.distance(
+                              trip.departureOdometer ?? vehicle.currentOdometer,
+                            )}. Leave it empty if nobody looked.`}
+                            label="Odometer now"
+                            onChange={setReturnOdometer}
+                            optional
+                            unit={fmt.distanceLabel}
+                            value={returnOdometer}
                           />
                           <TextAreaField
                             label="Notes"
@@ -364,8 +465,18 @@ export function TripsTab({ vehicleId }: { vehicleId: string }) {
                       <>
                         <MetaItem label="Left" numeric value={fmt.dateTime(trip.departureTime)} />
                         <MetaItem label="Back" numeric value={fmt.dateTime(trip.returnTime)} />
+                        <MetaItem label="Distance" numeric value={fmt.distance(trip.distanceKm)} />
                         <MetaItem label="Driver" value={trip.drivers.join(", ") || "—"} />
                         <MetaItem label="Went to" value={trip.destinations.join(", ") || "—"} />
+                        <MetaItem
+                          label="Cost"
+                          numeric
+                          value={
+                            trip.fuelTotal + trip.expenseTotal > 0
+                              ? fmt.money(trip.fuelTotal + trip.expenseTotal)
+                              : ABSENT
+                          }
+                        />
                       </>
                     }
                     subtitle={trip.returnNotes ?? undefined}
@@ -385,4 +496,24 @@ function nowForInput(): string {
   const now = new Date();
   now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
   return now.toISOString().slice(0, 16);
+}
+
+/**
+ * Far enough that it is worth asking. A day's driving in a fleet like this is
+ * tens or low hundreds of kilometres; 2,000 is either a very unusual trip or a
+ * digit typed twice.
+ */
+const IMPLAUSIBLE_KM = 2000;
+
+/** An empty box means "nobody looked", which is not the same as zero. */
+function readingOf(value: string): number | undefined {
+  const trimmed = value.trim();
+
+  if (trimmed === "") {
+    return undefined;
+  }
+
+  const parsed = Number(trimmed);
+
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
 }

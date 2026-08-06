@@ -80,6 +80,7 @@ export function MaintenanceTab({ vehicle }: { vehicle: VehicleRecord }) {
   const [logging, setLogging] = useState<Reminder | null>(null);
   const [addingItem, setAddingItem] = useState(false);
   const [editingIntervals, setEditingIntervals] = useState<Reminder | null>(null);
+  const [query, setQuery] = useState("");
 
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -151,6 +152,21 @@ export function MaintenanceTab({ vehicle }: { vehicle: VehicleRecord }) {
 
   const panelOpen = Boolean(logging || addingItem || editingIntervals);
 
+  // A well-kept vehicle carries thirty-odd items, and the list is ordered by
+  // urgency rather than alphabetically — so finding one particular item means
+  // reading the whole thing. Matching the category as well as the name lets
+  // "brake" find the pads, the fluid and the inspection together.
+  const searchable = reminders.length > 5;
+  const needle = query.trim().toLowerCase();
+  const visible =
+    needle === ""
+      ? reminders
+      : reminders.filter(({ setting }) =>
+          `${setting.templateName} ${labelFromKey(setting.category ?? "")}`
+            .toLowerCase()
+            .includes(needle),
+        );
+
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -207,6 +223,16 @@ export function MaintenanceTab({ vehicle }: { vehicle: VehicleRecord }) {
         ) : null}
       </div>
 
+      {loading || !searchable ? null : (
+        <TextField
+          label="Search maintenance items"
+          onChange={setQuery}
+          placeholder="Brakes, oil, tyres…"
+          type="search"
+          value={query}
+        />
+      )}
+
       {loading ? (
         <SkeletonRows rows={3} />
       ) : reminders.length === 0 ? (
@@ -220,9 +246,18 @@ export function MaintenanceTab({ vehicle }: { vehicle: VehicleRecord }) {
           }
           title="Nothing is being tracked for this vehicle."
         />
+      ) : visible.length === 0 ? (
+        <EmptyState
+          action={
+            <Button onClick={() => setQuery("")} variant="secondary">
+              Clear the search
+            </Button>
+          }
+          title={`Nothing here matches “${query.trim()}”.`}
+        />
       ) : (
         <DataList>
-          {reminders.map((reminder) => {
+          {visible.map((reminder) => {
             const { setting, schedule } = reminder;
             const tracked =
               setting.customTimeIntervalDays != null || setting.customOdometerIntervalKm != null;

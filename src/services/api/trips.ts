@@ -27,6 +27,13 @@ export type TripRecord = {
   passengers: string[];
   departureNotes?: string | null;
   returnNotes?: string | null;
+  departureOdometer?: number | null;
+  returnOdometer?: number | null;
+  /** Only once both readings are in. */
+  distanceKm?: number | null;
+  /** Fuel bought on this trip, and costs booked against it. */
+  fuelTotal: number;
+  expenseTotal: number;
   status: TripStatus;
   createdAt: string;
   updatedAt: string;
@@ -40,11 +47,13 @@ export type StartTripRequest = {
   reason: string;
   destinations: string[];
   departureNotes?: string;
+  departureOdometer?: number;
 };
 
 export type CompleteTripRequest = {
   returnTime: string;
   returnNotes?: string;
+  returnOdometer?: number;
 };
 
 export type TripCountRecord = {
@@ -110,6 +119,8 @@ export async function startTrip(request: StartTripRequest): Promise<TripRecord> 
     passengers: request.passengers,
     destinations: request.destinations,
     departure_notes: request.departureNotes ?? null,
+    // Left out, the server fills it from the vehicle's own reading.
+    departure_odometer: request.departureOdometer ?? null,
   });
 
   return getTrip(id);
@@ -120,6 +131,7 @@ export async function completeTrip(id: string, request: CompleteTripRequest): Pr
     trip_id: id,
     return_time: request.returnTime,
     return_notes: request.returnNotes ?? null,
+    return_odometer: request.returnOdometer ?? null,
   });
 
   return getTrip(id);
