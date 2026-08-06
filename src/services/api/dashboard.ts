@@ -95,6 +95,18 @@ export type DashboardSetupHint = {
   targetPage?: string | null;
 };
 
+export type OpenTripRecord = {
+  id: string;
+  vehicleId: string;
+  vehicleName: string;
+  reason: string;
+  departureTime: string;
+  departureOdometer?: number | null;
+  drivers: string[];
+  destinations: string[];
+  spentSoFar: number;
+};
+
 export type DashboardOverview = {
   generatedAt: string;
   ownerDisplayName: string;
@@ -112,6 +124,15 @@ export type DashboardOverview = {
 /** Eight summaries in one call, rather than eight round trips. */
 export async function getDashboardOverview(): Promise<DashboardOverview> {
   return rpc<DashboardOverview>("dashboard_overview");
+}
+
+/**
+ * Every vehicle out right now, across the fleet. Separate from the overview
+ * because the two are fetched together, and two parallel requests cost what one
+ * does — where folding it in would mean restating that whole function.
+ */
+export async function getOpenTrips(): Promise<OpenTripRecord[]> {
+  return rpc<OpenTripRecord[]>("open_trips");
 }
 
 export function dashboardPhotoUrl(storagePath?: string | null): Promise<string | undefined> {

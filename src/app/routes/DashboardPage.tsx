@@ -11,7 +11,12 @@ import { toneForDueStatus, toneForPriority } from "../../components/ui/tones";
 import { messageFromError } from "../../lib/errors";
 import { routeForTargetPage, routes } from "../../lib/routes";
 import { labelFromKey } from "../../lib/text";
-import { getDashboardOverview, type DashboardOverview } from "../../services/api/dashboard";
+import {
+  getDashboardOverview,
+  getOpenTrips,
+  type DashboardOverview,
+  type OpenTripRecord,
+} from "../../services/api/dashboard";
 
 /**
  * What the fleet needs today.
@@ -31,6 +36,7 @@ export default function DashboardPage() {
   const fmt = useFormat();
 
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
+  const [outNow, setOutNow] = useState<OpenTripRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -39,7 +45,10 @@ export default function DashboardPage() {
     setError(null);
 
     try {
-      setOverview(await getDashboardOverview());
+      const [summary, trips] = await Promise.all([getDashboardOverview(), getOpenTrips()]);
+
+      setOverview(summary);
+      setOutNow(trips);
     } catch (caught) {
       setError(messageFromError(caught));
     } finally {
@@ -114,6 +123,43 @@ export default function DashboardPage() {
           />
         </StatRow>
       </Card>
+
+      {/* Trips live inside a vehicle, which made "who is out right now" a
+          question you answered by opening every vehicle in turn. It belongs
+          here, where somebody is already looking. */}
+      {outNow.length > 0 ? (
+        <Card>
+          <CardHeader title={outNow.length === 1 ? "One vehicle is out" : "Out on the road"} />
+          <DataList>
+            {outNow.map((trip) => (
+              <DataRow
+                key={trip.id}
+                meta={
+                  <>
+                    <MetaItem label="Driver" value={trip.drivers.join(", ") || "—"} />
+                    <MetaItem label="Going to" value={trip.destinations.join(", ") || "—"} />
+                    <MetaItem label="Left" numeric value={fmt.dateTime(trip.departureTime)} />
+                    <MetaItem
+                      label="Spent so far"
+                      numeric
+                      value={trip.spentSoFar > 0 ? fmt.money(trip.spentSoFar) : "—"}
+                    />
+                  </>
+                }
+                onClick={() => void navigate(routes.vehicle(trip.vehicleId, "trips"))}
+                openLabel={`Open the trip for ${trip.vehicleName}`}
+                subtitle={trip.reason}
+                title={
+                  <span className="flex flex-wrap items-center gap-2">
+                    {trip.vehicleName}
+                    <Badge tone="info">{outFor(trip.departureTime)}</Badge>
+                  </span>
+                }
+              />
+            ))}
+          </DataList>
+        </Card>
+      ) : null}
 
       {overview.setupHints.length > 0 ? (
         <Card>
@@ -227,6 +273,33 @@ export default function DashboardPage() {
       </Card>
     </div>
   );
+}
+
+/**
+ * How long a vehicle has been out, in the terms somebody would say it. "Out for
+ * 3 days" is the sentence that makes a dispatcher pick up the phone; a
+ * departure timestamp needs arithmetic first.
+ */
+function outFor(departureTime: string): string {
+  const minutes = Math.floor((Date.now() - new Date(departureTime).getTime()) / 60000);
+
+  if (minutes < 0) {
+    return "Leaving later";
+  }
+
+  if (minutes < 60) {
+    return "Out just now";
+  }
+
+  const hours = Math.floor(minutes / 60);
+
+  if (hours < 24) {
+    return `Out ${hours}h`;
+  }
+
+  const days = Math.floor(hours / 24);
+
+  return days === 1 ? "Out since yesterday" : `Out ${days} days`;
 }
 
 function greeting(): string {
