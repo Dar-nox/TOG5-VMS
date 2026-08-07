@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../../app/providers/authContext";
+import { unreachableMessage } from "../../services/api/client";
 import { Button } from "../ui/Button";
 import { AuthShell } from "./AuthShell";
 
@@ -26,8 +27,12 @@ export function ConnectionProblemScreen() {
 
   return (
     <AuthShell title="Cannot reach TOG 5 VMS">
-      <p className="text-sm text-muted">{problem ?? "The app could not connect."}</p>
-      <p className="text-sm text-muted">Check your internet connection, then try again.</p>
+      {/*
+        One paragraph, not two. The message already carries its own advice —
+        which differs depending on whether the device is offline or the server
+        is — so a fixed line underneath it could only contradict it.
+      */}
+      <p className="text-sm text-muted">{problem ?? unreachableMessage()}</p>
 
       <Button block loading={retrying} onClick={() => void handleRetry()} variant="primary">
         Try again

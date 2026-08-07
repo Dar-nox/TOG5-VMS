@@ -19,10 +19,12 @@ import {
 } from "../../services/api/push";
 import { changeOwnPassword } from "../../services/api/auth";
 import {
+  createAccount,
   getAppSettings,
   listUsers,
   resetAppSettings,
   updateAppSettings,
+  transferOwnership,
   updateUser,
   type AppSettings,
   type UserRecord,
@@ -74,7 +76,7 @@ const ROLES = [
  * is not an explanation, it is furniture.
  */
 export function SettingsSections() {
-  const { isOwner, user } = useAuth();
+  const { isOwner, retry, user } = useAuth();
   const toast = useToast();
   const confirm = useConfirm();
 
@@ -84,6 +86,7 @@ export function SettingsSections() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -161,6 +164,41 @@ export function SettingsSections() {
       await updateUser({ id: record.id, ...change });
       await load();
       toast.success("Account updated.");
+    } catch (caught) {
+      toast.error(messageFromError(caught));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  /**
+   * The one account change that cannot be undone by the person making it: the
+   * moment it succeeds, the caller is a manager and cannot take it back.
+   */
+  async function handleTransfer(record: UserRecord) {
+    const confirmed = await confirm({
+      title: `Make ${record.displayName} the owner?`,
+      body:
+        `${record.displayName} will be able to let people in, change settings and ` +
+        `export the fleet. You become a manager and cannot undo this yourself — ` +
+        `only ${record.displayName} can hand it back.`,
+      confirmLabel: "Hand over",
+      tone: "danger",
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    setBusyId(record.id);
+
+    try {
+      setUsers(await transferOwnership(record.id));
+      // The signed-in person is now a manager, and half the screen depends on
+      // that. Without this the owner-only controls stay on screen until a
+      // reload, and every one of them would be refused.
+      await retry();
+      toast.success(`${record.displayName} is now the owner.`);
     } catch (caught) {
       toast.error(messageFromError(caught));
     } finally {
@@ -299,7 +337,25 @@ export function SettingsSections() {
       </Card>
 
       <Card>
-        <CardHeader title="People" />
+        <CardHeader
+          actions={
+            isOwner ? (
+              <Button onClick={() => setAdding((open) => !open)} variant="quiet">
+                {adding ? "Cancel" : "Add someone"}
+              </Button>
+            ) : undefined
+          }
+          title="People"
+        />
+
+        {adding && isOwner ? (
+          <NewAccountForm
+            onCreated={(people) => {
+              setUsers(people);
+              setAdding(false);
+            }}
+          />
+        ) : null}
 
         <DataList>
           {users.map((record) => (
@@ -326,6 +382,18 @@ export function SettingsSections() {
                     >
                       {record.status === "active" ? "Switch off" : "Switch on"}
                     </Button>
+                    {/* Only for somebody who could actually run the fleet
+                        tomorrow: a pending or switched-off account cannot see
+                        a single row, let alone approve anybody. */}
+                    {record.status === "active" && record.role !== "owner" ? (
+                      <Button
+                        loading={busyId === record.id}
+                        onClick={() => void handleTransfer(record)}
+                        variant="quiet"
+                      >
+                        Make owner
+                      </Button>
+                    ) : null}
                   </>
                 ) : undefined
               }
@@ -350,6 +418,90 @@ export function SettingsSections() {
 
       <PasswordCard />
     </>
+  );
+}
+
+const NEW_ACCOUNT_ROLES = [
+  { value: "manager", label: "Manager" },
+  { value: "viewer", label: "Viewer" },
+];
+
+/**
+ * The owner adds somebody.
+ *
+ * There was no way to do this from the app at all — a new person had to find
+ * the sign-in screen, sign themselves up, and then wait to be approved, which
+ * meant explaining two steps before they could record anything.
+ *
+ * Owner is missing from the roles on purpose. Making somebody an owner is
+ * handing the fleet over, and that has its own button on the row, with a
+ * confirmation that says what it costs.
+ */
+function NewAccountForm({ onCreated }: { onCreated: (people: UserRecord[]) => void }) {
+  const toast = useToast();
+  const [displayName, setDisplayName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [role, setRole] = useState("manager");
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  async function handleCreate() {
+    if (displayName.trim() === "" || email.trim() === "" || password === "") {
+      setError("Fill in the name, email and password.");
+      return;
+    }
+
+    setError(null);
+    setSaving(true);
+
+    try {
+      onCreated(
+        await createAccount({
+          displayName,
+          email,
+          password,
+          role: role === "viewer" ? "viewer" : "manager",
+        }),
+      );
+      toast.success(`${displayName.trim()} can sign in now.`);
+    } catch (caught) {
+      setError(messageFromError(caught));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="mb-4 rounded-md border border-border bg-surface-sunken/50 p-4">
+      <FieldGrid>
+        <TextField label="Name" onChange={setDisplayName} value={displayName} />
+        <TextField
+          autoComplete="off"
+          label="Email"
+          onChange={setEmail}
+          type="email"
+          value={email}
+        />
+        <TextField
+          autoComplete="new-password"
+          hint="Give this to them. They can change it in Settings."
+          label="Starting password"
+          onChange={setPassword}
+          type="password"
+          value={password}
+        />
+        <SelectField label="Role" onChange={setRole} options={NEW_ACCOUNT_ROLES} value={role} />
+      </FieldGrid>
+
+      {error ? <ErrorBlock className="mt-4" message={error} /> : null}
+
+      <ButtonRow className="mt-4">
+        <Button loading={saving} onClick={() => void handleCreate()} variant="primary">
+          Create account
+        </Button>
+      </ButtonRow>
+    </div>
   );
 }
 

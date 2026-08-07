@@ -5,11 +5,15 @@
 -- job to the Edge Function and does not wait for it — an HTTP call that blocks
 -- a cron transaction is a cron job that eventually wedges.
 --
--- NOT SCHEDULED BY THIS FILE. The cron entry is the last step and is
--- deliberately left to be run by hand, because the fleet's reminder thresholds
--- are still under discussion: switching this on beforehand means a notification
--- every morning about 374 items that are only "due soon" because of a value
--- nobody has confirmed yet. The command is at the bottom.
+-- NOT SCHEDULED BY THIS FILE. The cron entry is the last step and is run by
+-- hand, because it needs two secrets in the vault and an Edge Function already
+-- deployed — none of which a migration can check for. The command is at the
+-- bottom.
+--
+-- The earlier reason for holding off has gone: the wide reminder windows the
+-- client's data carries were judged deliberate, not a fault, so a digest that
+-- counts them is reporting the fleet as it is. Anyone who disagrees with a
+-- particular window can now edit it on the reminder itself.
 
 -- Marks a digest as delivered. Called by the function after the push services
 -- have accepted it, not before — a run that fails should try again on the next

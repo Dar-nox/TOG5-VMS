@@ -317,7 +317,22 @@ it here.
 what each person may do. Switching somebody off keeps everything they recorded;
 it only stops them signing in.
 
+**Add someone** creates an account there and then: name, email, a starting
+password, and whether they are a manager or a viewer. They can sign in straight
+away — pass them the password and tell them to change it under **Your password**.
+Nothing forces them to. People can still sign themselves up from the sign-in
+screen instead, and those land in the waiting list.
+
 There must always be one owner, so the last one cannot switch themselves off.
+
+**Make owner** hands the fleet to somebody else and makes you a manager. Use it
+before the owner leaves the company, not after — an owner is the only account
+that can let people in, and only the new owner can hand it back.
+
+**Archived records** (owners only) — everything that has been archived, and a
+**Restore** button beside each one. Archiving never deletes anything, so a trip,
+fuel log, expense or reminder removed by mistake can be put back exactly as it
+was. Press **Show** to load the list.
 
 **Shared preferences** (owners only) — currency, units, date format, how far
 ahead reminders warn, and which alerts are created. These apply to everybody.
@@ -361,7 +376,8 @@ while the browser is running. On iPhone it is unreliable and not promised.
 | "That email and password combination did not work" | One of the two is wrong. It will not say which.                                         |
 | "Waiting to be let in"                             | Your account exists but an owner has not approved it.                                   |
 | "This account is switched off"                     | An owner disabled it. Your records are intact.                                          |
-| "Cannot reach TOG 5 VMS"                           | A connection problem. Not your password.                                                |
+| "This device is offline"                           | No internet at your end. Check the wi-fi or data, then try again.                        |
+| "TOG 5 VMS is not answering"                       | Your connection is fine; the app's server is not responding. Nothing at the office will fix it — tell whoever set the app up. |
 | Everything is empty after signing in               | Usually the same as "waiting to be let in".                                             |
 | "TOG 5 VMS is not configured"                      | The app was built without its database settings. Whoever deployed it needs to fix that. |
 

@@ -1,4 +1,4 @@
-import { supabase, unwrap } from "./client";
+import { supabase, unreachableMessage, unwrap } from "./client";
 
 export type SignedInUser = {
   id: string;
@@ -55,6 +55,13 @@ export async function signIn(email: string, password: string): Promise<SignedInU
   });
 
   if (error) {
+    // A request that never arrived is given no HTTP status, while a refused
+    // password comes back as a 400. Worth separating: blaming the password for
+    // a sleeping server has somebody retyping a correct one all morning.
+    if (!error.status) {
+      throw new Error(unreachableMessage());
+    }
+
     // Supabase deliberately says the same thing for an unknown address and a
     // wrong password, and so should we — otherwise the form becomes a way to
     // find out who has an account.

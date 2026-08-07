@@ -78,17 +78,44 @@ describe("unwrap", () => {
     expect(thrown?.code).toBe("PGRST301");
   });
 
-  it("explains an unreachable server rather than leaking the raw failure", () => {
+  // A request that never arrived carries no Postgres code, because nothing ran
+  // to give it one. Which of the two messages comes back is the whole point:
+  // one sends somebody to their router and the other does not.
+  function whileOffline<T>(offline: boolean, body: () => T): T {
     const wasOnline = navigator.onLine;
-    Object.defineProperty(navigator, "onLine", { value: false, configurable: true });
+    Object.defineProperty(navigator, "onLine", { value: !offline, configurable: true });
 
     try {
-      expect(() => unwrap(failure("FETCH_ERROR", "TypeError: fetch failed") as never)).toThrow(
-        /Could not reach TOG 5 VMS/,
-      );
+      return body();
     } finally {
       Object.defineProperty(navigator, "onLine", { value: wasOnline, configurable: true });
     }
+  }
+
+  it("blames the connection only when the device is actually offline", () => {
+    whileOffline(true, () => {
+      expect(() => unwrap({ data: null, error: { message: "Failed to fetch" } } as never)).toThrow(
+        /This device is offline/,
+      );
+    });
+  });
+
+  it("blames the server when the connection is fine and the request still failed", () => {
+    whileOffline(false, () => {
+      // A paused Supabase project looks exactly like this, and telling somebody
+      // to check their wi-fi is an hour at the router for nothing.
+      expect(() => unwrap({ data: null, error: { message: "Failed to fetch" } } as never)).toThrow(
+        /not answering/,
+      );
+    });
+  });
+
+  it("leaves a real database error alone", () => {
+    whileOffline(false, () => {
+      // It has a code, so something ran. Whatever it says is more useful than
+      // a guess about the network.
+      expect(() => unwrap(failure("XX000", "internal error") as never)).toThrow("internal error");
+    });
   });
 
   it("still throws for a call whose result is not used", () => {

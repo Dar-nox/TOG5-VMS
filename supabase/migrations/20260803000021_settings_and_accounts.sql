@@ -365,7 +365,10 @@ as $$
                      where status = 'pending' and deleted_at is null),
     'roles', jsonb_build_array(
       jsonb_build_object('key', 'owner', 'label', 'Owner',
-        'description', 'Lets people in, changes settings, and exports the fleet.'),
+        -- Not "and exports the fleet". Anyone active can take an export, on
+        -- purpose — it is the only copy of the records the client holds, and
+        -- making it wait for one person is how it stops being taken.
+        'description', 'Lets people in, changes settings, and restores archived records.'),
       jsonb_build_object('key', 'manager', 'label', 'Manager',
         'description', 'Records everything day to day: vehicles, trips, fuel, and service.'),
       jsonb_build_object('key', 'viewer', 'label', 'Viewer',

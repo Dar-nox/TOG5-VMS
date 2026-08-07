@@ -113,9 +113,10 @@ export async function updateFuelLog(
 export async function archiveFuelLog(id: string): Promise<void> {
   // Soft delete. A trigger recalculates the vehicle's whole efficiency history
   // afterwards, since removing a fill changes the readings either side of it.
-  unwrapVoid(
-    await supabase.from("fuel_logs").update({ deleted_at: new Date().toISOString() }).eq("id", id),
-  );
+  //
+  // Through a function rather than writing `deleted_at` from here — see
+  // `archiveTrip` and migration 31 for why the direct update is refused.
+  await rpc<void>("archive_fuel_log", { log_id: id });
 }
 
 export async function storeFuelReceipt(vehicleId: string, file: File): Promise<FuelReceiptRecord> {

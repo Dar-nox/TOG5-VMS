@@ -11,7 +11,7 @@
  * reminder matters more now than it did when the data was on their own disk.
  */
 
-import { rpc } from "./client";
+import { createDisposableClient, rpc } from "./client";
 
 export type AppSettings = {
   preferredCurrency: string;
@@ -101,6 +101,65 @@ export async function updateUser(request: UpdateUserRequest): Promise<UserRecord
     role: request.role ?? null,
     status: request.status ?? null,
   });
+}
+
+export type NewAccountRequest = {
+  displayName: string;
+  email: string;
+  password: string;
+  role: "manager" | "viewer";
+};
+
+/**
+ * Creates somebody else's account.
+ *
+ * Two steps that cannot be one. Sign-up has to go through Supabase Auth, which
+ * only the browser can reach — there is no service key in this app and adding
+ * one would mean an Edge Function holding the keys to every account. So the
+ * account is created first, on a throwaway client, and then approved with the
+ * owner's own session.
+ *
+ * `handle_new_user()` makes every account after the first one **pending**,
+ * whoever started it. That is right for a stranger signing themselves up and
+ * pointless for an owner adding a colleague they are sitting next to, so the
+ * approval follows immediately.
+ *
+ * If the second step fails the account still exists, waiting in the queue the
+ * People card already shows — which is a recoverable state and the reason the
+ * order is this way round rather than the other.
+ */
+export async function createAccount(request: NewAccountRequest): Promise<UserRecord[]> {
+  const enrolment = createDisposableClient();
+
+  const { data, error } = await enrolment.auth.signUp({
+    email: request.email.trim(),
+    password: request.password,
+    // The trigger reads this, so the person gets the name the owner typed
+    // rather than whatever comes before the @ in their address.
+    options: { data: { display_name: request.displayName.trim() } },
+  });
+
+  if (error) {
+    throw new Error(error.message || "Could not create that account.");
+  }
+
+  if (!data.user) {
+    throw new Error("The account was not created. Try again.");
+  }
+
+  await updateUser({ id: data.user.id, role: request.role, status: "active" });
+
+  return listUsers();
+}
+
+/**
+ * Hands the fleet to somebody else and steps down to manager, in one call.
+ *
+ * Returns the whole list rather than the one account, because two rows changed
+ * and the caller is one of them.
+ */
+export async function transferOwnership(newOwnerId: string): Promise<UserRecord[]> {
+  return rpc<UserRecord[]>("transfer_ownership", { new_owner_id: newOwnerId });
 }
 
 export async function getAccessSummary(): Promise<AccessSummary> {
