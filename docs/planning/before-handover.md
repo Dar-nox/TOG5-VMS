@@ -45,31 +45,31 @@ Do it before the client's staff ever switch them on, not after.
 Also change the owner account's password. It was set during development and is
 in the same transcripts.
 
-## 3. Switch the digest on
+## 3. The digest — done
 
-```sql
-select cron.schedule('tog5-digest', '0 * * * *',
-                     $job$select public.send_daily_digest()$job$);
-```
+Scheduled 2026-08-07 as `cron.job` 1, `0 * * * *`, active.
 
-Everything under it is proven: 2026-08-07, a real push went the whole way —
-vault lookup, pg_net, Edge Function, VAPID signing, aes128gcm encryption, push
-service, service worker — and returned `{"sent":1,"dropped":0}`.
-
-Only the cron entry itself is missing. It is idle until somebody turns
-notifications on, so scheduling it early costs nothing.
+Proven end to end the same day: a real push went the whole way — vault lookup,
+pg_net, Edge Function, VAPID signing, aes128gcm encryption, push service,
+service worker — and returned `{"sent":1,"dropped":0}`.
 
 **Note for whoever tests it next:** `send_at` matches on the **hour**, not the
 minute, and `last_sent_on` stops a second send the same day. To repeat a test:
 `update public.notification_preferences set last_sent_on = null;`
 
+A vehicle named `ZZ Notification Test (safe to delete)` is still in the fleet
+with one due-soon reminder, deliberately: it is what gives the first scheduled
+run something to report. **Delete it once that run has been seen.** Cleanup SQL
+is at the bottom of this file.
+
 ## 4. Untested in the real world
 
 Green in the suite, never run against the live project or a real person.
 
-- **Archive and restore.** Covered by `archive_restore.sql`, but the live
-  database has never had a record archived and put back. Worth doing once with
-  something real, and checking the reports agree afterwards.
+- ~~**Archive and restore.**~~ Verified against the live database on
+  2026-08-07: a fuel log created, archived through `archive_fuel_log`, found in
+  `archived_records()` with the right litres and station, restored, and the
+  vehicle's odometer unmoved throughout. The test row was removed afterwards.
 - **The paused-project message.** The only honest test is pausing the project
   in the dashboard and opening the app. Everything else is a simulation of the
   thing being tested.
@@ -110,7 +110,35 @@ test suite ran as the superuser, which bypasses RLS. Migrations 30 and 31.
 the records the client holds, and making it wait for one person is how it stops
 being taken.
 
-## 7. After all of it
+## 7. Worth a look on go-live day
+
+**The archive is not empty.** 75 reminders are already soft-deleted, archived in
+small batches on 19–20 July 2026 — someone working through the desktop app
+removing items one at a time. They are real, and the restore screen lists all of
+them.
+
+That is correct behaviour, not a bug: they can be brought back, and the list is
+newest-first so anything archived today leads. But the client's fresh backup
+will bring its own equivalent, and if that number is much larger the screen
+becomes a wall. Worth looking at once the real data is in, and capping the list
+or filtering by age only if it actually reads badly.
+
+## Cleanup SQL
+
+For the notification test vehicle, once the first scheduled digest has been
+seen:
+
+```sql
+delete from public.alerts where vehicle_id in
+  (select id from public.vehicles where vehicle_name like 'ZZ Notification Test%');
+delete from public.maintenance_schedules where vehicle_id in
+  (select id from public.vehicles where vehicle_name like 'ZZ Notification Test%');
+delete from public.vehicle_maintenance_settings where vehicle_id in
+  (select id from public.vehicles where vehicle_name like 'ZZ Notification Test%');
+delete from public.vehicles where vehicle_name like 'ZZ Notification Test%';
+```
+
+## 8. After all of it
 
 The UI overhaul, which is being held back on purpose until the migration is
 finished. Known cosmetic bugs are being lived with rather than chased mid-flight.
