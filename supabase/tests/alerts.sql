@@ -120,11 +120,19 @@ begin
   assert r.created_count = 1, 'expected an alert before archiving';
 
   update public.vehicles set status = 'archived', archived_at = now() where id = v_id;
-  r := public.refresh_maintenance_alerts_for_vehicle(v_id);
-  assert r.resolved_count = 1, 'archiving a vehicle should resolve its alerts';
+
+  -- No refresh call in between. Archiving is enough on its own now — a trigger
+  -- does it (migration 33), because nothing ever called the refresh at the
+  -- moment somebody retired a vehicle, and the alerts sat on a screen naming
+  -- something that had left the fleet list.
   assert (select count(*) from public.alerts
           where vehicle_id = v_id and status = 'active') = 0,
     'an archived vehicle must not keep nagging';
+
+  -- And asking again changes nothing, rather than finding work still to do.
+  r := public.refresh_maintenance_alerts_for_vehicle(v_id);
+  assert r.resolved_count = 0, 'the archiving should already have resolved them';
+  assert r.created_count = 0, 'and an archived vehicle raises nothing new';
 
   -- ----------------------------------------------------------------------
   -- Changing why it is due swaps the alert rather than stacking one on top
