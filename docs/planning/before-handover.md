@@ -1,5 +1,12 @@
 # Before handover
 
+Live at **https://tog5-vms.flamingsunsgt.workers.dev** — recorded here because
+it was not written down anywhere in the repo. Cloudflare builds from `main`.
+
+Checking a deploy landed: the routes are code-split, so the entry bundle is the
+wrong place to look for a screen. `assets/SettingsPage-*.js` holds Settings;
+`assets/index-*.js` holds the API client and shell.
+
 Written 2026-08-07, after the owner-features session. Everything below is
 outstanding; the ordering is by what blocks what, not by size.
 
