@@ -33,24 +33,41 @@ are different claims.
 **Migrations first.** `PGPASSWORD='...' supabase/push.sh` — everything is
 re-appliable, so running the whole set is normal.
 
-## 2. Credentials to rotate
+## 2. Credentials — decided: not rotating
 
-All four have been through a chat transcript. None is exposed today, and none
-should survive handover.
+Four values passed through development chat transcripts: the database password,
+the Supabase access token, the VAPID private key, and `PUSH_SHARED_SECRET`.
+The decision is to leave them and clear the transcripts instead.
 
-| | where it lives | note |
-| --- | --- | --- |
-| Database password | Supabase dashboard | Only needed by `push.sh` |
-| Supabase access token | `.supabase-token.local` | Account-wide, not project-scoped |
-| VAPID private key | Edge Function secrets | **Rotate before the client subscribes** |
-| `PUSH_SHARED_SECRET` | Vault + Edge Function | Must match in both places |
+**Nothing ever reached git.** Checked with `git log --all -S` on each of the
+four: zero commits. `.supabase-token.local` is covered by `*.local` in
+`.gitignore` and is untracked. So there is no history to rewrite, which is the
+expensive kind of cleanup and it is not needed.
 
-The VAPID pair is the one with an ordering constraint: changing it invalidates
+| | where it lives |
+| --- | --- |
+| Database password | Supabase dashboard; only `push.sh` uses it |
+| Supabase access token | `.supabase-token.local`; account-wide, not project-scoped |
+| VAPID private key | Edge Function secrets |
+| `PUSH_SHARED_SECRET` | Vault **and** Edge Function — must match |
+
+Two things that follow from not rotating, both worth knowing rather than acting
+on:
+
+- Clearing a transcript removes the local copy. It does not retract what was
+  sent. Whether that matters is a judgement about that channel, and the
+  judgement has been made.
+- **The repository lives inside a OneDrive-synced folder**, so
+  `.supabase-token.local` syncs to Microsoft in plaintext. That is a standing
+  exposure independent of any chat, and clearing transcripts does not touch it.
+  Moving that one file outside the synced tree would cost nothing if it ever
+  seems worth it.
+
+If any of these is ever rotated later, only VAPID has a knock-on: it invalidates
 every existing subscription, so everybody has to turn notifications on again.
-Do it before the client's staff ever switch them on, not after.
 
-Also change the owner account's password. It was set during development and is
-in the same transcripts.
+The owner account's password is also from development and is worth changing at
+some point.
 
 ## 3. The digest — done
 
@@ -69,7 +86,12 @@ with one due-soon reminder, deliberately: it is what gives the first scheduled
 run something to report. **Delete it once that run has been seen.** Cleanup SQL
 is at the bottom of this file.
 
-## 4. Untested in the real world
+## 4. Untested in the real world — deferred to the consultation
+
+The client wants the app built first and tested when they are present, so what
+remains below is checked with them rather than before them. That is the right
+call for these three: each needs either their environment or their hardware,
+and none can be simulated convincingly from here.
 
 Green in the suite, never run against the live project or a real person.
 
