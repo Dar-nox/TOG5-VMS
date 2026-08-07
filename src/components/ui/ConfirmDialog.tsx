@@ -10,10 +10,10 @@ import { Button } from "./Button";
  *    choices; this is a question that must be answered.
  *  - Name the object and the consequence. "Are you sure?" protects nobody
  *    because it carries no information.
- *  - Say whether it can be undone, accurately. Archiving is a soft delete in
- *    the database, but the app has no screen that brings a record back, so the
- *    wording says it cannot be undone here. Promising a restore that does not
- *    exist is worse than saying nothing.
+ *  - Say whether it can be undone, accurately. Archiving is a soft delete, and
+ *    Settings now has a screen the owner can put a record back from, so the
+ *    wording says so — and says who can do it, since the person archiving is
+ *    often not that person.
  *  - Focus starts on Cancel, so a stray Enter does not confirm.
  *  - The destructive button is visually distinct and set apart from Cancel.
  *  - Their power depends on rarity, so this is for destructive actions only.

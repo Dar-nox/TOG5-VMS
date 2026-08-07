@@ -5,6 +5,18 @@
 -- phone can reach the database directly, they have to run in the database or
 -- they do not run at all.
 
+-- Archiving now asks who is calling, so these tests need to be somebody.
+--
+-- The rest of this file runs as the superuser and bypasses row level security,
+-- which is why it never needed an account before. `archive_*` runs as the
+-- definer with the policies switched off, so it checks the caller itself, and
+-- that check reads `auth.uid()` — which is nobody at all unless a claim is set.
+insert into auth.users (id, email, raw_user_meta_data)
+values ('d0000000-0000-0000-0000-0000000000ff', 'archiver@tog5.test',
+        '{"display_name": "Test Archiver"}'::jsonb);
+
+set request.jwt.claim.sub = 'd0000000-0000-0000-0000-0000000000ff';
+
 do $$
 declare
   created uuid;

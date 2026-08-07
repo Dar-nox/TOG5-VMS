@@ -1,4 +1,5 @@
 import { BackupSection } from "../../components/backup/BackupSection";
+import { ArchiveCard } from "../../components/settings/ArchiveCard";
 import { SettingsSections } from "../../components/settings/SettingsSections";
 
 /**
@@ -13,6 +14,7 @@ export default function SettingsPage() {
     <div className="flex flex-col gap-5">
       <h1 className="text-xl font-semibold text-heading @md:text-2xl">Settings</h1>
       <SettingsSections />
+      <ArchiveCard />
       <BackupSection />
     </div>
   );

@@ -1,4 +1,4 @@
-import { rpc, supabase, unwrap, unwrapVoid } from "./client";
+import { rpc, supabase, unwrap } from "./client";
 
 export type TripStatus = "open" | "completed" | "cancelled";
 
@@ -140,9 +140,12 @@ export async function completeTrip(id: string, request: CompleteTripRequest): Pr
 export async function archiveTrip(id: string): Promise<void> {
   // Soft delete. A trigger takes the drivers, passengers and destinations
   // with it, so nothing is left listed against a trip that is gone.
-  unwrapVoid(
-    await supabase.from("trips").update({ deleted_at: new Date().toISOString() }).eq("id", id),
-  );
+  //
+  // Through a function rather than writing `deleted_at` from here: the read
+  // policy hides soft-deleted rows, and Postgres applies that policy to the row
+  // an UPDATE is about to produce, so this table refuses the one update that
+  // matters. See migration 31.
+  await rpc<void>("archive_trip", { trip_id: id });
 }
 
 export async function getTripReportsOverview(
