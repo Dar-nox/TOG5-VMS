@@ -35,9 +35,49 @@ export const supabase = createClient(url || "https://unconfigured.invalid", anon
   },
 });
 
-const OFFLINE_MESSAGE = "Could not reach TOG 5 VMS. Check your internet connection and try again.";
-
 const SIGNED_OUT_MESSAGE = "Your sign-in has expired. Please sign in again.";
+
+/**
+ * What to say when a request never reached the server.
+ *
+ * Two different faults look identical from in here, and the advice for one is
+ * useless for the other. A device with no signal is fixed by the person holding
+ * it. A server that has stopped answering is not — and it does stop: Supabase
+ * puts a free project to sleep after seven days without traffic, and waking it
+ * is a click in a dashboard the office has never seen. Telling somebody to
+ * check their wi-fi that morning sends them to the router for an hour.
+ *
+ * `navigator.onLine` separates them. It is false only when the device itself
+ * has no network, so a failure while it is true means the far end is silent.
+ * It can be wrong the other way — connected to a wi-fi point that leads
+ * nowhere reads as online — which is why the online message stops at "the
+ * connection looks fine" rather than insisting it is.
+ */
+export function unreachableMessage(): string {
+  return navigator.onLine
+    ? "TOG 5 VMS is not answering. Your connection looks fine, so this is the app's server rather than anything at your end. Try again in a minute; if it keeps happening, tell whoever set the app up."
+    : "This device is offline. Check your internet connection, then try again.";
+}
+
+/**
+ * Whether a failure happened before any database saw the request.
+ *
+ * A real PostgREST error always carries a code, because something had to run
+ * to produce it. A request that never arrived has none — `supabase-js` hands
+ * back whatever `fetch` threw, which is "Failed to fetch" in Chrome, "Load
+ * failed" in Safari, and "NetworkError" in Firefox.
+ */
+function isUnreachable(error: PostgrestError): boolean {
+  if (error.code) {
+    return false;
+  }
+
+  const message = (error.message || "").toLowerCase();
+
+  return (
+    message.includes("fetch") || message.includes("network") || message.includes("load failed")
+  );
+}
 
 export class ApiError extends Error {
   readonly code: string | undefined;
@@ -96,8 +136,8 @@ function messageFor(error: PostgrestError): string {
       break;
   }
 
-  if (!navigator.onLine) {
-    return OFFLINE_MESSAGE;
+  if (isUnreachable(error)) {
+    return unreachableMessage();
   }
 
   return error.message || "Something went wrong. Please try again.";

@@ -1,24 +1,15 @@
-# Owner features, accounts, and backups — next session
+# Owner features, accounts, and backups
 
-Nothing here is built. Order is at the bottom.
+Order is at the bottom.
 
-Blocked on one thing: the client's verdict on the vehicle-centred page
-structure. If they reject it, add fleet-wide capture screens with a vehicle
-picker first. That is additive — the design system, primitives, layout fixes
-and bug fixes are independent of where screens live, so nothing gets reverted.
+The client approved the vehicle-centred page structure, so nothing here is
+blocked and nothing gets reverted.
 
----
+## Already shipped
 
-## 1. Fix first
-
-**Display name is no longer editable.** Dropped when Settings was consolidated;
-the old screen had it. `updateUser` already accepts `displayName`, so this is a
-field and a save button next to the password card. ~20 minutes.
-
-**Archive confirmations promise a restore that does not exist.** Every archive
-dialog says "Archived records can be restored". True of the data — everything
-soft-deletes — but nothing in the app brings a record back. Either build §3 or
-change the wording to "This cannot be undone from the app" until it ships.
+- Display name editing, back in Settings
+- Archive confirmations reworded to stop promising a restore that does not exist
+- Pending-account badge on Settings
 
 ---
 
@@ -69,8 +60,20 @@ listing archived vehicles, fuel logs, expenses, trips and reminders, with a
 Restore action.
 
 This is the most likely data loss in the app — someone archiving the wrong
-record — and it is the cheapest thing here. It also makes the confirmation copy
-in §1 true.
+record. It also lets the archive confirmations promise a restore again.
+
+Only three archive RPCs exist: `archive_expense`, `archive_maintenance_template`
+and `archive_vehicle_maintenance_setting`. Fuel logs, trips and vehicles are
+soft-deleted by the client writing `deleted_at` directly. Restore therefore
+needs its own owner-only RPC per table rather than a policy change — a broad
+"owners may update deleted rows" policy would let any screen resurrect anything
+by accident.
+
+**Nothing is archived on the live database yet** — every table reads zero. So
+testing this means archiving something deliberately first.
+
+**Watch for:** restoring a fuel log or trip must leave the vehicle's odometer
+alone. It only moves forward, and a restored record must not drag it anywhere.
 
 ---
 
@@ -111,34 +114,34 @@ computer. That habit is worth more than any feature here.
 
 ---
 
-## 5. Project pausing
+## 5. Project pausing — done
 
 **Supabase pauses free projects after 7 days of inactivity.** Unlikely for
 daily use, but a holiday shutdown or a quiet stretch could do it. Restoring is
 a click in the dashboard, and the project is unreachable until someone does it.
 
-The app currently handles this badly. A paused project and a dead wi-fi
-connection produce the same screen, which says *"Check your internet
-connection, then try again."* — wrong advice, and it sends someone to their
-router while the fix is in the Supabase dashboard.
+`unreachableMessage()` in `client.ts` now splits the two cases on
+`navigator.onLine`, and the sign-in form no longer reports a request that never
+arrived as a wrong password.
 
-Worth splitting: if `navigator.onLine` is true but the request failed, say the
-service is not responding rather than blaming the connection. Same for
-`OFFLINE_MESSAGE` in `client.ts`. Cheap, and it saves an hour of confusion on
-the one day it matters.
+Still untested against a genuinely paused project — the only honest test is
+pausing it in the dashboard and opening the app.
 
 ---
 
 ## 6. Other owner-only features
 
-**Activity log.** `audit_logs` is populated and displayed nowhere. "Who changed
-this odometer, and when" is the question an owner asks when a number looks
-wrong. Read-only over existing data.
+**Activity log.** "Who changed this odometer, and when" is the question an owner
+asks when a number looks wrong — but `audit_logs` has **zero rows** and nothing
+writes to it. Only the schema, its RLS policies and the export reading it exist.
+This is not a screen over existing data; it needs writers first, across every
+mutation path, and a decision about how long entries are kept. The largest item
+on this page, not one of the smallest.
 
 **Transfer ownership.** The first account is owner forever; if that person
-leaves there is no path that avoids SQL.
-
-**Pending-account badge** on Settings so approvals get noticed.
+leaves there is no path that avoids SQL. One RPC that promotes somebody and
+demotes the caller in a single transaction. `update_user` already refuses to
+remove the last owner (`20260803000021`).
 
 Not worth building: per-screen permissions (three roles is already at the
 ceiling of useful for one company), and owner-only reports (costs are not
@@ -148,12 +151,10 @@ secret from the people incurring them).
 
 ## Order
 
-1. Client verdict on page structure
-2. §1 display name — 20 minutes
-3. §3 archive and restore — also settles the §1 copy problem
+1. §5 error copy for a paused or unreachable project — smallest, and the one
+   most likely to waste somebody's morning
+2. §3 archive and restore
+3. §6 transfer ownership — small, independent, removes a single point of failure
 4. §2 owner creates accounts
-5. §5 error copy for a paused or unreachable project
-6. §6 activity log
-7. §4 retention. Stop before restore-in-place.
-
-Transfer ownership whenever it comes up; small and independent.
+5. §4 retention. Stop before restore-in-place.
+6. §6 activity log — its own piece of work, not the tail of this one
