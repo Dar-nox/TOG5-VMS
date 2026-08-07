@@ -139,6 +139,51 @@ test suite ran as the superuser, which bypasses RLS. Migrations 30 and 31.
 the records the client holds, and making it wait for one person is how it stops
 being taken.
 
+## 6b. QA sweep, 2026-08-07
+
+Ran against `main` @ `9a557e9`, the night before the consultation.
+
+**One real bug, fixed** (migration 33): retiring a vehicle left its alerts
+active. `refresh_maintenance_alerts_for_vehicle` has always known to silence an
+archived vehicle; nothing called it when one was archived. The vehicle then
+dropped out of the fleet list while its alerts stayed on the Alerts screen and
+in the digest, naming something nobody could open. The test was written first
+and failed against `main`.
+
+**Checked and correct — no action:**
+
+- Reports and Dashboard totals agree with the underlying tables to the centavo
+  (₱9,014.74 fuel, ₱50,050.00 maintenance, ₱59,064.74 total for July).
+- The Dashboard reads ₱0 because it is month-to-date and nothing was spent in
+  August. Correct, and it will still look empty tomorrow.
+- Every list screen has an empty state with a sensible sentence. Nothing renders
+  a blank panel.
+- Toast wording and confirm labels follow one pattern throughout.
+- Client-side writes traced against the policies that govern them; the archiving
+  family of bugs has no other members. `push_subscriptions` is safe because its
+  read policy filters on `profile_id`, not `deleted_at`.
+
+**Worth raising with the client, not fixing:**
+
+Their maintenance items carry a vehicle name in brackets — "Battery -
+Inspect/Replace (Hilux Pickup)" — and 172 of 375 reminders use an item named
+after a *different* vehicle. Not an import fault: each shared item is on exactly
+two vehicles and always a sensible pair (Isuzu Truck with KM450, Hilux Pickup
+with Hilux FX). They made an item for one vehicle and reused it on a similar
+one, which is good practice with an awkward name.
+
+It reads as a contradiction wherever the item name sits next to the vehicle —
+the Archived records screen most obviously. Their names, their call: worth
+asking whether they want them renamed.
+
+**Cosmetic, left alone:**
+
+- `VehicleTab` in `src/lib/routes.ts` includes `"documents"`, which no tab
+  implements. Unreachable rather than broken — an unknown tab falls back to
+  Overview.
+- `"Archive this fuel log?"` is confirmed with `"Archive log"`.
+- `"Yes, close the trip"` is the only confirm label that is not a bare verb.
+
 ## 7. Worth a look on go-live day
 
 **The archive is not empty.** 75 reminders are already soft-deleted, archived in
