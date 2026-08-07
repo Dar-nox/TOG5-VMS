@@ -13,7 +13,26 @@ blocked and nothing gets reverted.
 
 ---
 
-## 2. Accounts
+## 2. Accounts — done
+
+**Confirm email is off** (`mailer_autoconfirm = true` on the project), so this
+is account creation rather than an invitation flow, and the account works
+immediately. Public sign-up is also still open; those accounts land pending,
+which is the intended behaviour.
+
+"Add someone" in the People card. The account is created on a disposable client
+and then approved with the owner's own session — two steps, because sign-up has
+to go through Supabase Auth and approval has to go through the database. If the
+second fails the account is waiting in the queue, which is recoverable.
+
+Owner is not among the roles offered. Handing the fleet over is its own button
+with its own confirmation.
+
+The original note below is kept because it is the record of why the throwaway
+client is there.
+
+---
+
 
 The owner creates accounts in Settings. `signUp` uses the publishable key and
 is allowed; the obstacle is that it replaces the current session, which a
@@ -149,10 +168,10 @@ secret from the people incurring them).
 
 ## Order
 
-Done: §5 error copy, §3 archive and restore, §6 transfer ownership.
+Done: §5 error copy, §3 archive and restore, §6 transfer ownership, §2 owner
+creates accounts.
 
 What is left:
 
-1. §2 owner creates accounts
-2. §4 retention. Stop before restore-in-place.
-3. §6 activity log — its own piece of work, not the tail of this one
+1. §4 retention. Stop before restore-in-place.
+2. §6 activity log — its own piece of work, not the tail of this one

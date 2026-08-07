@@ -317,6 +317,12 @@ it here.
 what each person may do. Switching somebody off keeps everything they recorded;
 it only stops them signing in.
 
+**Add someone** creates an account there and then: name, email, a starting
+password, and whether they are a manager or a viewer. They can sign in straight
+away — pass them the password and tell them to change it under **Your password**.
+Nothing forces them to. People can still sign themselves up from the sign-in
+screen instead, and those land in the waiting list.
+
 There must always be one owner, so the last one cannot switch themselves off.
 
 **Make owner** hands the fleet to somebody else and makes you a manager. Use it

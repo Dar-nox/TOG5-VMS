@@ -35,6 +35,27 @@ export const supabase = createClient(url || "https://unconfigured.invalid", anon
   },
 });
 
+/**
+ * A second connection to the same project that never touches storage.
+ *
+ * For the one operation that would otherwise sign the caller out of their own
+ * account: creating somebody else's. `signUp` replaces the current session, and
+ * an owner adding a driver does not expect to be thrown out and have to sign
+ * back in as them. `persistSession: false` means this client writes nothing and
+ * nothing survives it, so the real session is untouched.
+ *
+ * Make one, use it, drop it.
+ */
+export function createDisposableClient() {
+  return createClient(url || "https://unconfigured.invalid", anonKey || "unset", {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+  });
+}
+
 const SIGNED_OUT_MESSAGE = "Your sign-in has expired. Please sign in again.";
 
 /**
