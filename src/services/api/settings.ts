@@ -103,6 +103,16 @@ export async function updateUser(request: UpdateUserRequest): Promise<UserRecord
   });
 }
 
+/**
+ * Hands the fleet to somebody else and steps down to manager, in one call.
+ *
+ * Returns the whole list rather than the one account, because two rows changed
+ * and the caller is one of them.
+ */
+export async function transferOwnership(newOwnerId: string): Promise<UserRecord[]> {
+  return rpc<UserRecord[]>("transfer_ownership", { new_owner_id: newOwnerId });
+}
+
 export async function getAccessSummary(): Promise<AccessSummary> {
   return rpc<AccessSummary>("access_summary");
 }

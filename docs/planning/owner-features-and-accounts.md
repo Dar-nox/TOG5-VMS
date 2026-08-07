@@ -53,27 +53,25 @@ number of staff.
 
 ---
 
-## 3. Archive and restore
+## 3. Archive and restore — done
 
-Everything soft-deletes and nothing can be brought back. An owner-only screen
-listing archived vehicles, fuel logs, expenses, trips and reminders, with a
-Restore action.
+An owner-only card in Settings lists archived trips, fuel logs, expenses and
+reminders, each with Restore. Migrations 30 and 31, `archive_restore.sql`.
 
-This is the most likely data loss in the app — someone archiving the wrong
-record. It also lets the archive confirmations promise a restore again.
+Vehicles are not in it. Archiving a vehicle sets `status = 'archived'` and
+leaves the row visible; the vehicle editor already changes it back.
 
-Only three archive RPCs exist: `archive_expense`, `archive_maintenance_template`
-and `archive_vehicle_maintenance_setting`. Fuel logs, trips and vehicles are
-soft-deleted by the client writing `deleted_at` directly. Restore therefore
-needs its own owner-only RPC per table rather than a policy change — a broad
-"owners may update deleted rows" policy would let any screen resurrect anything
-by accident.
+**Archiving was refused by the database and nobody knew.** An UPDATE with a
+WHERE clause needs SELECT rights, so Postgres applies the SELECT policy to the
+row the update is about to produce — and that policy filters `deleted_at is
+null`. Every Archive button in the app failed with a permission error from the
+first day of the online build. It hid because the client is still on the desktop
+version and the test suite ran these updates as the superuser, which bypasses
+RLS. Archiving now goes through definer functions that check for an active
+account, which also fixes the cascades.
 
-**Nothing is archived on the live database yet** — every table reads zero. So
-testing this means archiving something deliberately first.
-
-**Watch for:** restoring a fuel log or trip must leave the vehicle's odometer
-alone. It only moves forward, and a restored record must not drag it anywhere.
+The zero archived rows on the live database were a symptom of that, not a
+coincidence.
 
 ---
 
@@ -138,10 +136,10 @@ This is not a screen over existing data; it needs writers first, across every
 mutation path, and a decision about how long entries are kept. The largest item
 on this page, not one of the smallest.
 
-**Transfer ownership.** The first account is owner forever; if that person
-leaves there is no path that avoids SQL. One RPC that promotes somebody and
-demotes the caller in a single transaction. `update_user` already refuses to
-remove the last owner (`20260803000021`).
+**Transfer ownership — done.** Migration 32, "Make owner" beside each active
+account in Settings. One transaction, promotion before demotion so the "there
+has to be one owner" rule is never momentarily false. Refuses a pending
+account, since one that cannot see a row cannot approve anybody.
 
 Not worth building: per-screen permissions (three roles is already at the
 ceiling of useful for one company), and owner-only reports (costs are not
@@ -151,10 +149,10 @@ secret from the people incurring them).
 
 ## Order
 
-1. §5 error copy for a paused or unreachable project — smallest, and the one
-   most likely to waste somebody's morning
-2. §3 archive and restore
-3. §6 transfer ownership — small, independent, removes a single point of failure
-4. §2 owner creates accounts
-5. §4 retention. Stop before restore-in-place.
-6. §6 activity log — its own piece of work, not the tail of this one
+Done: §5 error copy, §3 archive and restore, §6 transfer ownership.
+
+What is left:
+
+1. §2 owner creates accounts
+2. §4 retention. Stop before restore-in-place.
+3. §6 activity log — its own piece of work, not the tail of this one

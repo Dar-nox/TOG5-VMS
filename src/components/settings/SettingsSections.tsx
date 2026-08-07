@@ -23,6 +23,7 @@ import {
   listUsers,
   resetAppSettings,
   updateAppSettings,
+  transferOwnership,
   updateUser,
   type AppSettings,
   type UserRecord,
@@ -74,7 +75,7 @@ const ROLES = [
  * is not an explanation, it is furniture.
  */
 export function SettingsSections() {
-  const { isOwner, user } = useAuth();
+  const { isOwner, retry, user } = useAuth();
   const toast = useToast();
   const confirm = useConfirm();
 
@@ -161,6 +162,41 @@ export function SettingsSections() {
       await updateUser({ id: record.id, ...change });
       await load();
       toast.success("Account updated.");
+    } catch (caught) {
+      toast.error(messageFromError(caught));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  /**
+   * The one account change that cannot be undone by the person making it: the
+   * moment it succeeds, the caller is a manager and cannot take it back.
+   */
+  async function handleTransfer(record: UserRecord) {
+    const confirmed = await confirm({
+      title: `Make ${record.displayName} the owner?`,
+      body:
+        `${record.displayName} will be able to let people in, change settings and ` +
+        `export the fleet. You become a manager and cannot undo this yourself — ` +
+        `only ${record.displayName} can hand it back.`,
+      confirmLabel: "Hand over",
+      tone: "danger",
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    setBusyId(record.id);
+
+    try {
+      setUsers(await transferOwnership(record.id));
+      // The signed-in person is now a manager, and half the screen depends on
+      // that. Without this the owner-only controls stay on screen until a
+      // reload, and every one of them would be refused.
+      await retry();
+      toast.success(`${record.displayName} is now the owner.`);
     } catch (caught) {
       toast.error(messageFromError(caught));
     } finally {
@@ -326,6 +362,18 @@ export function SettingsSections() {
                     >
                       {record.status === "active" ? "Switch off" : "Switch on"}
                     </Button>
+                    {/* Only for somebody who could actually run the fleet
+                        tomorrow: a pending or switched-off account cannot see
+                        a single row, let alone approve anybody. */}
+                    {record.status === "active" && record.role !== "owner" ? (
+                      <Button
+                        loading={busyId === record.id}
+                        onClick={() => void handleTransfer(record)}
+                        variant="quiet"
+                      >
+                        Make owner
+                      </Button>
+                    ) : null}
                   </>
                 ) : undefined
               }
