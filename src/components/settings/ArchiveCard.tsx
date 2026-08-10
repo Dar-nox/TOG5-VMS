@@ -137,7 +137,13 @@ export function ArchiveCard() {
               meta={
                 <>
                   {record.occurredOn ? (
-                    <MetaItem label="Dated" value={format.date(record.occurredOn)} />
+                    <MetaItem
+                      // A reminder's date is the last time the work was done,
+                      // which is a different question from when a fuel log or
+                      // an expense happened.
+                      label={record.kind === "reminder" ? "Last done" : "Dated"}
+                      value={format.date(record.occurredOn)}
+                    />
                   ) : null}
                   {record.amount == null ? null : (
                     <MetaItem label="Amount" numeric value={format.money(record.amount)} />
