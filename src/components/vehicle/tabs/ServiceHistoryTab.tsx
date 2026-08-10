@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useFormat } from "../../../app/providers/formatContext";
+import { usePeople } from "../../../app/providers/peopleContext";
 import { messageFromError } from "../../../lib/errors";
 import {
   listServiceHistoryForVehicle,
@@ -20,6 +21,7 @@ import { Attachment } from "./Attachment";
  */
 export function ServiceHistoryTab({ vehicleId }: { vehicleId: string }) {
   const fmt = useFormat();
+  const { nameFor } = usePeople();
   const [logs, setLogs] = useState<MaintenanceLogRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -96,6 +98,7 @@ export function ServiceHistoryTab({ vehicleId }: { vehicleId: string }) {
               ) : null}
             </>
           }
+          footnote={`Added by ${nameFor(log.createdBy)}`}
           subtitle={
             log.partsReplaced
               ? `${log.workPerformed} · Parts: ${log.partsReplaced}`

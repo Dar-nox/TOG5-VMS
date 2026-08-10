@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router";
 import { useConfirm } from "../../../app/providers/confirmContext";
 import { useFormat } from "../../../app/providers/formatContext";
 import { useToast } from "../../../app/providers/toastContext";
+import { usePeople } from "../../../app/providers/peopleContext";
 import type { ExpenseCategory } from "../../../domain";
 import { messageFromError } from "../../../lib/errors";
 import { routes } from "../../../lib/routes";
@@ -74,6 +75,7 @@ export function ExpensesTab({ vehicleId }: { vehicleId: string }) {
   const fmt = useFormat();
   const confirm = useConfirm();
   const toast = useToast();
+  const { nameFor } = usePeople();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -342,6 +344,7 @@ export function ExpensesTab({ vehicleId }: { vehicleId: string }) {
                   <MetaItem label="Date" numeric value={fmt.date(expense.expenseDate)} />
                 </>
               }
+              footnote={`Added by ${nameFor(expense.createdBy)}`}
               subtitle={expense.notes ?? undefined}
               title={
                 <span className="flex flex-wrap items-center gap-2">

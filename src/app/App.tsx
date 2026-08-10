@@ -11,6 +11,7 @@ import { AuthProvider } from "./providers/AuthProvider";
 import { useAuth } from "./providers/authContext";
 import { ConfirmProvider } from "./providers/ConfirmProvider";
 import { FormatProvider } from "./providers/FormatProvider";
+import { PeopleProvider } from "./providers/PeopleProvider";
 import { ToastProvider } from "./providers/ToastProvider";
 import { useHardwareBack } from "./useHardwareBack";
 
@@ -74,13 +75,15 @@ function SplashScreen() {
 function Workspace() {
   return (
     <FormatProvider>
-      <ToastProvider>
-        <ConfirmProvider>
-          <BrowserRouter>
-            <RoutedApp />
-          </BrowserRouter>
-        </ConfirmProvider>
-      </ToastProvider>
+      <PeopleProvider>
+        <ToastProvider>
+          <ConfirmProvider>
+            <BrowserRouter>
+              <RoutedApp />
+            </BrowserRouter>
+          </ConfirmProvider>
+        </ToastProvider>
+      </PeopleProvider>
     </FormatProvider>
   );
 }

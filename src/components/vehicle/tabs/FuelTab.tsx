@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router";
 import { useConfirm } from "../../../app/providers/confirmContext";
 import { useFormat } from "../../../app/providers/formatContext";
 import { useToast } from "../../../app/providers/toastContext";
+import { usePeople } from "../../../app/providers/peopleContext";
 import { validateFuelLog } from "../../../domain";
 import type { FuelLogFuelType } from "../../../domain";
 import { messageFromError } from "../../../lib/errors";
@@ -82,6 +83,7 @@ export function FuelTab({ vehicle }: { vehicle: VehicleRecord }) {
   const fmt = useFormat();
   const confirm = useConfirm();
   const toast = useToast();
+  const { nameFor } = usePeople();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -443,6 +445,7 @@ export function FuelTab({ vehicle }: { vehicle: VehicleRecord }) {
                   {log.stationName ? <MetaItem label="Station" value={log.stationName} /> : null}
                 </>
               }
+              footnote={`Added by ${nameFor(log.createdBy)}`}
               subtitle={log.notes ?? undefined}
               title={
                 <span className="flex flex-wrap items-center gap-2">

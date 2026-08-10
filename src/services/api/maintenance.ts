@@ -222,6 +222,8 @@ export type MaintenanceLogRecord = {
   nextRecommendedDate?: string | null;
   nextRecommendedOdometer?: number | null;
   notes?: string | null;
+  /** Who entered it. Null on records imported from the desktop app. */
+  createdBy?: string | null;
   createdAt: string;
   updatedAt: string;
 };

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router";
 import { useConfirm } from "../../../app/providers/confirmContext";
 import { useFormat } from "../../../app/providers/formatContext";
 import { useToast } from "../../../app/providers/toastContext";
+import { usePeople } from "../../../app/providers/peopleContext";
 import { messageFromError } from "../../../lib/errors";
 import { ABSENT } from "../../../lib/format";
 import { routes } from "../../../lib/routes";
@@ -52,6 +53,7 @@ export function TripsTab({ vehicle }: { vehicle: VehicleRecord }) {
   const fmt = useFormat();
   const confirm = useConfirm();
   const toast = useToast();
+  const { nameFor } = usePeople();
   const navigate = useNavigate();
 
   const [trips, setTrips] = useState<TripRecord[]>([]);
@@ -556,6 +558,7 @@ export function TripsTab({ vehicle }: { vehicle: VehicleRecord }) {
                         />
                       </>
                     }
+                    footnote={`Added by ${nameFor(trip.createdBy)}`}
                     subtitle={trip.returnNotes ?? undefined}
                     title={
                       <span className="flex flex-wrap items-center gap-2">
