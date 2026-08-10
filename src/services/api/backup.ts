@@ -15,7 +15,13 @@
  */
 
 import { saveTextFile } from "../../lib/saveFile";
-import { rpc, supabase, unwrap } from "./client";
+import { managedFileUrl, rpc, supabase, unwrap } from "./client";
+
+/**
+ * How many snapshots the nightly job keeps. Matches `KEEP` in the
+ * `backup-snapshot` function — this is only how many the screen asks for.
+ */
+const KEPT_SNAPSHOTS = 10;
 
 /** Every table worth keeping, in an order that reads sensibly in the file. */
 const EXPORTED_TABLES = [
@@ -58,6 +64,22 @@ export type ExportHistoryRecord = {
 export type StorageSummary = {
   photoCount: number;
   documentCount: number;
+};
+
+/**
+ * One automatic copy of the database, kept server-side.
+ *
+ * Distinct from an export, which is a file somebody chose to download. These
+ * are taken nightly whether or not anyone remembers, because the free plan
+ * takes none at all and a backup that depends on a habit is not one.
+ */
+export type SnapshotRecord = {
+  id: string;
+  storagePath: string;
+  sizeBytes: number;
+  recordCounts: Record<string, number>;
+  takenBy?: string | null;
+  createdAt: string;
 };
 
 /**
@@ -125,6 +147,36 @@ export async function listExports(): Promise<ExportHistoryRecord[]> {
       .order("created_at", { ascending: false })
       .limit(10),
   );
+}
+
+/**
+ * The restore points held on the server. Owner-only — the policy returns an
+ * empty list to anybody else rather than an error.
+ */
+export async function listSnapshots(): Promise<SnapshotRecord[]> {
+  return unwrap(
+    await supabase
+      .from("snapshots")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(KEPT_SNAPSHOTS),
+  );
+}
+
+/**
+ * Takes one now rather than waiting for tonight.
+ *
+ * Returns as soon as the job is handed over: the work happens in an Edge
+ * Function and pg_net does not wait for it, so the new snapshot appears in the
+ * list a moment later rather than by the time this resolves.
+ */
+export async function takeSnapshot(): Promise<void> {
+  await rpc("take_snapshot");
+}
+
+/** A link to download one. Signed and short-lived, like every other file here. */
+export async function snapshotUrl(storagePath: string): Promise<string | undefined> {
+  return managedFileUrl(storagePath);
 }
 
 /** What is held as files rather than records, so the screen can say so. */

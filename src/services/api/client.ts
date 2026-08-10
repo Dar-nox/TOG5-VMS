@@ -230,6 +230,10 @@ const MANAGED_BUCKETS = [
   "fuel-receipts",
   "maintenance-receipts",
   "maintenance-photos",
+  // Nightly database snapshots. Only an owner can read this one, enforced by
+  // the bucket's policy rather than here — a signed link is refused for anybody
+  // else, so a non-owner gets nothing back rather than a working URL.
+  "backups",
 ];
 
 /**
