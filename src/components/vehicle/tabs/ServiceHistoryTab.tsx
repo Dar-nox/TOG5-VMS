@@ -80,6 +80,15 @@ export function ServiceHistoryTab({ vehicleId }: { vehicleId: string }) {
             <>
               <MetaItem label="Done" numeric value={fmt.date(log.completedDate)} />
               <MetaItem label="Odometer" numeric value={fmt.distance(log.odometer)} />
+              {/* What the total was made of. A bill that is nearly all labour
+                  and one that is nearly all parts say very different things
+                  about a vehicle, and both were being shown as one number. */}
+              {log.laborCost > 0 ? (
+                <MetaItem label="Labour" numeric value={fmt.money(log.laborCost)} />
+              ) : null}
+              {log.partsCost > 0 ? (
+                <MetaItem label="Parts" numeric value={fmt.money(log.partsCost)} />
+              ) : null}
               <MetaItem label="Total" numeric value={fmt.money(log.totalCost)} />
               {log.mechanicShop ? <MetaItem label="Shop" value={log.mechanicShop} /> : null}
               {log.warrantyExpiration ? (
@@ -87,7 +96,11 @@ export function ServiceHistoryTab({ vehicleId }: { vehicleId: string }) {
               ) : null}
             </>
           }
-          subtitle={log.workPerformed}
+          subtitle={
+            log.partsReplaced
+              ? `${log.workPerformed} · Parts: ${log.partsReplaced}`
+              : log.workPerformed
+          }
           title={log.templateName ?? "Maintenance"}
         />
       ))}

@@ -430,6 +430,10 @@ export function FuelTab({ vehicle }: { vehicle: VehicleRecord }) {
                 <>
                   <MetaItem label="Odometer" numeric value={fmt.distance(log.odometer)} />
                   <MetaItem label="Volume" numeric value={fmt.volume(log.liters)} />
+                  {/* The figure that makes the receipt checkable: litres times
+                      price should be the total, and a typo in any of the three
+                      is invisible while only two are shown. */}
+                  <MetaItem label="Price / L" numeric value={fmt.money(log.pricePerLiter)} />
                   <MetaItem label="Total" numeric value={fmt.money(log.totalAmount)} />
                   <MetaItem
                     label="Efficiency"
@@ -439,6 +443,7 @@ export function FuelTab({ vehicle }: { vehicle: VehicleRecord }) {
                   {log.stationName ? <MetaItem label="Station" value={log.stationName} /> : null}
                 </>
               }
+              subtitle={log.notes ?? undefined}
               title={
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="tabular">{fmt.dateTime(log.fuelDate)}</span>

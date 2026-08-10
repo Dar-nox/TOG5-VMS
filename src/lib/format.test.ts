@@ -92,6 +92,25 @@ describe("distance and fuel", () => {
     expect(fmt.distance(null)).toBe(ABSENT);
   });
 
+  it("shows both odometer readings a distance came from", () => {
+    expect(fmt.odometerRange(45120, 45380)).toBe("45,120 → 45,380 km");
+  });
+
+  it("names which odometer reading is missing rather than hiding both", () => {
+    // The reason this exists. `distanceKm` is only computed when both readings
+    // are in, so a trip missing one showed a bare dash under Distance and gave
+    // no way to tell whether the reading was never taken at the start, at the
+    // end, or at all.
+    expect(fmt.odometerRange(45120, null)).toBe(`45,120 → ${ABSENT} km`);
+    expect(fmt.odometerRange(null, 45380)).toBe(`${ABSENT} → 45,380 km`);
+    expect(fmt.odometerRange(null, null)).toBe(ABSENT);
+  });
+
+  it("converts both ends of an odometer range when set to miles", () => {
+    const miles = createFormatters({ ...defaultPreferences, distanceUnit: "mi" });
+    expect(miles.odometerRange(100, 200)).toBe("62 → 124 mi");
+  });
+
   it("converts rather than merely relabelling when set to miles", () => {
     const miles = createFormatters({ ...defaultPreferences, distanceUnit: "mi" });
     expect(miles.distance(100)).toBe("62 mi");

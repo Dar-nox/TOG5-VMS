@@ -20,6 +20,7 @@ export function DataRow({
   title,
   subtitle,
   meta,
+  footnote,
   actions,
   onClick,
   openLabel,
@@ -29,6 +30,13 @@ export function DataRow({
   title: ReactNode;
   subtitle?: ReactNode;
   meta?: ReactNode;
+  /**
+   * A quiet line under the figures — who entered the record, and anything else
+   * that is worth being able to find but should never compete with the
+   * numbers. Deliberately not a `MetaItem`: a person's name is not a figure,
+   * and on a phone it would claim a whole grid cell beside the amounts.
+   */
+  footnote?: ReactNode;
   actions?: ReactNode;
   /** Makes the whole row activate. Renders real buttons, never a clickable div. */
   onClick?: () => void;
@@ -48,6 +56,7 @@ export function DataRow({
         <div className="text-sm font-semibold break-words text-heading">{title}</div>
         {subtitle ? <div className="mt-0.5 text-xs text-muted">{subtitle}</div> : null}
         {meta ? <MetaList>{meta}</MetaList> : null}
+        {footnote ? <div className="mt-2 text-2xs text-muted">{footnote}</div> : null}
       </div>
     </div>
   );

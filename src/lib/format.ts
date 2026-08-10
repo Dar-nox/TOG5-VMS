@@ -166,6 +166,27 @@ export function createFormatters(preferences: DisplayPreferences = defaultPrefer
       return value == null ? ABSENT : wholeNumber.format(Math.round(toDisplayDistance(value)));
     },
 
+    /**
+     * `45,120 → 45,380 km`. The pair of readings a distance was worked out
+     * from.
+     *
+     * One figure rather than two, because it fits a phone: a trip row already
+     * carries six labelled values, and on a 360px screen the meta grid is two
+     * columns wide. It also says which reading is missing — `45,120 → —` — where
+     * a bare distance can only show `—` and leave you guessing whether anyone
+     * wrote down the reading at the start, the end, or neither.
+     */
+    odometerRange(from?: number | null, to?: number | null): string {
+      if (from == null && to == null) {
+        return ABSENT;
+      }
+
+      const start = from == null ? ABSENT : wholeNumber.format(Math.round(toDisplayDistance(from)));
+      const end = to == null ? ABSENT : wholeNumber.format(Math.round(toDisplayDistance(to)));
+
+      return `${start} → ${end} ${distanceLabel}`;
+    },
+
     /** `45.50 L`. Fuel is recorded to three decimals but read to two. */
     volume(value?: number | null): string {
       return value == null ? ABSENT : `${decimal.format(value)} L`;

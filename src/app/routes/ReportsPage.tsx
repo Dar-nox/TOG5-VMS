@@ -269,6 +269,20 @@ export default function ReportsPage() {
                                 numeric
                                 value={fmt.money(summary.totalCost)}
                               />
+                              {/* Both of these were already in the printed
+                                  report and missing from the screen, so the
+                                  paper and the app disagreed about what a
+                                  vehicle summary contains. */}
+                              <MetaItem
+                                label="Distance"
+                                numeric
+                                value={fmt.distance(summary.distanceKm)}
+                              />
+                              <MetaItem
+                                label="Efficiency"
+                                numeric
+                                value={fmt.efficiency(summary.latestOfficialKmPerLiter)}
+                              />
                               <MetaItem
                                 label="Per distance"
                                 numeric
@@ -416,6 +430,14 @@ export default function ReportsPage() {
                               <MetaItem
                                 label="Went to"
                                 value={trip.destinations.join(", ") || "—"}
+                              />
+                              <MetaItem
+                                label="Odometer"
+                                numeric
+                                value={fmt.odometerRange(
+                                  trip.departureOdometer,
+                                  trip.returnOdometer,
+                                )}
                               />
                               <MetaItem
                                 label="Distance"
