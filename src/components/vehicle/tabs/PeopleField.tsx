@@ -37,32 +37,37 @@ export function PeopleField({
   }
 
   return (
-    <fieldset className="flex min-w-0 flex-col gap-2">
+    // `gap-1.5` under the legend, matching `FieldShell`, so this sits level with
+    // a real field beside it in the same grid row. The rows keep their own
+    // wider gap below.
+    <fieldset className="flex min-w-0 flex-col gap-1.5">
       <legend className="flex items-baseline gap-2 text-sm font-semibold text-ink" id={id}>
         <span>{label}</span>
         {optional ? <span className="text-xs font-normal text-muted">Optional</span> : null}
       </legend>
 
-      {rows.map((value, index) => (
-        <div className="flex items-center gap-2" key={index}>
-          <input
-            aria-label={`${label} ${index + 1}`}
-            className="w-full min-w-0 rounded-md border border-border-strong bg-surface px-3 py-2.5 text-base text-ink"
-            onChange={(event) => setAt(index, event.target.value)}
-            placeholder={placeholder}
-            type="text"
-            value={value}
-          />
-          {value.trim() !== "" ? (
-            <Button
-              aria-label={`Remove ${value}`}
-              icon={<CloseIcon />}
-              onClick={() => onChange(rows.filter((_, position) => position !== index))}
-              variant="quiet"
+      <div className="flex flex-col gap-2">
+        {rows.map((value, index) => (
+          <div className="flex items-center gap-2" key={index}>
+            <input
+              aria-label={`${label} ${index + 1}`}
+              className="w-full min-w-0 rounded-md border border-border-strong bg-surface px-3 py-2.5 text-base text-ink"
+              onChange={(event) => setAt(index, event.target.value)}
+              placeholder={placeholder}
+              type="text"
+              value={value}
             />
-          ) : null}
-        </div>
-      ))}
+            {value.trim() !== "" ? (
+              <Button
+                aria-label={`Remove ${value}`}
+                icon={<CloseIcon />}
+                onClick={() => onChange(rows.filter((_, position) => position !== index))}
+                variant="quiet"
+              />
+            ) : null}
+          </div>
+        ))}
+      </div>
     </fieldset>
   );
 }

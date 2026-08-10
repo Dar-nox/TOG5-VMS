@@ -195,6 +195,11 @@ export default function ReportsPage() {
             ]}
             value={vehicleId}
           />
+          {/* Hand-written rather than a nested `FieldGrid` on purpose. This sits
+              inside one cell of the grid above, and `FieldGrid` is container-
+              driven — measuring a half-width cell, it would drop to one column
+              and stack From above To even on a wide screen. A date pair that
+              short should always stay side by side. */}
           <div className="grid grid-cols-2 gap-3">
             <DateField label="From" onChange={setStartDate} optional value={startDate} />
             <DateField label="To" onChange={setEndDate} optional value={endDate} />

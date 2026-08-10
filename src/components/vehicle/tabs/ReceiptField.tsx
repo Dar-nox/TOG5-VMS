@@ -27,7 +27,9 @@ export function ReceiptField({
   const id = useId();
 
   return (
-    <div className="flex flex-col gap-2">
+    // `gap-1.5` matches `FieldShell`, so this lines up with a real field beside
+    // it rather than sitting 2px low.
+    <div className="flex flex-col gap-1.5">
       <span className="text-sm font-semibold text-ink" id={id}>
         {label}
         <span className="ml-2 text-xs font-normal text-muted">Optional</span>
