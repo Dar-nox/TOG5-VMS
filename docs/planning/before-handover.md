@@ -33,6 +33,14 @@ are different claims.
 **Migrations first.** `PGPASSWORD='...' supabase/push.sh` — everything is
 re-appliable, so running the whole set is normal.
 
+**Do not pass `--owner` to `migrate_from_backup.py`.** It used to be required
+and credited every imported row to the owner. Records now show who entered
+them, and the desktop app had one shared login with no per-record author — so
+nobody in this system typed those rows, and the app reads an unattributed one
+as "Imported from desktop". Passing `--owner` would put a real person's name
+against four hundred records they never touched and make every genuine name
+beside it worth less. Fixing it afterwards means a second pass.
+
 ## 2. Credentials — decided: not rotating
 
 Four values passed through development chat transcripts: the database password,
@@ -108,14 +116,14 @@ Green in the suite, never run against the live project or a real person.
 
 ## 5. Left on the feature list
 
-From `owner-features-and-accounts.md`, both deliberately not done:
+**~~Backup retention.~~ Done 2026-08-11.** Nightly snapshot of every row at
+02:00 Manila, private `backups` bucket, owner-only, last ten kept. `cron.job` 3
+`tog5-snapshot`, `0 18 * * *`. Proven end to end against the live project: 200
+back, 1,365 records over 19 tables, 679 KB, every table's count matching the
+live table. No restore-in-place, deliberately — see the migration header.
 
-**Backup retention.** The free plan takes no automatic copies at all, so the
-export is the entire backup strategy and depends on somebody pressing a button.
-Retention means keeping the last ~10 exports in a private Storage bucket with a
-`snapshots` table, and pruning. The point is having a copy from *before* a
-problem started — if a bug corrupts data quietly, every recent copy contains
-the corruption. Stop before restore-in-place.
+To repeat the check by hand: `select public.take_snapshot();` then read
+`net._http_response` for the id it returns.
 
 **Activity log.** `audit_logs` has zero rows and nothing writes to it. It needs
 writers across every mutation path before it needs a screen, plus a decision on
@@ -211,6 +219,29 @@ delete from public.vehicle_maintenance_settings where vehicle_id in
   (select id from public.vehicles where vehicle_name like 'ZZ Notification Test%');
 delete from public.vehicles where vehicle_name like 'ZZ Notification Test%';
 ```
+
+## 7b. Verification without Docker
+
+`supabase/tests/run.sh` needs Docker, and Docker Desktop's Linux engine was
+down on this machine on 2026-08-11 — the app running, the daemon answering 500
+on ping, `hello-world` unable to start. `DockerCli.exe -SwitchLinuxEngine`
+brought it back for ten seconds and it dropped again.
+
+The two migrations written that day were verified instead against the live
+project inside a transaction that rolls back:
+
+```sh
+# BEGIN; <migration>; <test file, minus its auth.users stub>; ROLLBACK;
+curl -X POST "https://api.supabase.com/v1/projects/<ref>/database/query" ...
+```
+
+Each was run twice — without the migration to watch the assertions fail, then
+with it to watch them pass — and the database checked afterwards for leftover
+rows, users and profiles. There were none.
+
+This is a stand-in, not a replacement. **Run `supabase/tests/run.sh` and
+`mutate.sh` once Docker is working**, because they exercise the whole suite
+against a clean database rather than one migration against a dirty one.
 
 ## 8. After all of it
 
