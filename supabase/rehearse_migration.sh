@@ -136,8 +136,11 @@ echo
 echo "what the fleet looks like afterwards:"
 psql -t -A -F'  ' -c "
   select v.vehicle_name, v.current_odometer::bigint || ' km',
-         count(*) filter (where s.deleted_at is null) || ' reminders',
-         coalesce(count(a.id) filter (where a.status = 'active'), 0) || ' alerts'
+         -- distinct, because joining schedules and alerts to the same vehicle
+         -- gives a row per pair. Without it a van with 54 reminders and 29
+         -- alerts reported 1,566 of each, which is alarming and wrong.
+         count(distinct s.id) filter (where s.deleted_at is null) || ' reminders',
+         count(distinct a.id) || ' alerts'
   from public.vehicles v
   left join public.maintenance_schedules s on s.vehicle_id = v.id
   left join public.alerts a on a.vehicle_id = v.id and a.status = 'active'
