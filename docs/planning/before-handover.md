@@ -24,11 +24,30 @@ is outdated and must not be used. Rehearse before touching the real project:
 
 ```sh
 supabase/rehearse_migration.sh <backup-dir>     # throwaway Postgres, counts rows in vs out
-supabase/migrate_from_backup.py                 # then the real one
 ```
 
 The rehearsal exists because "the load did not error" and "the fleet is intact"
 are different claims.
+
+**The database must be emptied first.** `migrate_from_backup.py` only inserts,
+and every id it writes is derived from the desktop id — so loading a second
+backup over a database that already holds one hits `duplicate key value
+violates unique constraint "vehicles_pkey"` and, the load being one
+transaction, nothing lands at all. The order is:
+
+```sh
+PGPASSWORD='...' supabase/push.sh                            # migrations
+psql "<connection string>" -v ON_ERROR_STOP=1 -f supabase/reset_fleet.sql
+python supabase/migrate_from_backup.py <backup-dir> --files migration-files.tsv > load.sql
+psql "<connection string>" -v ON_ERROR_STOP=1 -f load.sql
+TOG5_EMAIL=... TOG5_PASSWORD=... python supabase/upload_migration_files.py <backup-dir> migration-files.tsv
+python supabase/prune_orphan_files.py                        # after the upload, not before
+```
+
+`reset_fleet.sql` keeps the accounts, the settings rows the import updates in
+place, the backup history, and the seeded template catalogue. Rehearsed on a
+throwaway database on 2026-08-12: old backup in, new one refused on top, reset,
+new one in, counts matching the backup exactly.
 
 **Migrations first.** `PGPASSWORD='...' supabase/push.sh` — everything is
 re-appliable, so running the whole set is normal.
