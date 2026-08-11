@@ -103,15 +103,21 @@ def main() -> int:
             url = "%s/storage/v1/object/%s/%s" % (PROJECT_URL, bucket, name)
             status, response = request("POST", url, token, payload, content_type)
 
+            body = response.decode("utf-8", "replace")
+
             if status in (200, 201):
                 print("  uploaded %s (%.1f MB)" % (destination, len(payload) / 1048576))
                 uploaded += 1
-            elif status == 409:
+            # Storage answers a duplicate with HTTP 400 and a *body* saying 409,
+            # not an HTTP 409 — so the obvious check never fired and a second
+            # run reported every file as FAILED and exited 1. This file promises
+            # at the top that re-running after a half-finished upload is safe,
+            # and it was the one thing it could not survive.
+            elif status == 409 or "KeyAlreadyExists" in body or '"statusCode":"409"' in body:
                 print("  already  %s" % destination)
                 skipped += 1
             else:
-                print("  FAILED   %s: %s %s" % (destination, status,
-                                                response.decode("utf-8", "replace")[:200]))
+                print("  FAILED   %s: %s %s" % (destination, status, body[:200]))
                 failed += 1
 
     print("\n%d uploaded, %d already there, %d failed" % (uploaded, skipped, failed))
