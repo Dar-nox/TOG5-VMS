@@ -36,13 +36,18 @@ for migration in "$root"/supabase/migrations/*.sql; do
 done
 psql < "$here/tests/local_grants.sql" >/dev/null
 
-# An owner to credit the imported records to, standing in for the real one.
+# An account has to exist for the schema to be usable, standing in for the real
+# owner. Nothing is credited to it — see the note by the generator call below.
 owner="940425c3-a470-4fcd-a1c2-7a0cceb831c3"
 psql -c "insert into auth.users (id, email, raw_user_meta_data)
          values ('$owner', 'owner@tog5vms.local', '{\"display_name\": \"Fleet Owner\"}'::jsonb);" >/dev/null
 
 echo "→ generating"
-python "$here/migrate_from_backup.py" "$backup" --owner "$owner" \
+# No --owner, matching what go-live does. The desktop app had one shared login
+# and no per-record author, so imported records carry no author and the app
+# reads them as "Imported from desktop". Rehearsing with --owner would exercise
+# a path nobody is going to take.
+python "$here/migrate_from_backup.py" "$backup" \
   --files "$work/files.tsv" > "$work/load.sql" 2> "$work/counts.txt"
 
 echo "→ loading"
