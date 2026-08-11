@@ -37,6 +37,8 @@ export type ExpenseRecord = {
   relatedRecordType?: RelatedRecordType | string | null;
   relatedRecordId?: string | null;
   notes?: string | null;
+  /** Who entered it. Null on records imported from the desktop app. */
+  createdBy?: string | null;
   createdAt: string;
   updatedAt: string;
 };

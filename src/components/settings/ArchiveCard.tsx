@@ -4,6 +4,7 @@ import { useConfirm } from "../../app/providers/confirmContext";
 import { useFormat } from "../../app/providers/formatContext";
 import { useToast } from "../../app/providers/toastContext";
 import { messageFromError } from "../../lib/errors";
+import { labelFromKey } from "../../lib/text";
 import {
   listArchivedRecords,
   restoreRecord,
@@ -136,7 +137,13 @@ export function ArchiveCard() {
               meta={
                 <>
                   {record.occurredOn ? (
-                    <MetaItem label="Dated" value={format.date(record.occurredOn)} />
+                    <MetaItem
+                      // A reminder's date is the last time the work was done,
+                      // which is a different question from when a fuel log or
+                      // an expense happened.
+                      label={record.kind === "reminder" ? "Last done" : "Dated"}
+                      value={format.date(record.occurredOn)}
+                    />
                   ) : null}
                   {record.amount == null ? null : (
                     <MetaItem label="Amount" numeric value={format.money(record.amount)} />
@@ -145,7 +152,17 @@ export function ArchiveCard() {
                 </>
               }
               subtitle={
-                record.detail ? `${record.vehicleName} · ${record.detail}` : record.vehicleName
+                record.detail
+                  ? `${record.vehicleName} · ${
+                      // An expense's detail is its category, which arrives as
+                      // the stored key — so this screen alone was reading
+                      // "preventive_maintenance" where the Expenses tab reads
+                      // "Preventive Maintenance". Only that kind needs it; the
+                      // others are free text and title-casing them would be
+                      // wrong.
+                      record.kind === "expense" ? labelFromKey(record.detail) : record.detail
+                    }`
+                  : record.vehicleName
               }
               title={
                 <span className="flex flex-wrap items-center gap-2">

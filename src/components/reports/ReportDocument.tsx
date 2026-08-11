@@ -159,6 +159,7 @@ export function ReportDocument({
                 "Passengers",
                 "Destinations",
                 "Purpose",
+                "Odometer",
                 "Distance",
                 "Cost",
               ]}
@@ -171,6 +172,7 @@ export function ReportDocument({
                 trip.passengers.join(", ") || "—",
                 trip.destinations.join(", ") || "—",
                 trip.reason,
+                fmt.odometerRange(trip.departureOdometer, trip.returnOdometer),
                 fmt.distance(trip.distanceKm),
                 trip.fuelTotal + trip.expenseTotal > 0
                   ? fmt.money(trip.fuelTotal + trip.expenseTotal)

@@ -35,6 +35,8 @@ export type TripRecord = {
   fuelTotal: number;
   expenseTotal: number;
   status: TripStatus;
+  /** Who entered it. Null on records imported from the desktop app. */
+  createdBy?: string | null;
   createdAt: string;
   updatedAt: string;
 };

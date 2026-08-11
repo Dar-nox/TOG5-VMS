@@ -64,7 +64,14 @@ begin;
     assert archive -> 0 ->> 'vehicleName' = 'Restore Van', 'named by its vehicle';
     assert archive -> 0 ->> 'summary' = '40 L',
       'litres without trailing zeros, got: ' || (archive -> 0 ->> 'summary');
-    assert archive -> 0 ->> 'detail' = 'Shell EDSA', 'the station is worth showing';
+    -- The detail line carries the reading as well as the station now
+    -- (migration 34): two fills at the same station in the same week are
+    -- otherwise impossible to tell apart on the restore screen.
+    assert archive -> 0 ->> 'detail' like 'Shell EDSA%', 'the station is worth showing';
+    -- The fill's own reading, not the vehicle's current one — those differ
+    -- here precisely because a later fill moved the vehicle on.
+    assert archive -> 0 ->> 'detail' like '%12,000%',
+      'and so is the reading it was logged at, got: ' || (archive -> 0 ->> 'detail');
     assert (archive -> 0 ->> 'amount')::numeric = 2400, 'and what it cost';
 
     -- It is gone from the ordinary view of the world.

@@ -72,8 +72,8 @@ export function BackupSection() {
         title="Your own copy"
       >
         <p className="mt-1 text-sm text-muted">
-          Nothing takes an automatic copy of the fleet's records, so an export is the only one you
-          hold.
+          The nightly backups stay on the same server as the fleet's records. This is the one you
+          keep somewhere else.
         </p>
       </CardHeader>
 

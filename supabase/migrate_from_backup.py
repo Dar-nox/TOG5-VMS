@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Turn a TOG 5 VMS desktop backup into SQL that loads it into Postgres.
 
-    python supabase/migrate_from_backup.py <backup-dir> --owner <profile-uuid> > load.sql
+    python supabase/migrate_from_backup.py <backup-dir> > load.sql
 
 Writes SQL rather than loading directly, on purpose: it can be rehearsed
 against a throwaway database, diffed, and read before anything touches the real
@@ -154,8 +154,16 @@ def storage_path(file_path: str | None, fallback_bucket: str | None = None) -> s
 
 
 class Loader:
-    def __init__(self, connection: sqlite3.Connection, owner: str, out):
+    def __init__(self, connection: sqlite3.Connection, owner, out):
         self.db = connection
+        # Who the imported records say entered them. None by default, and the
+        # app reads that as "Imported from desktop".
+        #
+        # This used to credit every row to the owner, which was wrong in a way
+        # that mattered once attribution became visible: the desktop app had one
+        # shared login and no per-record author, so nobody in the new system
+        # typed these. Putting a real person's name against four hundred records
+        # they never touched would make every genuine name beside it worth less.
         self.owner = owner
         self.out = out
         self.counts: dict[str, int] = {}
@@ -544,8 +552,11 @@ class Loader:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("backup", help="the unpacked .tog5backup directory")
-    parser.add_argument("--owner", required=True,
-                        help="profile uuid to credit the imported records to")
+    parser.add_argument("--owner", default=None,
+                        help="profile uuid to credit the imported records to. "
+                             "Left out on purpose for a real import: nobody in "
+                             "this system entered them, and the app shows an "
+                             "unattributed record as 'Imported from desktop'.")
     parser.add_argument("--files", help="write the file upload list here")
     args = parser.parse_args()
 

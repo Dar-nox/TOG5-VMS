@@ -3,6 +3,7 @@ import { useNavigate } from "react-router";
 import { useConfirm } from "../../../app/providers/confirmContext";
 import { useFormat } from "../../../app/providers/formatContext";
 import { useToast } from "../../../app/providers/toastContext";
+import { usePeople } from "../../../app/providers/peopleContext";
 import { messageFromError } from "../../../lib/errors";
 import { ABSENT } from "../../../lib/format";
 import { routes } from "../../../lib/routes";
@@ -52,6 +53,7 @@ export function TripsTab({ vehicle }: { vehicle: VehicleRecord }) {
   const fmt = useFormat();
   const confirm = useConfirm();
   const toast = useToast();
+  const { nameFor } = usePeople();
   const navigate = useNavigate();
 
   const [trips, setTrips] = useState<TripRecord[]>([]);
@@ -530,9 +532,21 @@ export function TripsTab({ vehicle }: { vehicle: VehicleRecord }) {
                       <>
                         <MetaItem label="Left" numeric value={fmt.dateTime(trip.departureTime)} />
                         <MetaItem label="Back" numeric value={fmt.dateTime(trip.returnTime)} />
+                        {/* The two readings the distance was worked out from.
+                            Without them a figure that looks wrong cannot be
+                            checked, and a missing reading shows only as a dash
+                            on Distance without saying which end is absent. */}
+                        <MetaItem
+                          label="Odometer"
+                          numeric
+                          value={fmt.odometerRange(trip.departureOdometer, trip.returnOdometer)}
+                        />
                         <MetaItem label="Distance" numeric value={fmt.distance(trip.distanceKm)} />
-                        <MetaItem label="Driver" value={trip.drivers.join(", ") || "—"} />
-                        <MetaItem label="Went to" value={trip.destinations.join(", ") || "—"} />
+                        <MetaItem label="Driver" value={trip.drivers.join(", ") || ABSENT} />
+                        {trip.passengers.length > 0 ? (
+                          <MetaItem label="Passengers" value={trip.passengers.join(", ")} />
+                        ) : null}
+                        <MetaItem label="Went to" value={trip.destinations.join(", ") || ABSENT} />
                         <MetaItem
                           label="Cost"
                           numeric
@@ -544,8 +558,19 @@ export function TripsTab({ vehicle }: { vehicle: VehicleRecord }) {
                         />
                       </>
                     }
+                    footnote={`Added by ${nameFor(trip.createdBy)}`}
                     subtitle={trip.returnNotes ?? undefined}
-                    title={trip.reason}
+                    title={
+                      <span className="flex flex-wrap items-center gap-2">
+                        {trip.reason}
+                        {/* A cancelled trip rendered identically to a completed
+                            one, so a row with no distance and no cost read as a
+                            trip somebody forgot to fill in. */}
+                        {trip.status === "cancelled" ? (
+                          <Badge tone="neutral">Cancelled</Badge>
+                        ) : null}
+                      </span>
+                    }
                   />
                 ))}
               </DataList>

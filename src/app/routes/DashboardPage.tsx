@@ -140,6 +140,11 @@ export default function DashboardPage() {
                     <MetaItem label="Going to" value={trip.destinations.join(", ") || "—"} />
                     <MetaItem label="Left" numeric value={fmt.dateTime(trip.departureTime)} />
                     <MetaItem
+                      label="Odometer out"
+                      numeric
+                      value={fmt.distance(trip.departureOdometer)}
+                    />
+                    <MetaItem
                       label="Spent so far"
                       numeric
                       value={trip.spentSoFar > 0 ? fmt.money(trip.spentSoFar) : "—"}

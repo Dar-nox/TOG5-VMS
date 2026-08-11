@@ -692,7 +692,8 @@ function NotificationCard() {
           />
           <NumberField
             disabled={saving}
-            label="Warn about trips still open after"
+            hint="Trips still open after this long get mentioned in the digest."
+            label="Nag about open trips"
             onChange={(value) =>
               void change({ openTripHours: value === "" ? null : Number(value) || null })
             }

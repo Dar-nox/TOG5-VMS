@@ -54,13 +54,23 @@ function FieldShell({ label, optional, hint, error, children, className }: Field
         {optional ? <span className="text-xs font-normal text-muted">Optional</span> : null}
       </label>
 
+      {children({ id, describedBy, invalid: Boolean(error) })}
+
+      {/* Below the control, not above it.
+       *
+       * With the hint above, a field carrying one pushed its control about 25px
+       * down — two lines, 44px — while the field beside it in the same
+       * `FieldGrid` row stayed put. "Category" next to "Every · Leave blank if
+       * only distance matters." was the reported case; there were five more.
+       *
+       * Under the control the height a hint adds falls below both fields, so
+       * neither moves, and it lands in the same place as the error message
+       * that may replace it. */}
       {hint ? (
         <p className="text-xs text-muted" id={hintId}>
           {hint}
         </p>
       ) : null}
-
-      {children({ id, describedBy, invalid: Boolean(error) })}
 
       {error ? (
         <p className="text-xs font-semibold text-overdue" id={errorId} role="alert">

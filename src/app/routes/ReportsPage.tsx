@@ -195,6 +195,11 @@ export default function ReportsPage() {
             ]}
             value={vehicleId}
           />
+          {/* Hand-written rather than a nested `FieldGrid` on purpose. This sits
+              inside one cell of the grid above, and `FieldGrid` is container-
+              driven — measuring a half-width cell, it would drop to one column
+              and stack From above To even on a wide screen. A date pair that
+              short should always stay side by side. */}
           <div className="grid grid-cols-2 gap-3">
             <DateField label="From" onChange={setStartDate} optional value={startDate} />
             <DateField label="To" onChange={setEndDate} optional value={endDate} />
@@ -263,6 +268,20 @@ export default function ReportsPage() {
                                 label="Total"
                                 numeric
                                 value={fmt.money(summary.totalCost)}
+                              />
+                              {/* Both of these were already in the printed
+                                  report and missing from the screen, so the
+                                  paper and the app disagreed about what a
+                                  vehicle summary contains. */}
+                              <MetaItem
+                                label="Distance"
+                                numeric
+                                value={fmt.distance(summary.distanceKm)}
+                              />
+                              <MetaItem
+                                label="Efficiency"
+                                numeric
+                                value={fmt.efficiency(summary.latestOfficialKmPerLiter)}
                               />
                               <MetaItem
                                 label="Per distance"
@@ -411,6 +430,14 @@ export default function ReportsPage() {
                               <MetaItem
                                 label="Went to"
                                 value={trip.destinations.join(", ") || "—"}
+                              />
+                              <MetaItem
+                                label="Odometer"
+                                numeric
+                                value={fmt.odometerRange(
+                                  trip.departureOdometer,
+                                  trip.returnOdometer,
+                                )}
                               />
                               <MetaItem
                                 label="Distance"
