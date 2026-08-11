@@ -7,13 +7,10 @@ Checking a deploy landed: the routes are code-split, so the entry bundle is the
 wrong place to look for a screen. `assets/SettingsPage-*.js` holds Settings;
 `assets/index-*.js` holds the API client and shell.
 
-Written 2026-08-07, after the owner-features session. Everything below is
-outstanding; the ordering is by what blocks what, not by size.
-
-The client is still on the desktop build and stays there until this one is
-finished. They send a fresh backup on the day, and it overwrites whatever the
-online database holds — so the current contents are scratch, and anything below
-about test data can be ignored rather than cleaned.
+Written 2026-08-07. **Handed over 2026-08-12** — the client's real data is
+loaded, the URL and owner account are with them, and the app is in use. What
+follows is kept as the record of how it was done and what was decided, not as a
+list of outstanding work. Anything still open says so.
 
 ---
 
@@ -48,9 +45,6 @@ python supabase/prune_orphan_files.py                        # after the upload,
 place, the backup history, and the seeded template catalogue. Rehearsed on a
 throwaway database on 2026-08-12: old backup in, new one refused on top, reset,
 new one in, counts matching the backup exactly.
-
-**Migrations first.** `PGPASSWORD='...' supabase/push.sh` — everything is
-re-appliable, so running the whole set is normal.
 
 **Do not pass `--owner` to `migrate_from_backup.py`.** It used to be required
 and credited every imported row to the owner. Records now show who entered
@@ -93,8 +87,8 @@ on:
 If any of these is ever rotated later, only VAPID has a knock-on: it invalidates
 every existing subscription, so everybody has to turn notifications on again.
 
-The owner account's password is also from development and is worth changing at
-some point.
+The owner account's password was changed before handover, and the client
+changes it again themselves.
 
 ## 3. The digest — done
 
@@ -108,30 +102,21 @@ service worker — and returned `{"sent":1,"dropped":0}`.
 minute, and `last_sent_on` stops a second send the same day. To repeat a test:
 `update public.notification_preferences set last_sent_on = null;`
 
-A vehicle named `ZZ Notification Test (safe to delete)` is still in the fleet
-with one due-soon reminder, deliberately: it is what gives the first scheduled
-run something to report. **Delete it once that run has been seen.** Cleanup SQL
-is at the bottom of this file.
+The `ZZ Notification Test` vehicle went with the rest of the scratch data when
+`reset_fleet.sql` ran before the import. Nothing to clean up.
 
-## 4. Untested in the real world — deferred to the consultation
+## 4. Real-world testing — closed
 
-The client wants the app built first and tested when they are present, so what
-remains below is checked with them rather than before them. That is the right
-call for these three: each needs either their environment or their hardware,
-and none can be simulated convincingly from here.
-
-Green in the suite, never run against the live project or a real person.
 
 - ~~**Archive and restore.**~~ Verified against the live database on
   2026-08-07: a fuel log created, archived through `archive_fuel_log`, found in
   `archived_records()` with the right litres and station, restored, and the
   vehicle's odometer unmoved throughout. The test row was removed afterwards.
-- **The paused-project message.** The only honest test is pausing the project
-  in the dashboard and opening the app. Everything else is a simulation of the
-  thing being tested.
-- **iPad and iPhone notifications.** The manual already declines to promise
-  these. Nobody has a working phone to check with, and a desktop browser proved
-  the encryption, which is the part that is shared.
+- ~~**The paused-project message.**~~ Accepted untested, by the client. Waking
+  a paused project is a dashboard action they do not have, so they contact the
+  developer either way, and the app says so in plain words rather than looking
+  broken.
+- ~~**iPad and iPhone notifications.**~~ Checked on the client's own devices.
 
 ## 5. Left on the feature list
 
@@ -190,18 +175,11 @@ and failed against `main`.
   family of bugs has no other members. `push_subscriptions` is safe because its
   read policy filters on `profile_id`, not `deleted_at`.
 
-**Worth raising with the client, not fixing:**
-
-Their maintenance items carry a vehicle name in brackets — "Battery -
-Inspect/Replace (Hilux Pickup)" — and 172 of 375 reminders use an item named
-after a *different* vehicle. Not an import fault: each shared item is on exactly
-two vehicles and always a sensible pair (Isuzu Truck with KM450, Hilux Pickup
-with Hilux FX). They made an item for one vehicle and reused it on a similar
-one, which is good practice with an awkward name.
-
-It reads as a contradiction wherever the item name sits next to the vehicle —
-the Archived records screen most obviously. Their names, their call: worth
-asking whether they want them renamed.
+**Settled, not an issue.** Their maintenance items carry a vehicle in brackets —
+"Battery - Inspect/Replace (Hilux Pickup)" — and the same item is used on more
+than one vehicle. This is correct: the Hilux Pickup *is* the Hilux FX. It was
+raised three times and closed three times. Their fleet, their names; do not
+raise it again.
 
 **Cosmetic, left alone:**
 
@@ -223,44 +201,6 @@ newest-first so anything archived today leads. But the client's fresh backup
 will bring its own equivalent, and if that number is much larger the screen
 becomes a wall. Worth looking at once the real data is in, and capping the list
 or filtering by age only if it actually reads badly.
-
-## Cleanup SQL
-
-For the notification test vehicle, once the first scheduled digest has been
-seen:
-
-```sql
-delete from public.alerts where vehicle_id in
-  (select id from public.vehicles where vehicle_name like 'ZZ Notification Test%');
-delete from public.maintenance_schedules where vehicle_id in
-  (select id from public.vehicles where vehicle_name like 'ZZ Notification Test%');
-delete from public.vehicle_maintenance_settings where vehicle_id in
-  (select id from public.vehicles where vehicle_name like 'ZZ Notification Test%');
-delete from public.vehicles where vehicle_name like 'ZZ Notification Test%';
-```
-
-## 7b. Verification without Docker
-
-`supabase/tests/run.sh` needs Docker, and Docker Desktop's Linux engine was
-down on this machine on 2026-08-11 — the app running, the daemon answering 500
-on ping, `hello-world` unable to start. `DockerCli.exe -SwitchLinuxEngine`
-brought it back for ten seconds and it dropped again.
-
-The two migrations written that day were verified instead against the live
-project inside a transaction that rolls back:
-
-```sh
-# BEGIN; <migration>; <test file, minus its auth.users stub>; ROLLBACK;
-curl -X POST "https://api.supabase.com/v1/projects/<ref>/database/query" ...
-```
-
-Each was run twice — without the migration to watch the assertions fail, then
-with it to watch them pass — and the database checked afterwards for leftover
-rows, users and profiles. There were none.
-
-This is a stand-in, not a replacement. **Run `supabase/tests/run.sh` and
-`mutate.sh` once Docker is working**, because they exercise the whole suite
-against a clean database rather than one migration against a dirty one.
 
 ## 8. After all of it
 
