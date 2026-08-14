@@ -305,6 +305,17 @@ export async function listMaintenanceSchedulesForVehicle(
     await supabase
       .from("maintenance_schedules_detailed")
       .select("*")
+      // Archiving a reminder sets `archived_at` on its schedule but never
+      // `deleted_at`, and the view only filters `deleted_at` — so without this
+      // the removed ones came back with the live ones. They then showed up on
+      // the vehicle overview under "Needs attention", badged `Disabled`, with
+      // no row on the Maintenance tab to act on. `dashboard_overview` has
+      // always guarded this way; the per-vehicle path never did.
+      //
+      // It also keeps `MaintenanceTab`'s templateId -> schedule Map honest: a
+      // Map keeps the last value for a key, so a re-added item would otherwise
+      // risk binding its live setting to the stale archived schedule.
+      .is("archived_at", null)
       .eq("vehicle_id", vehicleId)
       .order("category", { ascending: true })
       .order("template_name", { ascending: true }),

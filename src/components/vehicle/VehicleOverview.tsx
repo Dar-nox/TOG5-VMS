@@ -1,6 +1,7 @@
 import { Link } from "react-router";
 import { useFormat } from "../../app/providers/formatContext";
 import { routes } from "../../lib/routes";
+import { attentionRank, needsAttention } from "../../domain/maintenance";
 import { labelFromKey } from "../../lib/text";
 import type { MaintenanceScheduleRecord } from "../../services/api/maintenance";
 import type { VehicleRecord } from "../../services/api/vehicles";
@@ -28,11 +29,13 @@ export function VehicleOverview({
 }) {
   const fmt = useFormat();
 
-  // Anything not simply fine, worst first. A vehicle with nothing wrong should
-  // say so in one line rather than list twenty things that are fine.
-  const needsAttention = schedules
-    .filter((schedule) => schedule.dueStatus !== "not_due")
-    .sort((a, b) => rank(a.dueStatus) - rank(b.dueStatus));
+  // Anything actually asking for somebody, worst first. A vehicle with nothing
+  // wrong should say so in one line rather than list twenty things that are
+  // fine — and, having asked for attention, every row here has to be something
+  // the reader can go and do.
+  const attention = schedules
+    .filter((schedule) => needsAttention(schedule.dueStatus))
+    .sort((a, b) => attentionRank(a.dueStatus) - attentionRank(b.dueStatus));
 
   return (
     <div className="flex flex-col gap-5">
@@ -63,11 +66,11 @@ export function VehicleOverview({
           title="Needs attention"
         />
 
-        {needsAttention.length === 0 ? (
+        {attention.length === 0 ? (
           <EmptyState title="Nothing is due for this vehicle." />
         ) : (
           <DataList>
-            {needsAttention.map((schedule) => (
+            {attention.map((schedule) => (
               <DataRow
                 key={schedule.id}
                 meta={
@@ -101,19 +104,4 @@ export function VehicleOverview({
       </Card>
     </div>
   );
-}
-
-function rank(status: string): number {
-  switch (status) {
-    case "overdue":
-      return 0;
-    case "due_today":
-      return 1;
-    case "due_soon":
-      return 2;
-    case "needs_setup":
-      return 3;
-    default:
-      return 4;
-  }
 }

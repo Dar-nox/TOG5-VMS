@@ -202,6 +202,28 @@ will bring its own equivalent, and if that number is much larger the screen
 becomes a wall. Worth looking at once the real data is in, and capping the list
 or filtering by age only if it actually reads badly.
 
+**Those same 75 were also leaking onto the vehicle Overview. Fixed 2026-08-15.**
+The client asked what the "Disabled" items on the Isuzu Truck were and pointed
+out there is no disable button — only Remove. Both true: `disabled` is how the
+database stores *removed*, and archiving sets `archived_at` on the schedule but
+never `deleted_at`, while `maintenance_schedules_detailed` filters only
+`deleted_at`. So removed reminders came back with the live ones and landed on
+the "Needs attention" card, badged `Disabled` and captioned "Disabled schedule
+does not generate alerts." — asking the client to act on items it also called
+inert, and offering nothing to press, since a removed reminder has no row on
+the Maintenance tab. Isuzu showed 5; KM450 (SJE 506) showed 33 against 33 real
+ones.
+
+Two causes, both fixed client-side with no migration:
+`listMaintenanceSchedulesForVehicle` now filters `archived_at is null`, the
+same guard `dashboard_overview` always had; and the Overview card picks rows by
+an allow-list (`src/domain/maintenance/attention.ts`) instead of
+`!== "not_due"`, which had treated every unconsidered status as urgent. The 75
+rows were deliberately left in place — `restore_record` reads them to bring a
+reminder back on its stored dates, and clears `archived_at` when it does, so
+Restore still works. Verified against the live project inside a transaction
+that was rolled back.
+
 ## 8. After all of it
 
 The UI overhaul, which is being held back on purpose until the migration is
